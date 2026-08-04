@@ -30,11 +30,9 @@ relay. Nothing is listening on the dev machine. This is the mode incumbents can'
 because their agents can't initiate an outbound connection — Grok Build's
 `agent headless --grok-ws-url` can.
 
-The relay is a dumb forwarder — it never parses ACP and holds no session state.
-
-> ⚠️ **It does, however, see plaintext.** End-to-end encryption between phone and daemon
-> is designed but **not implemented**. Until it is, treat the relay host as trusted:
-> run it yourself, on infrastructure you control. Do not use someone else's relay.
+The relay is a dumb forwarder — it never parses ACP, holds no session state, and cannot
+read frame contents (see §5). It serves the client and tunnels `/api/*` to the daemon, so
+a phone with no route to your machine can still load and pair.
 
 ---
 
@@ -100,10 +98,12 @@ Remote control of a coding agent **is** remote code execution. Treated as load-b
 1. **Pairing** — QR or 6-digit code, short TTL, one-time. Device gets a long-lived token; the
    daemon stores only a hash.
 2. **Transport auth** — every frame authenticated. `agent serve` already supports `--secret`.
-3. **Relay is NOT yet zero-knowledge.** The intent is e2e encryption between phone and
-   daemon so the relay routes ciphertext only. **This is not built.** Today the relay can
-   read every frame, including prompts and agent output. Self-host it, and don't rely on
-   it for confidentiality until this lands.
+3. **Relay is content-blind.** The encryption secret travels in the URL fragment, which
+   browsers never transmit, so the relay routes without being able to read. Every
+   WebSocket frame and tunnelled `/api/*` body is AES-256-GCM sealed; `test/e2e-crypto.test.ts`
+   taps the relay and asserts no plaintext crosses it. Routing metadata (which `/api/*`
+   route, sizes, timing) remains visible. This does **not** defend against a malicious
+   relay serving modified JavaScript — self-host it.
 4. **Credentials never leave the machine** — `~/.grok/auth.json` is used by the local agent
    only. The daemon never proxies or exposes it.
 5. **Default-deny permissions** — the daemon never launches with `--always-approve` or

@@ -23,9 +23,17 @@ const relay = (() => {
   const q = new URLSearchParams(location.search);
   const room = q.get('room');
   const key = q.get('key');
+  // The encryption secret arrives in the FRAGMENT, which browsers never send to
+  // the server — so the relay can route this connection without being able to
+  // read it. See web/crypto.js.
+  const secret = new URLSearchParams(location.hash.slice(1)).get('e');
   if (room && key) {
-    localStorage.setItem(RELAY_KEY, JSON.stringify({ room, key }));
-    return { room, key };
+    const cfg = { room, key, secret };
+    localStorage.setItem(RELAY_KEY, JSON.stringify(cfg));
+    // Strip the secret from the address bar so it doesn't sit in screenshots,
+    // shared links, or session restore.
+    history.replaceState(null, '', location.pathname + location.search);
+    return cfg;
   }
   try {
     return JSON.parse(localStorage.getItem(RELAY_KEY) || 'null');
@@ -36,6 +44,57 @@ const relay = (() => {
 
 /** Same-origin path, plus the room when we're behind a relay. */
 const api = (path) => (relay ? `${path}?room=${encodeURIComponent(relay.room)}` : path);
+
+/* ─── end-to-end encryption (relay mode only) ────────────────────────────── */
+
+let cryptoKey = null;
+let cryptoMod = null;
+
+async function initCrypto() {
+  if (!relay?.secret) return null;
+  if (cryptoKey) return cryptoKey;
+  cryptoMod = await import('/crypto.js');
+  cryptoKey = await cryptoMod.deriveKey(relay.secret);
+  return cryptoKey;
+}
+
+/** Encrypt for the wire when relayed; pass through when talking to the daemon directly. */
+async function sealIfRelayed(plaintext) {
+  const key = await initCrypto();
+  if (!key) return plaintext;
+  return JSON.stringify(await cryptoMod.seal(key, plaintext));
+}
+
+async function openIfRelayed(wire) {
+  const key = await initCrypto();
+  if (!key) return wire;
+  let parsed;
+  try {
+    parsed = JSON.parse(wire);
+  } catch {
+    return wire;
+  }
+  if (!cryptoMod.isEnvelope(parsed)) return wire;
+  return cryptoMod.open(key, parsed);
+}
+
+/** POST JSON through the relay with the body encrypted end-to-end. */
+async function apiPost(path, bodyObj) {
+  const raw = JSON.stringify(bodyObj);
+  const res = await fetch(api(path), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: await sealIfRelayed(raw),
+  });
+  const text = await res.text();
+  let payload;
+  try {
+    payload = JSON.parse(await openIfRelayed(text));
+  } catch {
+    payload = {};
+  }
+  return { ok: res.ok, status: res.status, body: payload };
+}
 
 const el = {
   conn: $('conn'), title: $('title'), back: $('back'),
@@ -82,13 +141,11 @@ el.pairGo.addEventListener('click', async () => {
   el.pairGo.disabled = true;
   el.pairErr.textContent = '';
   try {
-    const res = await fetch(api('/api/pair'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code, deviceName: navigator.userAgent.slice(0, 60) }),
+    const { ok, body } = await apiPost('/api/pair', {
+      code,
+      deviceName: navigator.userAgent.slice(0, 60),
     });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'pairing failed');
+    if (!ok) throw new Error(body.error || 'pairing failed');
     state.token = body.token;
     localStorage.setItem(TOKEN_KEY, body.token);
     connect();
@@ -120,13 +177,22 @@ function connect() {
   ws.addEventListener('open', () => {
     state.backoff = 500;
     setConn('live');
-    ws.send(JSON.stringify({ t: 'hello', token: state.token }));
+    sendMsg({ t: 'hello', token: state.token });
   });
 
+  // Frames arrive sealed in relay mode. Serialize decryption so events cannot
+  // reorder — a tool_call_update overtaking its tool_call would corrupt the UI.
+  let inbound = Promise.resolve();
   ws.addEventListener('message', (e) => {
-    let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
-    handle(msg);
+    inbound = inbound.then(async () => {
+      let msg;
+      try {
+        msg = JSON.parse(await openIfRelayed(e.data));
+      } catch {
+        return;
+      }
+      handle(msg);
+    });
   });
 
   ws.addEventListener('close', (e) => {
@@ -144,8 +210,15 @@ function connect() {
   ws.addEventListener('error', () => setConn('err'));
 }
 
+// Outbound frames are sealed in relay mode. Chained for the same ordering
+// reason as inbound — an approval answer must not overtake the prompt.
+let outbound = Promise.resolve();
 function sendMsg(payload) {
-  if (state.ws?.readyState === 1) state.ws.send(JSON.stringify(payload));
+  const raw = JSON.stringify(payload);
+  outbound = outbound.then(async () => {
+    if (state.ws?.readyState !== 1) return;
+    state.ws.send(await sealIfRelayed(raw));
+  });
 }
 
 function handle(msg) {
@@ -531,11 +604,8 @@ async function setupPush() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       }));
 
-    await fetch(api('/api/push/subscribe'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ token: state.token, subscription: sub }),
-    });
+    // Carries a device token — must be sealed like pairing is.
+    await apiPost('/api/push/subscribe', { token: state.token, subscription: sub });
   } catch (err) {
     // Push is an enhancement; the app must work without it (and will fail here
     // on plain http:// over LAN, where service workers are not permitted).

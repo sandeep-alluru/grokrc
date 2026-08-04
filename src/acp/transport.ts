@@ -66,6 +66,8 @@ export interface StdioTransportOptions {
   env?: NodeJS.ProcessEnv;
   /** Share one backend with an already-running leader process. */
   useLeader?: boolean;
+  /** Custom leader socket path (default `~/.grok/leader.sock`). */
+  leaderSocket?: string;
   /** Model override, e.g. `grok-build`. */
   model?: string;
 }
@@ -74,13 +76,21 @@ export class StdioTransport extends EventEmitter implements Transport {
   #child: ChildProcessWithoutNullStreams;
   #decoder = new NdjsonDecoder();
   #closed = false;
+  /** The argv actually used. Exposed so argument-order bugs are testable. */
+  readonly args: string[];
 
   constructor(opts: StdioTransportOptions = {}) {
     super();
-    const args = ['agent', 'stdio'];
-    if (opts.model) args.push('--model', opts.model);
+    // `--leader` and `--leader-socket` belong to `grok agent`, NOT to the
+    // `stdio` subcommand — placing them after `stdio` makes grok exit with
+    // "unexpected argument". Verified with tools/leader-probe.mjs.
+    const args = ['agent'];
     if (opts.useLeader) args.push('--leader');
+    if (opts.leaderSocket) args.push('--leader-socket', opts.leaderSocket);
+    args.push('stdio');
+    if (opts.model) args.push('--model', opts.model);
     if (opts.args?.length) args.push(...opts.args);
+    this.args = args;
 
     this.#child = spawn(opts.command ?? 'grok', args, {
       cwd: opts.cwd ?? process.cwd(),
