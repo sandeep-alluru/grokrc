@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Device tokens and pairing state — never commit
+.grokrc/
+devices.json
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+.idea/
+.vscode/
