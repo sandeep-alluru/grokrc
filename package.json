@@ -1,0 +1,43 @@
+{
+  "name": "grokrc",
+  "version": "0.1.0",
+  "description": "Remote control for xAI's Grok Build CLI — drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
+  "type": "module",
+  "bin": {
+    "grokrc": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "probe": "node tools/acp-probe.mjs"
+  },
+  "files": [
+    "dist",
+    "web"
+  ],
+  "keywords": [
+    "grok",
+    "grok-build",
+    "xai",
+    "acp",
+    "agent-client-protocol",
+    "remote-control",
+    "coding-agent",
+    "mobile"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
