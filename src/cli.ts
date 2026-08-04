@@ -341,6 +341,24 @@ async function cmdDoctor(): Promise<void> {
     const s = await client.newSession(process.cwd());
     console.log(`  ✓ session/new ok (${s.sessionId})`);
 
+    // Push is the feature most likely to be quietly broken — it depends on
+    // HTTPS, a service worker, and a third-party push service, none of which
+    // report back on their own.
+    const pushSvc = new PushService();
+    await pushSvc.load();
+    const st = pushSvc.stats;
+    console.log(
+      `  · push: ${pushSvc.subscriberCount} subscriber(s), ` +
+        `${st.sent} sent, ${st.failed} failed, ${st.expired} expired`
+    );
+    if (pushSvc.lastError) {
+      console.log(`    last failure: ${pushSvc.lastError.message}`);
+      console.log(`    endpoint: ${pushSvc.lastError.endpoint}`);
+    }
+    if (pushSvc.subscriberCount === 0) {
+      console.log('    (no devices subscribed — open the app over HTTPS and allow notifications)');
+    }
+
     const posture = await checkPermissionPosture();
     if (posture.willPrompt) {
       console.log('  ✓ agent will prompt before running tools');
