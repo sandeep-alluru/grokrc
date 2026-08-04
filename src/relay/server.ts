@@ -76,6 +76,7 @@ function safeEqual(a: string, b: string): boolean {
 export class RelayServer {
   #rooms = new Map<string, Room>();
   #webRoot: string;
+  #onFrame?: (raw: string) => void;
   #pendingHttp = new Map<string, (status: number, body: string) => void>();
   #nextHttpId = 1;
   /**
@@ -91,9 +92,13 @@ export class RelayServer {
   #wss = new WebSocketServer({ noServer: true });
   #nextClientId = 1;
 
-  constructor(opts: { webRoot?: string } = {}) {
+  constructor(opts: { webRoot?: string; onFrame?: (raw: string) => void } = {}) {
     this.#webRoot =
       opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web');
+    // Observation hook: sees exactly what the relay sees. Used by the
+    // end-to-end encryption test to prove the relay never handles plaintext —
+    // a claim that has to be mechanically checked, not asserted in prose.
+    this.#onFrame = opts.onFrame;
 
     this.#http.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url ?? '/', 'http://relay');
@@ -198,8 +203,10 @@ export class RelayServer {
 
     ws.on('message', (raw) => {
       let frame: RelayFrame;
+      const text = raw.toString();
+      this.#onFrame?.(text);
       try {
-        frame = JSON.parse(raw.toString()) as RelayFrame;
+        frame = JSON.parse(text) as RelayFrame;
       } catch {
         return;
       }
@@ -241,7 +248,9 @@ export class RelayServer {
 
     ws.on('message', (raw) => {
       // Opaque passthrough; the daemon is the only thing that parses payloads.
-      this.#toDaemon(room, { c: id, t: 'up', d: raw.toString() });
+      const text = raw.toString();
+      this.#onFrame?.(text);
+      this.#toDaemon(room, { c: id, t: 'up', d: text });
     });
 
     const drop = () => {
@@ -253,7 +262,11 @@ export class RelayServer {
   }
 
   #toDaemon(room: Room, frame: RelayFrame): void {
-    if (room.daemon?.readyState === 1) room.daemon.send(JSON.stringify(frame));
+    const raw = JSON.stringify(frame);
+    // Tap outbound too, so the observation hook sees everything the relay
+    // handles — not just what arrives at it.
+    this.#onFrame?.(raw);
+    if (room.daemon?.readyState === 1) room.daemon.send(raw);
   }
 
   async listen(port: number, host = '0.0.0.0'): Promise<number> {

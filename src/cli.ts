@@ -114,10 +114,23 @@ async function cmdUp(flags: Flags): Promise<void> {
   if (typeof flags.relay === 'string') {
     const room = typeof flags.room === 'string' ? flags.room : randomBytes(6).toString('hex');
     const key = typeof flags['relay-key'] === 'string' ? flags['relay-key'] : randomBytes(16).toString('hex');
-    server.connectRelay({ url: flags.relay, room, key });
+    // base64url, matching web/crypto.js
+    const secret =
+      flags['no-e2e'] === true ? undefined : randomBytes(32).toString('base64url');
+
+    server.connectRelay({ url: flags.relay, room, key, secret });
+
+    const httpUrl = flags.relay.replace(/^ws/, 'http');
+    // The secret goes in the FRAGMENT — browsers never send it to the relay.
+    const frag = secret ? `#e=${secret}` : '';
     console.log(`\n  relay: ${flags.relay}`);
-    console.log(`  phone URL: ${flags.relay.replace(/^ws/, 'http')}/client?room=${room}&key=${key}`);
+    console.log(`  phone URL: ${httpUrl}/client?room=${room}&key=${key}${frag}`);
     console.log('  (no inbound port needed — this machine dials out)');
+    console.log(
+      secret
+        ? '  end-to-end encrypted: the secret is in the URL fragment, which the relay never receives'
+        : '  ⚠ --no-e2e: the relay can read everything on this connection'
+    );
   }
 
   console.log(`\n  grokrc listening on http://${shown}:${bound.port}`);

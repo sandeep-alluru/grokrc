@@ -106,12 +106,24 @@ export class RemoteControlServer {
    * auth and message path as a direct WebSocket — pairing and token checks are
    * not bypassed just because the bytes arrived via a relay.
    */
-  connectRelay(opts: { url: string; room: string; key: string }): void {
+  connectRelay(opts: { url: string; room: string; key: string; secret?: string }): void {
     const url = `${opts.url}/agent?room=${encodeURIComponent(opts.room)}&key=${encodeURIComponent(opts.key)}`;
     let backoff = 500;
 
     const dial = async () => {
       const { WebSocket } = await import('ws');
+
+      // Encryption sits at the relay boundary only: direct LAN clients are
+      // same-origin and unaffected, and the relay itself needs no changes
+      // because it already forwards `d` opaquely.
+      const crypto = opts.secret ? await loadRelayCrypto(opts.secret) : null;
+      // Serialize crypto through one chain so frames cannot reorder.
+      let chain: Promise<unknown> = Promise.resolve();
+      const ordered = <T>(fn: () => Promise<T>): Promise<T> => {
+        const next = chain.then(fn, fn);
+        chain = next.catch(() => {});
+        return next as Promise<T>;
+      };
       const link = new WebSocket(url);
       const virtual = new Map<string, VirtualSocket>();
 
@@ -133,18 +145,32 @@ export class RemoteControlServer {
         // handlers as a direct request, so pairing over a relay is not a
         // separate, weaker code path.
         if (frame.t === 'http') {
-          void this.#handleTunnelledHttp(frame.c, frame.d ?? '{}', (status, body) =>
-            link.send(JSON.stringify({ c: frame.c, t: 'http-res', d: JSON.stringify({ status, body }) }))
-          );
+          // The relay wraps the request as {method,path,body}; the BROWSER seals
+          // only `body`. So the envelope lives one level in — decrypting the
+          // whole frame would just hand us the wrapper back.
+          void ordered(async () => {
+            await this.#handleTunnelledHttp(frame.c, frame.d ?? '{}', crypto, (status, body) => {
+              void ordered(async () => {
+                const payload = JSON.stringify({
+                  status,
+                  body: crypto ? await crypto.encrypt(body) : body,
+                });
+                link.send(JSON.stringify({ c: frame.c, t: 'http-res', d: payload }));
+              });
+            });
+          });
           return;
         }
 
         if (frame.t === 'open') {
           // `d` travels as an already-encoded string; send it through untouched
           // or the relay round trip double-encodes every payload.
-          const vs = new VirtualSocket((payload) =>
-            link.send(JSON.stringify({ c: frame.c, t: 'down', d: payload }))
-          );
+          const vs = new VirtualSocket((payload) => {
+            void ordered(async () => {
+              const d = crypto ? await crypto.encrypt(payload) : payload;
+              link.send(JSON.stringify({ c: frame.c, t: 'down', d }));
+            });
+          });
           virtual.set(frame.c, vs);
           this.#onConnection(vs as unknown as WebSocket);
           return;
@@ -156,7 +182,19 @@ export class RemoteControlServer {
           vs.emit('close');
           return;
         }
-        if (frame.d !== undefined) vs.emit('message', Buffer.from(frame.d));
+        if (frame.d !== undefined) {
+          void ordered(async () => {
+            try {
+              const plain = crypto ? await crypto.decrypt(frame.d!) : frame.d!;
+              vs.emit('message', Buffer.from(plain));
+            } catch {
+              // Authenticated encryption failing means a tampered or
+              // wrong-key frame. Drop the client rather than process it.
+              vs.emit('close');
+              virtual.delete(frame.c);
+            }
+          });
+        }
       });
 
       const retry = () => {
@@ -184,6 +222,7 @@ export class RemoteControlServer {
   async #handleTunnelledHttp(
     _id: string,
     raw: string,
+    crypto: { decrypt(s: string): Promise<string> } | null,
     reply: (status: number, body: string) => void
   ): Promise<void> {
     let req: { method?: string; path?: string; body?: string };
@@ -191,6 +230,15 @@ export class RemoteControlServer {
       req = JSON.parse(raw);
     } catch {
       return reply(400, JSON.stringify({ error: 'invalid tunnel frame' }));
+    }
+
+    // Unseal the request body the browser encrypted end-to-end.
+    if (crypto && req.body) {
+      try {
+        req.body = await crypto.decrypt(req.body);
+      } catch {
+        return reply(400, JSON.stringify({ error: 'decryption failed' }));
+      }
     }
 
     const send = (status: number, payload: unknown) => reply(status, JSON.stringify(payload));
@@ -491,6 +539,35 @@ class VirtualSocket extends EventEmitter {
     this.readyState = 3;
     this.emit('close');
   }
+}
+
+/**
+ * Load the shared crypto module — the same `web/crypto.js` the browser runs, so
+ * both ends cannot drift apart. Resolved relative to this file, which sits at
+ * the same depth in `src/` and `dist/`.
+ */
+async function loadRelayCrypto(secret: string) {
+  const { pathToFileURL } = await import('node:url');
+  const { resolve, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const here = dirname(fileURLToPath(import.meta.url));
+  const mod = (await import(
+    pathToFileURL(resolve(here, '../../web/crypto.js')).href
+  )) as typeof import('../../web/crypto.js');
+
+  const key = await mod.deriveKey(secret);
+  return {
+    async encrypt(plaintext: string): Promise<string> {
+      return JSON.stringify(await mod.seal(key, plaintext));
+    },
+    async decrypt(wire: string): Promise<string> {
+      const parsed = JSON.parse(wire) as unknown;
+      // Tolerate plaintext during rollout, but never silently accept it as
+      // authenticated — callers treat a decrypt failure as fatal for the client.
+      if (!mod.isEnvelope(parsed)) return wire;
+      return mod.open(key, parsed as { n: string; c: string });
+    },
+  };
 }
 
 async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {

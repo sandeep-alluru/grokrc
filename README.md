@@ -161,7 +161,10 @@ once it lands.
   (`tools/e2e-drive.mjs`, capture in `docs/captures/e2e-drive.json`)
 - ✅ **Verified in a real browser** — Chromium at phone width loads the app, pairs,
   streams a turn, and taps an approval, both direct and through the relay
-- ✅ 68 tests; build, typecheck, and `grokrc doctor` green
+- ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
+- ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
+  the second loading a session created by the first
+- ✅ 83 tests; build, typecheck, and `grokrc doctor` green
 
 ![approval screen](docs/screenshots/approval.png)
 
@@ -169,9 +172,9 @@ once it lands.
 
 | | |
 |---|---|
-| Relay confidentiality | The relay sees plaintext. E2E encryption is designed, not built — **self-host it** |
+| Malicious relay | E2E encryption defeats a *passive* relay, not one serving modified JS. Self-host it |
+| Relay metadata | Routes, message sizes, and timing are visible. Contents are not |
 | Push delivery | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it |
-| Shared mode | `--leader` is passed through but never exercised |
 | Observed mode | Read-only by construction — a log file can't accept input |
 | `grokrc pair` | Stub; prints guidance instead of issuing a code |
 | Tool coverage | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified |
@@ -216,8 +219,29 @@ daemon over its outbound socket, so a phone with **no route to your machine** ca
 the app, pair, and drive a session. Verified in a real browser
 (`test/relay-browser.test.ts`) with the daemon's own HTTP port never contacted.
 
-> ⚠️ The relay sees plaintext. End-to-end encryption is designed but **not implemented** —
-> self-host it and treat the host as trusted.
+### End-to-end encryption
+
+The relay routes but cannot read. `grokrc up --relay` mints a secret and puts it in the
+URL **fragment**:
+
+```
+http://relay.example/client?room=R&key=K#e=<secret>
+                                        ^^^^^^^^^^^
+                        browsers never send fragments to the server
+```
+
+Both ends derive an AES-256-GCM key from it (HKDF), and every WebSocket frame plus every
+tunnelled `/api/*` body is sealed. `test/e2e-crypto.test.ts` taps every frame the relay
+handles and asserts the prompt text, agent output, pairing code, device token, and ACP
+structure appear in **none** of them.
+
+The relay still sees routing metadata — that `/api/pair` was called, and message sizes and
+timing. It cannot see contents.
+
+> ⚠️ **What this does not defend against:** a *malicious* relay serving modified
+> JavaScript. The relay serves the client, so it could serve a version that leaks the key.
+> Encryption cannot fix code delivery. Self-host the relay, or load the client once from
+> the daemon over LAN. `--no-e2e` disables encryption and says so loudly.
 
 The relay is deliberately stupid: it forwards opaque frames between one daemon and
 N clients in a room, and never parses ACP. **It is not a trust boundary** — a

@@ -66,6 +66,8 @@ export interface SessionManagerOptions {
   /** Share one backend with a running `grok agent leader`, so the TUI and phone
    *  drive the same session. */
   useLeader?: boolean;
+  /** Custom leader socket path (default `~/.grok/leader.sock`). */
+  leaderSocket?: string;
   /**
    * Override how the agent transport is created. Exists so tests can substitute
    * a scripted agent — driving the UI against real captured payloads without
@@ -215,6 +217,7 @@ export class SessionManager extends EventEmitter {
         cwd,
         model,
         useLeader: this.#opts.useLeader,
+        leaderSocket: this.#opts.leaderSocket,
       });
     const client = new AcpClient({ transport });
 
