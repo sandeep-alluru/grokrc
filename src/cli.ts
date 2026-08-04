@@ -9,11 +9,13 @@
  *   grokrc doctor
  */
 import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
+import { PushService } from './daemon/push.ts';
 import { SessionManager } from './daemon/session-manager.ts';
 import { RemoteControlServer } from './daemon/server.ts';
 
@@ -61,6 +63,12 @@ grokrc — remote control for Grok Build
       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
       --model <M>      Model override for new sessions
       --cwd <DIR>      Default working directory for new sessions
+      --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
+      --room <ID>      Relay room id (generated if omitted)
+      --relay-key <K>  Relay room key (generated if omitted)
+
+  grokrc relay       Run a self-hostable relay server
+      --port <N>       Port (default 8080)
 
   grokrc pair        Print a pairing code for a new device
   grokrc devices     List paired devices
@@ -71,6 +79,9 @@ grokrc — remote control for Grok Build
 async function cmdUp(flags: Flags): Promise<void> {
   const auth = new AuthStore();
   await auth.load();
+
+  const push = new PushService();
+  if (flags['no-push'] !== true) await push.load();
 
   const sessions = new SessionManager({
     model: typeof flags.model === 'string' ? flags.model : undefined,
@@ -86,11 +97,21 @@ async function cmdUp(flags: Flags): Promise<void> {
     webRoot: WEB_ROOT,
     sessions,
     auth,
+    push: flags['no-push'] === true ? undefined : push,
     defaultCwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
   });
 
   const bound = await server.listen();
   const shown = host === '0.0.0.0' ? lanAddress() ?? '0.0.0.0' : host;
+
+  if (typeof flags.relay === 'string') {
+    const room = typeof flags.room === 'string' ? flags.room : randomBytes(6).toString('hex');
+    const key = typeof flags['relay-key'] === 'string' ? flags['relay-key'] : randomBytes(16).toString('hex');
+    server.connectRelay({ url: flags.relay, room, key });
+    console.log(`\n  relay: ${flags.relay}`);
+    console.log(`  phone URL: ${flags.relay.replace(/^ws/, 'http')}/client?room=${room}&key=${key}`);
+    console.log('  (no inbound port needed — this machine dials out)');
+  }
 
   console.log(`\n  grokrc listening on http://${shown}:${bound.port}`);
   if (host === '0.0.0.0') {
@@ -198,6 +219,14 @@ async function main(): Promise<void> {
       return cmdRevoke(rest, flags);
     case 'doctor':
       return cmdDoctor();
+    case 'relay': {
+      const { RelayServer } = await import('./relay/server.ts');
+      const relay = new RelayServer();
+      const p = await relay.listen(Number(flags.port ?? 8080));
+      console.log(`\n  grokrc relay listening on :${p}`);
+      console.log('  point a daemon at it with: grokrc up --relay ws://<host>:' + p + '\n');
+      return;
+    }
     default:
       console.log(HELP);
   }

@@ -141,6 +141,11 @@ export function normalizeSessionUpdate(params: SessionUpdateParams): RcEvent[] {
         },
       ];
 
+    // Observed in real session logs — the agent finished a turn. Without this
+    // an observed session would sit on "working" forever.
+    case 'turn_completed':
+      return [{ k: 'status', sessionId, state: 'done' }];
+
     case 'available_commands_update':
       return [{ k: 'commands', sessionId, commands: u.availableCommands ?? [] }];
 

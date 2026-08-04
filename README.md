@@ -126,21 +126,55 @@ once it lands.
 
 ## Status
 
-Working today:
-
 - ✅ ACP client — handshake, sessions, prompts, cancel, fs bridge (verified against `grok 0.2.118`)
 - ✅ Event normalizer with unknown-kind passthrough
-- ✅ Session manager — owned + shared modes, replayable history, held approvals
+- ✅ Session manager — owned, shared, and **observed** modes; replayable history; held approvals
 - ✅ Pairing, device tokens, authenticated WebSocket
 - ✅ PWA — session list, streaming, tool cards, plans, one-tap approvals
-- ✅ 19 tests; `npm run build` and `grokrc doctor` green
+- ✅ **Observed mode** — mirrors sessions you started by hand in a terminal
+- ✅ **Relay mode** — daemon dials out; no inbound port
+- ✅ **Web Push** — self-hosted VAPID; the phone buzzes when the agent is blocked
+- ✅ 38 tests; build, typecheck, and `grokrc doctor` green
 
-Next:
+Next: `grokrc pair` against a live daemon (needs a control socket), image prompts
+once the agent advertises `promptCapabilities.image`, and end-to-end encryption
+through the relay so a hosted forwarder can't see plaintext.
 
-- Observed mode — tail `~/.grok/sessions/**/updates.jsonl` for sessions started by hand
-- Relay mode — `grok agent headless --grok-ws-url`, so no inbound port at all
-- Web Push on approval requests (self-hosted VAPID, no third-party cloud)
-- `grokrc pair` against a live daemon (needs the control socket)
+---
+
+## Observed mode
+
+Grok persists every ACP update to
+`~/.grok/sessions/<encoded-cwd>/<id>/updates.jsonl`. grokrc tails it, so a session
+running in a terminal window shows up on your phone **read-only** — with no
+cooperation from that process and no change to how you work.
+
+Verified against real logs on-disk: the file is one JSON-RPC frame per line
+(`{"timestamp":…,"method":"session/update","params":{…}}`), and `params` is
+byte-identical to the live wire format, so one normalizer serves both.
+
+## Relay mode
+
+```bash
+# on a VPS
+grokrc relay --port 8080
+
+# on your dev machine — dials OUT, nothing listening locally
+grokrc up --relay ws://your-vps:8080
+```
+
+It prints a phone URL. Works on cellular, behind NAT, with no port forward and no
+Tailnet.
+
+The relay is deliberately stupid: it forwards opaque frames between one daemon and
+N clients in a room, and never parses ACP. **It is not a trust boundary** — a
+relayed client still has to present a valid device token, which is tested.
+
+> `grok agent headless --grok-ws-url` also works — the probe in
+> `docs/captures/relay-probe.json` shows the agent speaking plain ACP over its own
+> outbound socket. grokrc doesn't use it, because pointing the *agent* at a relay
+> bypasses the daemon and loses event normalization and held approvals. Having the
+> *daemon* dial out gets the same NAT traversal and keeps both.
 
 ## Development
 

@@ -15,6 +15,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AcpClient, type PermissionRequest } from '../acp/client.ts';
 import { StdioTransport } from '../acp/transport.ts';
+import { SessionObserver } from './observer.ts';
 import {
   normalizePermission,
   normalizeSessionUpdate,
@@ -50,6 +51,15 @@ interface LiveSession {
   buffer: string;
 }
 
+interface ObservedSession {
+  info: SessionInfo;
+  observer: SessionObserver;
+  log: RcEvent[];
+  buffer: string;
+  /** Clients currently watching; the tailer stops when this hits zero. */
+  watchers: number;
+}
+
 export interface SessionManagerOptions {
   grokCommand?: string;
   model?: string;
@@ -60,6 +70,7 @@ export interface SessionManagerOptions {
 
 export class SessionManager extends EventEmitter {
   #sessions = new Map<string, LiveSession>();
+  #observed = new Map<string, ObservedSession>();
   #opts: SessionManagerOptions;
 
   constructor(opts: SessionManagerOptions = {}) {
@@ -75,26 +86,116 @@ export class SessionManager extends EventEmitter {
   }
 
   list(): SessionInfo[] {
-    return [...this.#sessions.values()]
-      .map((s) => ({ ...s.info, pendingApprovals: s.approvals.size }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return [
+      ...[...this.#sessions.values()].map((s) => ({
+        ...s.info,
+        pendingApprovals: s.approvals.size,
+      })),
+      ...[...this.#observed.values()].map((o) => ({ ...o.info })),
+    ].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   get(id: string): SessionInfo | undefined {
     const s = this.#sessions.get(id);
-    return s ? { ...s.info, pendingApprovals: s.approvals.size } : undefined;
+    if (s) return { ...s.info, pendingApprovals: s.approvals.size };
+    const o = this.#observed.get(id);
+    return o ? { ...o.info } : undefined;
   }
 
   /** Replay for a client that just connected or reopened a session. */
   history(id: string): RcEvent[] {
     const s = this.#sessions.get(id);
-    if (!s) return [];
+    if (!s) return this.#observed.get(id)?.log ?? [];
     // Pending approvals are re-emitted last so they land at the bottom of the
     // transcript, where the user will act on them.
     const pending = [...s.approvals.entries()].map(([requestId, req]) =>
       normalizePermission(requestId, req.params)
     );
     return [...s.log, ...pending];
+  }
+
+  /**
+   * Start mirroring a session this daemon does not own — one the user started by
+   * hand in a terminal. Read-only. Idempotent; refcounted by watcher.
+   */
+  async observe(id: string, cwd: string): Promise<SessionInfo> {
+    const existing = this.#observed.get(id);
+    if (existing) {
+      existing.watchers++;
+      return { ...existing.info };
+    }
+
+    const dir = join(GROK_HOME, 'sessions', encodeURIComponent(cwd), id);
+    const now = Date.now();
+    const obs: ObservedSession = {
+      info: {
+        id,
+        cwd,
+        title: defaultTitle(cwd),
+        mode: 'observed',
+        state: 'idle',
+        createdAt: now,
+        updatedAt: now,
+        pendingApprovals: 0,
+      },
+      observer: new SessionObserver({ sessionDir: dir }),
+      log: [],
+      buffer: '',
+      watchers: 1,
+    };
+
+    // Enrich from summary.json when present — best effort, never fatal.
+    try {
+      const s = JSON.parse(await readFile(join(dir, 'summary.json'), 'utf8')) as SummaryFile;
+      obs.info.title = s.session_summary || obs.info.title;
+      obs.info.model = s.current_model_id;
+      obs.info.createdAt = toMs(s.created_at);
+      obs.info.updatedAt = toMs(s.updated_at);
+    } catch {
+      /* a session can exist before its summary is written */
+    }
+
+    obs.observer.on('event', (ev) => {
+      // Same chunk coalescing as owned sessions, so replay yields whole messages.
+      if (ev.k === 'text' && ev.role === 'agent' && !ev.final) {
+        obs.buffer += ev.text;
+        this.emit('event', { ...ev, sessionId: id });
+        return;
+      }
+      if (obs.buffer) {
+        const text = obs.buffer;
+        obs.buffer = '';
+        this.#pushObserved(obs, { k: 'text', sessionId: id, role: 'agent', text, final: true });
+      }
+      this.#pushObserved(obs, { ...ev, sessionId: id } as RcEvent);
+    });
+
+    obs.observer.on('error', (err) => {
+      this.#pushObserved(obs, { k: 'error', sessionId: id, message: err.message, fatal: false });
+    });
+
+    this.#observed.set(id, obs);
+    await obs.observer.start();
+    this.emit('session-list-changed');
+    return { ...obs.info };
+  }
+
+  /** Drop a watcher; stops tailing when the last one leaves. */
+  unobserve(id: string): void {
+    const obs = this.#observed.get(id);
+    if (!obs) return;
+    if (--obs.watchers > 0) return;
+    obs.observer.stop();
+    this.#observed.delete(id);
+    this.emit('session-list-changed');
+  }
+
+  #pushObserved(obs: ObservedSession, ev: RcEvent): void {
+    obs.log.push(ev);
+    if (obs.log.length > EVENT_LOG_LIMIT) obs.log.splice(0, obs.log.length - EVENT_LOG_LIMIT);
+    if (ev.k === 'status') obs.info.state = ev.state;
+    obs.info.updatedAt = Date.now();
+    this.emit('event', ev);
   }
 
   /* ─── lifecycle ───────────────────────────────────────────────────────── */
@@ -184,6 +285,8 @@ export class SessionManager extends EventEmitter {
 
   closeAll(): void {
     for (const id of [...this.#sessions.keys()]) this.close(id);
+    for (const obs of this.#observed.values()) obs.observer.stop();
+    this.#observed.clear();
   }
 
   /* ─── observed sessions (started by hand in a terminal) ───────────────── */
@@ -215,16 +318,18 @@ export class SessionManager extends EventEmitter {
       for (const id of ids) {
         try {
           const raw = await readFile(join(cwdDir, id, 'summary.json'), 'utf8');
-          const s = JSON.parse(raw) as Record<string, unknown>;
+          const s = JSON.parse(raw) as SummaryFile;
+          // Field names verified against real session files — Grok writes
+          // `session_summary` and `current_model_id`, not `title`/`model`.
           out.push({
-            id,
-            cwd,
-            title: String(s.title ?? defaultTitle(cwd)),
-            model: typeof s.model === 'string' ? s.model : undefined,
+            id: s.info?.id ?? id,
+            cwd: s.info?.cwd ?? cwd,
+            title: s.session_summary || defaultTitle(cwd),
+            model: s.current_model_id,
             mode: 'observed',
             state: 'idle',
-            createdAt: toMs(s.created_at ?? s.createdAt),
-            updatedAt: toMs(s.updated_at ?? s.updatedAt),
+            createdAt: toMs(s.created_at),
+            updatedAt: toMs(s.updated_at),
             pendingApprovals: 0,
           });
         } catch {
@@ -320,6 +425,16 @@ export class SessionManager extends EventEmitter {
     s.info.state = state;
     this.#push(s, { k: 'status', sessionId: s.info.id, state });
   }
+}
+
+/** Shape of `~/.grok/sessions/<cwd>/<id>/summary.json`, verified against real files. */
+interface SummaryFile {
+  info?: { id?: string; cwd?: string };
+  session_summary?: string;
+  current_model_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  num_messages?: number;
 }
 
 function defaultTitle(cwd: string): string {

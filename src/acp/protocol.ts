@@ -81,6 +81,12 @@ export type SessionUpdateKind =
   | 'plan'
   | 'available_commands_update'
   | 'current_mode_update'
+  /* Present in real session logs but absent from the published spec — found by
+   * scanning ~/.grok/sessions/**\/updates.jsonl on a live machine. */
+  | 'turn_completed'
+  | 'task_backgrounded'
+  | 'task_completed'
+  | 'hook_execution'
   | (string & {});
 
 export interface ContentBlock {
