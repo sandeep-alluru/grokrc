@@ -19,7 +19,7 @@
  *   node dist/relay/server.js --port 8080
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,8 +77,18 @@ export class RelayServer {
   #rooms = new Map<string, Room>();
   #webRoot: string;
   #onFrame?: (raw: string) => void;
-  #pendingHttp = new Map<string, (status: number, body: string) => void>();
-  #nextHttpId = 1;
+  /**
+   * Tunnelled HTTP requests awaiting a daemon reply.
+   *
+   * Each entry records the room that OWNS it. Without that, any daemon could
+   * answer any pending id — and ids were a global sequential counter, so they
+   * were trivially guessable. A relay hosting two daemons let one answer the
+   * other's `/api/pair` with a forged device token.
+   */
+  #pendingHttp = new Map<
+    string,
+    { roomId: string; respond: (status: number, body: string) => void }
+  >();
   /**
    * The relay must serve the app itself, not just forward sockets — a phone on
    * cellular has no route to the daemon's HTTP listener, so without this there
@@ -179,15 +189,21 @@ export class RelayServer {
       }
     }
 
-    const id = `http-${this.#nextHttpId++}`;
+    // Unguessable id AND a recorded owner. The id alone is not the control —
+    // ownership is — but a random id removes the guessing game entirely.
+    const id = `http-${randomUUID()}`;
     const timer = setTimeout(() => {
       if (this.#pendingHttp.delete(id)) json(res, 504, { error: 'daemon timeout' });
     }, 15_000);
+    timer.unref?.(); // must not hold the process open on shutdown
 
-    this.#pendingHttp.set(id, (status, payload) => {
-      clearTimeout(timer);
-      res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
-      res.end(payload);
+    this.#pendingHttp.set(id, {
+      roomId: room.id,
+      respond: (status, payload) => {
+        clearTimeout(timer);
+        res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(payload);
+      },
     });
 
     this.#toDaemon(room, {
@@ -215,9 +231,12 @@ export class RelayServer {
       if (frame.t === 'http-res') {
         const pending = this.#pendingHttp.get(frame.c);
         if (!pending) return;
+        // A daemon may only answer requests belonging to ITS OWN room. Without
+        // this, one tenant answers another's /api/pair with a forged token.
+        if (pending.roomId !== room.id) return;
         this.#pendingHttp.delete(frame.c);
         const { status, body } = JSON.parse(frame.d ?? '{}') as { status: number; body: string };
-        pending(status, body);
+        pending.respond(status, body);
         return;
       }
 
@@ -235,6 +254,16 @@ export class RelayServer {
       // talking to nobody. Close them rather than let the UI look connected.
       for (const c of room.clients.values()) c.close(4503, 'daemon disconnected');
       room.clients.clear();
+
+      // Settle this room's in-flight requests now. Leaving them to their 15s
+      // timeout makes a browser wait a quarter minute for an answer that can
+      // never come, and holds the entries in memory meanwhile.
+      for (const [id, p] of this.#pendingHttp) {
+        if (p.roomId !== room.id) continue;
+        this.#pendingHttp.delete(id);
+        p.respond(503, JSON.stringify({ error: 'daemon disconnected' }));
+      }
+
       this.#rooms.delete(room.id);
     };
     ws.on('close', drop);
