@@ -93,15 +93,34 @@ export class AcpClient extends EventEmitter {
   request<T = unknown>(method: string, params?: unknown, timeoutMs?: number): Promise<T> {
     if (this.#closed) return Promise.reject(new Error('client closed'));
     const id = this.#nextId++;
-    this.#transport.send({ jsonrpc: '2.0', id, method, params });
-    return new Promise<T>((resolve, reject) => {
+    const budget = timeoutMs ?? this.#requestTimeoutMs;
+
+    // Register BEFORE sending. A transport that answers synchronously (an
+    // in-process one, or a pipe that is already readable) would otherwise
+    // deliver the response while #pending has no entry for it — the reply is
+    // dropped as "late" and the caller waits out the full timeout.
+    const promise = new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new Error(`ACP timeout after ${timeoutMs ?? this.#requestTimeoutMs}ms: ${method}`));
-      }, timeoutMs ?? this.#requestTimeoutMs);
+        reject(new Error(`ACP timeout after ${budget}ms: ${method}`));
+      }, budget);
       timer.unref?.();
       this.#pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, method });
     });
+
+    try {
+      this.#transport.send({ jsonrpc: '2.0', id, method, params });
+    } catch (err) {
+      // A send failure must settle the promise we just registered, or the caller
+      // hangs until the timeout for an error we already know about.
+      const p = this.#pending.get(id);
+      if (p) {
+        clearTimeout(p.timer);
+        this.#pending.delete(id);
+        p.reject(err as Error);
+      }
+    }
+    return promise;
   }
 
   notify(method: string, params?: unknown): void {
