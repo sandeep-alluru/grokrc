@@ -129,6 +129,16 @@ export class RemoteControlServer {
         } catch {
           return;
         }
+        // An /api/* call tunnelled from the relay. Answered through the same
+        // handlers as a direct request, so pairing over a relay is not a
+        // separate, weaker code path.
+        if (frame.t === 'http') {
+          void this.#handleTunnelledHttp(frame.c, frame.d ?? '{}', (status, body) =>
+            link.send(JSON.stringify({ c: frame.c, t: 'http-res', d: JSON.stringify({ status, body }) }))
+          );
+          return;
+        }
+
         if (frame.t === 'open') {
           // `d` travels as an already-encoded string; send it through untouched
           // or the relay round trip double-encodes every payload.
@@ -164,6 +174,58 @@ export class RemoteControlServer {
     };
 
     void dial();
+  }
+
+  /**
+   * Serve an /api/* call that arrived via the relay rather than over HTTP.
+   * Reuses the same auth checks as the direct path — arriving through a relay
+   * grants nothing extra.
+   */
+  async #handleTunnelledHttp(
+    _id: string,
+    raw: string,
+    reply: (status: number, body: string) => void
+  ): Promise<void> {
+    let req: { method?: string; path?: string; body?: string };
+    try {
+      req = JSON.parse(raw);
+    } catch {
+      return reply(400, JSON.stringify({ error: 'invalid tunnel frame' }));
+    }
+
+    const send = (status: number, payload: unknown) => reply(status, JSON.stringify(payload));
+
+    try {
+      if (req.path === '/api/health') return send(200, { ok: true, version: '0.1.0' });
+
+      if (req.path === '/api/push/key') {
+        return send(200, { publicKey: this.#opts.push?.publicKey ?? null });
+      }
+
+      if (req.path === '/api/pair' && req.method === 'POST') {
+        const body = JSON.parse(req.body || '{}') as { code?: string; deviceName?: string };
+        if (!body.code) return send(400, { error: 'code required' });
+        const result = await this.#opts.auth.redeem(body.code, body.deviceName ?? 'device');
+        return result
+          ? send(200, { token: result.token, deviceId: result.device.id })
+          : send(401, { error: 'invalid or expired pairing code' });
+      }
+
+      if (req.path === '/api/push/subscribe' && req.method === 'POST') {
+        const push = this.#opts.push;
+        if (!push) return send(503, { error: 'push not enabled' });
+        const body = JSON.parse(req.body || '{}') as { token?: string; subscription?: unknown };
+        const device = body.token ? await this.#opts.auth.verify(body.token) : null;
+        if (!device) return send(401, { error: 'unauthorized' });
+        if (!body.subscription) return send(400, { error: 'subscription required' });
+        await push.subscribe(device.id, body.subscription as never);
+        return send(200, { ok: true });
+      }
+
+      send(404, { error: 'not found' });
+    } catch (err) {
+      send(500, { error: (err as Error).message });
+    }
   }
 
   async listen(): Promise<{ host: string; port: number }> {

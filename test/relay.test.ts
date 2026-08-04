@@ -72,8 +72,15 @@ function next(sock: InstanceType<typeof WebSocket>, timeoutMs = 5000): Promise<a
 await new Promise((r) => setTimeout(r, 300));
 
 test('relay is alive', async () => {
-  const res = await fetch(`http://127.0.0.1:${relayPort}/`);
+  // `/` now serves the PWA, so health moved to /health.
+  const res = await fetch(`http://127.0.0.1:${relayPort}/health`);
   assert.equal((await res.json()).service, 'grokrc-relay');
+});
+
+test('relay serves the app at /', async () => {
+  const res = await fetch(`http://127.0.0.1:${relayPort}/`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') ?? '', /text\/html/);
 });
 
 test('a wrong room key is refused at the relay', async () => {

@@ -13,6 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "test": "node --test --experimental-strip-types test/*.test.ts",
+    "test:unit": "node --test --experimental-strip-types test/events.test.ts test/observer.test.ts test/preflight.test.ts test/push.test.ts test/relay.test.ts test/server.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "probe": "node tools/acp-probe.mjs"
   },
@@ -39,6 +40,7 @@
     "@types/node": "^22.10.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",
+    "playwright": "^1.62.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }
