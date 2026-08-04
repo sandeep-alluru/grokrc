@@ -186,15 +186,14 @@ async function main() {
   log(`  turn completed:      ${done}`);
   log(`  permission request:  ${sawApproval}`);
   log(`  approved remotely:   ${approvalAnswered}`);
-  log(`  hello.txt:           ${fileContents === null ? 'NOT CREATED' : JSON.stringify(fileContents)}`);
+  log(
+    `  hello.txt:           ${fileContents === null ? 'NOT CREATED' : JSON.stringify(fileContents)}`
+  );
   log(`  events captured:     ${capture.events.length}`);
   log(`  event kinds:         ${[...new Set(capture.events.map((e) => e.k))].join(', ')}`);
 
   await mkdir(join(ROOT, 'docs/captures'), { recursive: true });
-  await writeFile(
-    join(ROOT, 'docs/captures/e2e-drive.json'),
-    JSON.stringify(capture, null, 2)
-  );
+  await writeFile(join(ROOT, 'docs/captures/e2e-drive.json'), JSON.stringify(capture, null, 2));
   log(`\n  -> docs/captures/e2e-drive.json`);
 
   ws.close();

@@ -93,8 +93,7 @@ export class RelayServer {
   #nextClientId = 1;
 
   constructor(opts: { webRoot?: string; onFrame?: (raw: string) => void } = {}) {
-    this.#webRoot =
-      opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web');
+    this.#webRoot = opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web');
     // Observation hook: sees exactly what the relay sees. Used by the
     // end-to-end encryption test to prove the relay never handles plaintext —
     // a claim that has to be mechanically checked, not asserted in prose.
@@ -104,7 +103,8 @@ export class RelayServer {
       const url = new URL(req.url ?? '/', 'http://relay');
       const roomId = url.searchParams.get('room');
       const key = url.searchParams.get('key');
-      const role = url.pathname === '/agent' ? 'daemon' : url.pathname === '/client' ? 'client' : null;
+      const role =
+        url.pathname === '/agent' ? 'daemon' : url.pathname === '/client' ? 'client' : null;
 
       if (!role || !roomId || !key) {
         socket.destroy();
@@ -124,7 +124,8 @@ export class RelayServer {
 
       const r = room;
       this.#wss.handleUpgrade(req, socket, head, (ws) => {
-        role === 'daemon' ? this.#attachDaemon(r, ws) : this.#attachClient(r, ws);
+        if (role === 'daemon') this.#attachDaemon(r, ws);
+        else this.#attachClient(r, ws);
       });
     });
   }
@@ -294,5 +295,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const i = process.argv.indexOf('--port');
   const port = i !== -1 ? Number(process.argv[i + 1]) : 8080;
   const relay = new RelayServer();
-  relay.listen(port).then((p) => console.log(`grokrc relay listening on :${p}`));
+  // An unhandled rejection here (port in use, bad bind) would take the process
+  // down with no explanation — report it and exit deliberately.
+  relay.listen(port).then(
+    (p) => console.log(`grokrc relay listening on :${p}`),
+    (err: Error) => {
+      console.error(`grokrc relay failed to start: ${err.message}`);
+      process.exit(1);
+    }
+  );
 }

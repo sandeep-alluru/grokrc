@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      # Browser tests drive a real Chromium against the real PWA. They are the
+      # only thing that catches rendering regressions, so they run in CI too.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # `grok` is not available on a CI runner. Tests that need it skip
+      # themselves rather than fail, so this stays green without the binary.
+      - name: Test
+        run: npm test

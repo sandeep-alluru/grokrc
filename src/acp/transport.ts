@@ -36,7 +36,11 @@ export interface Transport extends EventEmitter {
 export class NdjsonDecoder {
   #buf = '';
 
-  push(chunk: string | Buffer, onFrame: (msg: JsonRpcMessage) => void, onBad?: (line: string, err: Error) => void): void {
+  push(
+    chunk: string | Buffer,
+    onFrame: (msg: JsonRpcMessage) => void,
+    onBad?: (line: string, err: Error) => void
+  ): void {
     this.#buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     let nl: number;
     while ((nl = this.#buf.indexOf('\n')) !== -1) {
@@ -103,7 +107,10 @@ export class StdioTransport extends EventEmitter implements Transport {
         chunk,
         (msg) => this.emit('message', msg),
         (line, err) =>
-          this.emit('error', new Error(`undecodable ACP frame: ${err.message} :: ${line.slice(0, 200)}`))
+          this.emit(
+            'error',
+            new Error(`undecodable ACP frame: ${err.message} :: ${line.slice(0, 200)}`)
+          )
       );
     });
 
@@ -176,7 +183,10 @@ export class WebSocketTransport extends EventEmitter implements Transport {
           typeof data === 'string' ? data : data.toString('utf8'),
           (msg) => this.emit('message', msg),
           (line, err) =>
-            this.emit('error', new Error(`undecodable ACP frame: ${err.message} :: ${line.slice(0, 200)}`))
+            this.emit(
+              'error',
+              new Error(`undecodable ACP frame: ${err.message} :: ${line.slice(0, 200)}`)
+            )
         );
       });
       ws.on('error', (err: Error) => this.emit('error', err));

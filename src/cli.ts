@@ -91,7 +91,7 @@ async function cmdUp(flags: Flags): Promise<void> {
     useLeader: flags.leader === true,
   });
 
-  const host = flags.lan === true ? '0.0.0.0' : (flags.host as string) ?? '127.0.0.1';
+  const host = flags.lan === true ? '0.0.0.0' : ((flags.host as string) ?? '127.0.0.1');
   const port = Number(flags.port ?? 4319);
 
   const server = new RemoteControlServer({
@@ -112,14 +112,14 @@ async function cmdUp(flags: Flags): Promise<void> {
   if (warning) console.log(warning);
 
   const bound = await server.listen();
-  const shown = host === '0.0.0.0' ? lanAddress() ?? '0.0.0.0' : host;
+  const shown = host === '0.0.0.0' ? (lanAddress() ?? '0.0.0.0') : host;
 
   if (typeof flags.relay === 'string') {
     const room = typeof flags.room === 'string' ? flags.room : randomBytes(6).toString('hex');
-    const key = typeof flags['relay-key'] === 'string' ? flags['relay-key'] : randomBytes(16).toString('hex');
+    const key =
+      typeof flags['relay-key'] === 'string' ? flags['relay-key'] : randomBytes(16).toString('hex');
     // base64url, matching web/crypto.js
-    const secret =
-      flags['no-e2e'] === true ? undefined : randomBytes(32).toString('base64url');
+    const secret = flags['no-e2e'] === true ? undefined : randomBytes(32).toString('base64url');
 
     server.connectRelay({ url: flags.relay, room, key, secret });
 
@@ -215,7 +215,9 @@ async function cmdDoctor(): Promise<void> {
     const { stdout } = await execFileAsync('grok', ['--version']);
     console.log(`  ✓ grok found: ${stdout.trim()}`);
   } catch {
-    console.log('  ✗ grok not found on PATH — install: curl -fsSL https://x.ai/cli/install.sh | bash');
+    console.log(
+      '  ✗ grok not found on PATH — install: curl -fsSL https://x.ai/cli/install.sh | bash'
+    );
     process.exitCode = 1;
     return;
   }
@@ -227,7 +229,9 @@ async function cmdDoctor(): Promise<void> {
     const init = await client.initialize();
     console.log(`  ✓ ACP handshake ok (protocolVersion ${init.protocolVersion})`);
     console.log(`    loadSession: ${init.agentCapabilities?.loadSession ?? false}`);
-    console.log(`    auth methods: ${(init.authMethods ?? []).map((m) => m.id).join(', ') || 'none'}`);
+    console.log(
+      `    auth methods: ${(init.authMethods ?? []).map((m) => m.id).join(', ') || 'none'}`
+    );
     const s = await client.newSession(process.cwd());
     console.log(`  ✓ session/new ok (${s.sessionId})`);
 

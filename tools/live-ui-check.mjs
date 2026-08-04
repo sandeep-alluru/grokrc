@@ -126,8 +126,9 @@ try {
     note(dupes.length === 0, `no thinking block repeats itself (${dupes.length} duplicated)`);
   }
 
-  const byteDump = await page.$$eval('.tool pre', (n) =>
-    n.filter((x) => /\d+,\s*\n\s+\d+,/.test(x.textContent ?? '')).length
+  const byteDump = await page.$$eval(
+    '.tool pre',
+    (n) => n.filter((x) => /\d+,\s*\n\s+\d+,/.test(x.textContent ?? '')).length
   );
   note(byteDump === 0, `tool output is readable, not a raw byte array (${byteDump} dumps)`);
 
@@ -135,10 +136,7 @@ try {
     b.map((x) => (x.textContent ?? '').trim()).filter(Boolean)
   );
   note(agentText.length > 0, `agent replied (${agentText.length} message block(s))`);
-  note(
-    new Set(agentText).size === agentText.length,
-    'no duplicated agent message blocks'
-  );
+  note(new Set(agentText).size === agentText.length, 'no duplicated agent message blocks');
   // A single reply used to be chopped into several bubbles because metadata
   // events arriving mid-stream triggered a flush.
   const toolCount = await page.$$eval('.tool', (n) => n.length);
@@ -161,7 +159,9 @@ try {
   for (const t of agentText.slice(0, 3)) console.log(`    "${t.slice(0, 110)}"`);
 } catch (err) {
   problems.push(`FAILED: ${err.message}`);
-  await page.screenshot({ path: join(SHOTS, 'live-turn-error.png'), fullPage: true }).catch(() => {});
+  await page
+    .screenshot({ path: join(SHOTS, 'live-turn-error.png'), fullPage: true })
+    .catch(() => {});
 } finally {
   console.log(`\n─── ${problems.length ? problems.length + ' PROBLEM(S)' : 'ALL CLEAR'} ───`);
   for (const p of problems) console.log(`  · ${p}`);

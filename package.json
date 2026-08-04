@@ -15,7 +15,11 @@
     "test": "node --test --experimental-strip-types test/*.test.ts",
     "test:unit": "node --test --experimental-strip-types test/events.test.ts test/observer.test.ts test/preflight.test.ts test/push.test.ts test/relay.test.ts test/server.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "probe": "node tools/acp-probe.mjs"
+    "probe": "node tools/acp-probe.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
+    "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\""
   },
   "files": [
     "dist",
@@ -37,11 +41,16 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.6",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.66.0"
   }
 }

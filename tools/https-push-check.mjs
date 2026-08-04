@@ -58,7 +58,10 @@ try {
     await navigator.serviceWorker.ready;
     return reg.active?.state ?? reg.installing?.state ?? 'unknown';
   });
-  note(swState === 'activated' || swState === 'activating', `service worker registered (${swState})`);
+  note(
+    swState === 'activated' || swState === 'activating',
+    `service worker registered (${swState})`
+  );
 
   // A real PushSubscription — the step that plain http:// makes impossible.
   const sub = await page.evaluate(async (key) => {

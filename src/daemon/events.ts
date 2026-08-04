@@ -12,13 +12,7 @@
  */
 import type { RequestPermissionParams, SessionUpdateParams } from '../acp/protocol.ts';
 
-export type SessionState =
-  | 'idle'
-  | 'thinking'
-  | 'working'
-  | 'awaiting-approval'
-  | 'done'
-  | 'error';
+export type SessionState = 'idle' | 'thinking' | 'working' | 'awaiting-approval' | 'done' | 'error';
 
 export type ToolStatus = 'pending' | 'running' | 'ok' | 'error';
 

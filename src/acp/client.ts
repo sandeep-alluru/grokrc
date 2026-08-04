@@ -244,7 +244,9 @@ export class AcpClient extends EventEmitter {
           if (line !== undefined || limit !== undefined) {
             const lines = content.split('\n');
             const start = Math.max(0, (line ?? 1) - 1);
-            content = lines.slice(start, limit !== undefined ? start + limit : undefined).join('\n');
+            content = lines
+              .slice(start, limit !== undefined ? start + limit : undefined)
+              .join('\n');
           }
           reply({ content });
         } catch (err) {

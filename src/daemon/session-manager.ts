@@ -51,7 +51,9 @@ function assertSafeSessionId(id: string): void {
 /** cwd becomes a path segment and a process spawn directory. */
 function assertSafeCwd(cwd: string): void {
   if (typeof cwd !== 'string' || !cwd.startsWith('/')) {
-    throw new Error(`cwd must be an absolute path, got ${JSON.stringify(String(cwd).slice(0, 60))}`);
+    throw new Error(
+      `cwd must be an absolute path, got ${JSON.stringify(String(cwd).slice(0, 60))}`
+    );
   }
 }
 
@@ -67,6 +69,12 @@ export interface SessionInfo {
   createdAt: number;
   updatedAt: number;
   pendingApprovals: number;
+  /**
+   * A process outside this daemon currently owns the session — typically a TUI
+   * running in a terminal. Resuming it would put a SECOND agent on the same
+   * session, so the UI must offer watching only.
+   */
+  externallyActive?: boolean;
 }
 
 interface LiveSession {
@@ -343,6 +351,16 @@ export class SessionManager extends EventEmitter {
       throw new Error(`no persisted session ${id} under ${cwd}`);
     }
 
+    // Refuse in the daemon, not just the UI: resuming a session a terminal still
+    // owns would put two agents on one conversation, each unaware of the other's
+    // writes. Watch it instead.
+    const active = await this.activeOnDisk();
+    if (active.some((a) => a.sessionId === id)) {
+      throw new Error(
+        `session ${id} is live in another process — watch it read-only, or close that terminal first`
+      );
+    }
+
     // Stop mirroring — we're about to own it.
     const obs = this.#observed.get(id);
     if (obs) {
@@ -471,6 +489,9 @@ export class SessionManager extends EventEmitter {
       return out;
     }
 
+    // Which sessions a terminal still owns — those can be watched but not resumed.
+    const activeIds = new Set((await this.activeOnDisk()).map((a) => a.sessionId));
+
     for (const encodedCwd of dirs) {
       const cwd = safeDecode(encodedCwd);
       const cwdDir = join(root, encodedCwd);
@@ -497,6 +518,7 @@ export class SessionManager extends EventEmitter {
             createdAt: toMs(s.created_at),
             updatedAt: toMs(s.updated_at),
             pendingApprovals: 0,
+            externallyActive: activeIds.has(s.info?.id ?? id),
           });
         } catch {
           // Not every directory has a readable summary (partial writes, subagents).
@@ -506,12 +528,27 @@ export class SessionManager extends EventEmitter {
     return out.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
   }
 
-  /** Sessions with a live process right now, per Grok's own registry. */
+  /**
+   * Sessions with a live process right now, per Grok's own registry.
+   *
+   * The registry can go stale if a process dies without cleaning up, so each
+   * entry's pid is checked — a stale record would otherwise permanently mark a
+   * finished session as un-resumable.
+   */
   async activeOnDisk(): Promise<{ sessionId: string; pid: number; cwd: string }[]> {
     try {
       const raw = await readFile(join(GROK_HOME, 'active_sessions.json'), 'utf8');
       const arr = JSON.parse(raw) as { session_id: string; pid: number; cwd: string }[];
-      return arr.map((a) => ({ sessionId: a.session_id, pid: a.pid, cwd: a.cwd }));
+      return arr
+        .filter((a) => {
+          try {
+            process.kill(a.pid, 0); // signal 0 = liveness probe, sends nothing
+            return true;
+          } catch {
+            return false;
+          }
+        })
+        .map((a) => ({ sessionId: a.session_id, pid: a.pid, cwd: a.cwd }));
     } catch {
       return [];
     }

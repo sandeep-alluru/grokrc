@@ -145,8 +145,7 @@ export interface RequestPermissionParams {
 }
 
 export type PermissionOutcome =
-  | { outcome: 'selected'; optionId: string }
-  | { outcome: 'cancelled' };
+  { outcome: 'selected'; optionId: string } | { outcome: 'cancelled' };
 
 /* ─── session lifecycle ─────────────────────────────────────────────────── */
 
@@ -157,12 +156,7 @@ export interface NewSessionResult {
 }
 
 export type StopReason =
-  | 'end_turn'
-  | 'max_tokens'
-  | 'max_turn_requests'
-  | 'refusal'
-  | 'cancelled'
-  | (string & {});
+  'end_turn' | 'max_tokens' | 'max_turn_requests' | 'refusal' | 'cancelled' | (string & {});
 
 export interface PromptResult {
   stopReason: StopReason;
