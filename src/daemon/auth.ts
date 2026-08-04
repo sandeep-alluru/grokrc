@@ -126,11 +126,45 @@ export class AuthStore {
   async verify(token: string): Promise<Device | null> {
     if (!token) return null;
     const hash = sha256(token);
-    const device = this.#devices.find((d) => constantTimeEqual(d.tokenHash, hash));
+    let device = this.#devices.find((d) => constantTimeEqual(d.tokenHash, hash));
+
+    // A miss may just mean the store changed on disk since we loaded it — the
+    // local terminal client mints its own device in another process. Re-read
+    // once before rejecting, rather than requiring a daemon restart.
+    if (!device) {
+      this.#loaded = false;
+      await this.load();
+      device = this.#devices.find((d) => constantTimeEqual(d.tokenHash, hash));
+    }
     if (!device) return null;
+
     device.lastSeen = Date.now();
     void this.#save();
     return device;
+  }
+
+  /**
+   * Mint a device token without a pairing code, for a client running locally as
+   * the same user.
+   *
+   * Safe because it requires write access to `~/.grokrc/devices.json` — anyone
+   * with that could already forge an entry or read the daemon's memory. Pairing
+   * codes exist to authenticate *remote* devices across a network, and add
+   * nothing against a local process running as you.
+   */
+  async mintLocalDevice(name: string): Promise<{ token: string; device: Device }> {
+    await this.load();
+    const token = randomBytes(32).toString('hex');
+    const device: Device = {
+      id: randomBytes(8).toString('hex'),
+      name: name.slice(0, 64) || 'local',
+      tokenHash: sha256(token),
+      pairedAt: Date.now(),
+      lastSeen: Date.now(),
+    };
+    this.#devices.push(device);
+    await this.#save();
+    return { token, device };
   }
 
   async revoke(deviceId: string): Promise<boolean> {

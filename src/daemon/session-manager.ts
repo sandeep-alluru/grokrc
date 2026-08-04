@@ -29,6 +29,15 @@ const GROK_HOME = process.env.GROK_HOME ?? join(homedir(), '.grok');
 const EVENT_LOG_LIMIT = 2000;
 
 /**
+ * Ceiling on concurrently owned agents. Each is a real grok process with its own
+ * memory and model context, so this is a resource guard, not a policy.
+ */
+const MAX_LIVE_SESSIONS = 12;
+
+/** Ceiling on mirrored sessions — tailers are cheap but not free. */
+const MAX_OBSERVED_SESSIONS = 24;
+
+/**
  * Event kinds that genuinely interrupt a streamed message and so should close
  * it off. Everything else (status, commands, mode, raw, approval-resolved) is
  * metadata that interleaves freely and must NOT split the message.
@@ -223,6 +232,12 @@ export class SessionManager extends EventEmitter {
       return { ...existing.info };
     }
 
+    if (this.#observed.size >= MAX_OBSERVED_SESSIONS) {
+      throw new Error(
+        `too many observed sessions (${this.#observed.size}/${MAX_OBSERVED_SESSIONS})`
+      );
+    }
+
     const sessionsRoot = join(GROK_HOME, 'sessions');
     const dir = join(sessionsRoot, encodeURIComponent(cwd), id);
     // Belt and braces: even with both inputs validated, confirm the resolved
@@ -332,6 +347,20 @@ export class SessionManager extends EventEmitter {
   /* ─── lifecycle ───────────────────────────────────────────────────────── */
 
   async create(cwd: string, opts: { title?: string; model?: string } = {}): Promise<SessionInfo> {
+    // Same boundary as resume(): cwd becomes a process spawn directory, and it
+    // arrives from a remote client. Validating one path and not the other is
+    // how a hole survives a security pass.
+    assertSafeCwd(cwd);
+
+    // Each session is a live grok process. Without a ceiling, a client looping
+    // on `create` forks agents until the machine falls over — cheap to trigger,
+    // even post-auth.
+    if (this.#sessions.size >= MAX_LIVE_SESSIONS) {
+      throw new Error(
+        `too many live sessions (${this.#sessions.size}/${MAX_LIVE_SESSIONS}) — close one first`
+      );
+    }
+
     const model = opts.model ?? this.#opts.model;
     const transport =
       this.#opts.transportFactory?.(cwd, model) ??

@@ -449,6 +449,15 @@ export class RemoteControlServer {
       return;
     }
 
+    // Validate shapes before use. Field types arrive from a remote client, and
+    // a non-string sessionId would flow into Map lookups and path building as
+    // whatever it happens to be — the daemon should reject it, not coerce it.
+    const shapeError = validateShape(msg);
+    if (shapeError) {
+      send(client.ws, { t: 'error', message: shapeError });
+      return;
+    }
+
     const sessions = this.#opts.sessions;
     try {
       switch (msg.t) {
@@ -603,6 +612,50 @@ async function loadRelayCrypto(secret: string) {
       return mod.open(key, parsed as { n: string; c: string });
     },
   };
+}
+
+/**
+ * Per-message field checks for the client protocol.
+ *
+ * Deliberately hand-written rather than pulled from a schema library: the
+ * surface is eight messages, and a dependency here would be more code than it
+ * replaces. Returns an error string, or null when the shape is acceptable.
+ */
+function validateShape(msg: Record<string, unknown>): string | null {
+  const str = (k: string, required = true): string | null => {
+    const v = msg[k];
+    if (v === undefined || v === null) return required ? `${k} is required` : null;
+    if (typeof v !== 'string') return `${k} must be a string`;
+    if (v.length > 100_000) return `${k} is too long`;
+    return null;
+  };
+
+  switch (msg.t) {
+    case 'sessions':
+      return null;
+    case 'open':
+      return str('sessionId') ?? str('cwd', false);
+    case 'resume':
+      return str('sessionId') ?? str('cwd');
+    case 'create':
+      return str('cwd', false) ?? str('model', false) ?? str('title', false);
+    case 'prompt':
+      return str('sessionId') ?? str('text');
+    case 'approve': {
+      const e = str('sessionId') ?? str('requestId');
+      if (e) return e;
+      // optionId may legitimately be null — that cancels the request.
+      if (msg.optionId !== null && typeof msg.optionId !== 'string') {
+        return 'optionId must be a string or null';
+      }
+      return null;
+    }
+    case 'cancel':
+    case 'close':
+      return str('sessionId');
+    default:
+      return `unknown message: ${String(msg.t).slice(0, 40)}`;
+  }
 }
 
 async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {

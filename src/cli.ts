@@ -73,6 +73,11 @@ grokrc — remote control for Grok Build
   grokrc relay       Run a self-hostable relay server
       --port <N>       Port (default 8080)
 
+  grokrc term        Terminal client on the same session your phone drives
+      --new            Start a new session
+      --session <id>   Open a specific session
+      --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
+
   grokrc pair        Print a pairing code for a new device
   grokrc devices     List paired devices
   grokrc revoke <id> Revoke a device  (--all to revoke everything)
@@ -264,6 +269,17 @@ async function main(): Promise<void> {
       return cmdDevices();
     case 'revoke':
       return cmdRevoke(rest, flags);
+    case 'term': {
+      // A terminal on the same daemon session the phone drives. Grok's own TUI
+      // cannot share a backend, so this talks to grokrc instead of to grok.
+      const { TerminalClient } = await import('./term/client.ts');
+      return new TerminalClient({
+        url: typeof flags.url === 'string' ? flags.url : undefined,
+        sessionId: typeof flags.session === 'string' ? flags.session : undefined,
+        newSession: flags.new === true,
+        cwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
+      }).run();
+    }
     case 'doctor':
       return cmdDoctor();
     case 'relay': {
