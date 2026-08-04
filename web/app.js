@@ -380,10 +380,24 @@ function upsertApproval(ev) {
 
   const row = document.createElement('div');
   row.className = 'row';
-  for (const opt of ev.options) {
+
+  // Grok lists the BROADEST grant first — a real request came back as
+  // ["allow all edits this session", "Yes", "No"]. Rendering that order puts
+  // the widest permission under the user's thumb. Narrow grants come first
+  // here, and "always" is visually demoted so it can't be tapped by reflex.
+  const rank = (o) =>
+    o.intent === 'allow' && o.kind === 'allow_once' ? 0
+    : o.intent === 'allow' ? 1
+    : o.intent === 'deny' ? 2
+    : 3;
+  const options = [...ev.options].sort((a, b) => rank(a) - rank(b));
+
+  for (const opt of options) {
     const b = document.createElement('button');
-    b.className = opt.intent;
+    const broad = opt.kind === 'allow_always';
+    b.className = opt.intent + (broad ? ' broad' : '');
     b.textContent = opt.label;
+    if (broad) b.title = 'Grants permission for the rest of this session';
     b.addEventListener('click', () => {
       row.querySelectorAll('button').forEach((x) => (x.disabled = true));
       sendMsg({

@@ -15,6 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
+import { checkPermissionPosture, posturteWarning } from './daemon/preflight.ts';
 import { PushService } from './daemon/push.ts';
 import { SessionManager } from './daemon/session-manager.ts';
 import { RemoteControlServer } from './daemon/server.ts';
@@ -100,6 +101,12 @@ async function cmdUp(flags: Flags): Promise<void> {
     push: flags['no-push'] === true ? undefined : push,
     defaultCwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
   });
+
+  // Say so loudly if the agent will never ask for approval — otherwise the
+  // headline feature silently does nothing and tools run unattended.
+  const posture = await checkPermissionPosture();
+  const warning = posturteWarning(posture);
+  if (warning) console.log(warning);
 
   const bound = await server.listen();
   const shown = host === '0.0.0.0' ? lanAddress() ?? '0.0.0.0' : host;
@@ -197,6 +204,16 @@ async function cmdDoctor(): Promise<void> {
     console.log(`    auth methods: ${(init.authMethods ?? []).map((m) => m.id).join(', ') || 'none'}`);
     const s = await client.newSession(process.cwd());
     console.log(`  ✓ session/new ok (${s.sessionId})`);
+
+    const posture = await checkPermissionPosture();
+    if (posture.willPrompt) {
+      console.log('  ✓ agent will prompt before running tools');
+    } else {
+      console.log('  ✗ agent will NOT prompt — remote approval is inoperative');
+      for (const r of posture.reasons) console.log(`      · ${r}`);
+      console.log(`    fix in ${posture.configPath}: [features] support_permission = true`);
+      process.exitCode = 1;
+    }
   } catch (err) {
     console.log(`  ✗ ACP failed: ${(err as Error).message}`);
     process.exitCode = 1;
