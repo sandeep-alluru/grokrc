@@ -200,10 +200,7 @@ test('THE RELAY NEVER SEES PLAINTEXT', async () => {
     const wrapper = parsed as { method?: string; path?: string; status?: number; body?: string };
     const isHttpRequest = typeof wrapper.path === 'string' && wrapper.path.startsWith('/api/');
     const isHttpResponse = typeof wrapper.status === 'number';
-    assert.ok(
-      isHttpRequest || isHttpResponse,
-      `unsealed non-HTTP frame: ${f.d.slice(0, 160)}`
-    );
+    assert.ok(isHttpRequest || isHttpResponse, `unsealed non-HTTP frame: ${f.d.slice(0, 160)}`);
     if (wrapper.body) {
       let inner: unknown;
       try {

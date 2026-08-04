@@ -73,7 +73,7 @@ after(async () => {
 test('the app loads and shows the pairing screen', async () => {
   await page.goto(base);
   await page.waitForSelector('#v-pair.on');
-  assert.match(await page.textContent('#v-pair h1') ?? '', /Pair this device/);
+  assert.match((await page.textContent('#v-pair h1')) ?? '', /Pair this device/);
 });
 
 test('a wrong code shows an error and does not let you in', async () => {
@@ -81,7 +81,7 @@ test('a wrong code shows an error and does not let you in', async () => {
   await page.fill('#code', 'ZZZZZZ');
   await page.click('#pair-go');
   await page.waitForFunction(() => !!document.querySelector('#pair-err')?.textContent);
-  assert.match(await page.textContent('#pair-err') ?? '', /invalid or expired/);
+  assert.match((await page.textContent('#pair-err')) ?? '', /invalid or expired/);
   assert.ok(await page.isVisible('#v-pair'));
 });
 
@@ -90,7 +90,7 @@ test('pairing with the real code reaches the session list', async () => {
   await page.fill('#code', code);
   await page.click('#pair-go');
   await page.waitForSelector('#v-list.on', { timeout: 10_000 });
-  assert.match(await page.textContent('#title') ?? '', /Sessions/);
+  assert.match((await page.textContent('#title')) ?? '', /Sessions/);
   await page.screenshot({ path: SHOTS + '/sessions.png', fullPage: true });
 });
 
@@ -99,7 +99,7 @@ test('creating a session opens the transcript with a composer', async () => {
   await page.waitForSelector('#v-session.on', { timeout: 10_000 });
   assert.equal(await page.isVisible('#composer'), true);
   // A fresh session must not render as a blank screen.
-  assert.match(await page.textContent('#v-session') ?? '', /No messages yet/);
+  assert.match((await page.textContent('#v-session')) ?? '', /No messages yet/);
   // The header must name the session, not fall back to "Sessions" when the
   // list re-renders behind it.
   assert.notEqual((await page.textContent('#title'))?.trim(), 'Sessions');
@@ -111,13 +111,13 @@ test('a prompt streams text and renders tool and plan cards', async () => {
 
   // User message echoes immediately.
   await page.waitForSelector('.msg.user .bubble');
-  assert.match(await page.textContent('.msg.user .bubble') ?? '', /Create hello\.txt/);
+  assert.match((await page.textContent('.msg.user .bubble')) ?? '', /Create hello\.txt/);
 
   await page.waitForSelector('.tool', { timeout: 10_000 });
-  assert.match(await page.textContent('.tool .nm') ?? '', /Write/);
+  assert.match((await page.textContent('.tool .nm')) ?? '', /Write/);
 
   await page.waitForSelector('.plan li', { timeout: 10_000 });
-  assert.match(await page.textContent('.plan') ?? '', /Write hello\.txt/);
+  assert.match((await page.textContent('.plan')) ?? '', /Write hello\.txt/);
 
   await page.waitForSelector('.thinking', { timeout: 10_000 });
 });
@@ -155,11 +155,9 @@ test('tapping Yes answers the agent with allow-once', async () => {
   // Click the narrow grant specifically.
   await page.click('.approval button.allow:not(.broad)');
 
-  await page.waitForFunction(
-    () => !!document.querySelector('.approval.resolved'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page.waitForFunction(() => !!document.querySelector('.approval.resolved'), undefined, {
+    timeout: 10_000,
+  });
 
   // The scripted agent must have actually received the answer.
   const deadline = Date.now() + 5000;

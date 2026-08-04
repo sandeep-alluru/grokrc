@@ -97,7 +97,10 @@ export class AuthStore {
    * Redeem a pairing code for a device token.
    * The plaintext token is returned exactly once and never stored.
    */
-  async redeem(code: string, deviceName: string): Promise<{ token: string; device: Device } | null> {
+  async redeem(
+    code: string,
+    deviceName: string
+  ): Promise<{ token: string; device: Device } | null> {
     if (!this.#pending) return null;
     if (this.#pending.expiresAt <= Date.now()) {
       this.#pending = null;

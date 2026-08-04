@@ -20,8 +20,7 @@ const promptIdx = argv.indexOf('--prompt');
 const PROMPT = promptIdx !== -1 ? argv[promptIdx + 1] : null;
 
 const frames = [];
-const record = (dir, payload) =>
-  frames.push({ t: Date.now(), dir, payload });
+const record = (dir, payload) => frames.push({ t: Date.now(), dir, payload });
 
 const child = spawn('grok', ['agent', 'stdio'], {
   stdio: ['pipe', 'pipe', 'pipe'],
@@ -102,7 +101,11 @@ function dump(label) {
   const file = resolve(OUT_DIR, `acp-${label}.json`);
   writeFileSync(
     file,
-    JSON.stringify({ grokVersion: process.env.GROK_VERSION ?? null, frames, stderr: stderrBuf }, null, 2)
+    JSON.stringify(
+      { grokVersion: process.env.GROK_VERSION ?? null, frames, stderr: stderrBuf },
+      null,
+      2
+    )
   );
   console.log(`\ncaptured ${frames.length} frames -> ${file}`);
 }

@@ -28,10 +28,14 @@ const log = (...a) => console.log(...a);
 
 /** Minimal ACP client over a spawned grok process. */
 function client(name, extraArgs) {
-  const child = spawn('grok', ['agent', '--leader', '--leader-socket', sock, 'stdio', ...extraArgs], {
-    cwd: workDir,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  const child = spawn(
+    'grok',
+    ['agent', '--leader', '--leader-socket', sock, 'stdio', ...extraArgs],
+    {
+      cwd: workDir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }
+  );
   let buf = '';
   let nextId = 1;
   const pending = new Map();

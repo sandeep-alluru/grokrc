@@ -95,7 +95,7 @@ export class RemoteControlServer {
       const push = this.#opts.push;
       if (!push) return;
       if (ev.k === 'approval') {
-        const title = sid ? this.#opts.sessions.get(sid)?.title ?? 'session' : 'session';
+        const title = sid ? (this.#opts.sessions.get(sid)?.title ?? 'session') : 'session';
         void push.notifyApproval(ev, title);
       } else if (ev.k === 'status' && ev.state === 'done' && sid) {
         void push.notifyDone(sid, this.#opts.sessions.get(sid)?.title ?? 'session');

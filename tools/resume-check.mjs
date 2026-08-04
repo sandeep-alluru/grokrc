@@ -75,7 +75,10 @@ try {
   await page.fill('#input', `Remember this codeword exactly: ${MAGIC}. Just acknowledge it.`);
   await page.click('#send');
   await page.waitForFunction(
-    () => [...document.querySelectorAll('.msg.agent .bubble')].some((b) => (b.textContent ?? '').trim().length > 5),
+    () =>
+      [...document.querySelectorAll('.msg.agent .bubble')].some(
+        (b) => (b.textContent ?? '').trim().length > 5
+      ),
     undefined,
     { timeout: 180_000 }
   );
@@ -90,16 +93,16 @@ try {
   /* 3. reopen from the list — must be read-only, with a way back in */
   await page.click('#back');
   await page.waitForSelector('#v-list.on', { timeout: 15_000 });
-  await page.waitForFunction(
-    (id) => !!document.querySelector('.session'),
-    sessionId,
-    { timeout: 15_000 }
-  );
+  await page.waitForFunction((id) => !!document.querySelector('.session'), sessionId, {
+    timeout: 15_000,
+  });
   // Click the row for our session (top of the list — most recently updated).
   await page.click('.session');
   await page.waitForSelector('#v-session.on', { timeout: 15_000 });
 
-  const composerHiddenBefore = await page.evaluate(() => document.getElementById('composer').hidden);
+  const composerHiddenBefore = await page.evaluate(
+    () => document.getElementById('composer').hidden
+  );
   note(composerHiddenBefore, 'past session opens read-only (composer hidden)');
 
   const hasResume = await page.$('[data-resume] button');
@@ -118,27 +121,39 @@ try {
   note(!barGone, 'resume bar disappears once live');
 
   /* 5. does the agent still remember? */
-  await page.fill('#input', 'What was the codeword I asked you to remember? Reply with just the codeword.');
+  await page.fill(
+    '#input',
+    'What was the codeword I asked you to remember? Reply with just the codeword.'
+  );
   await page.click('#send');
-  await page.waitForFunction(
-    (magic) =>
-      [...document.querySelectorAll('.msg.agent .bubble')].some((b) =>
-        (b.textContent ?? '').includes(magic)
-      ),
-    MAGIC,
-    { timeout: 180_000 }
-  ).catch(() => {});
+  await page
+    .waitForFunction(
+      (magic) =>
+        [...document.querySelectorAll('.msg.agent .bubble')].some((b) =>
+          (b.textContent ?? '').includes(magic)
+        ),
+      MAGIC,
+      { timeout: 180_000 }
+    )
+    .catch(() => {});
 
-  const recalled = await page.$$eval('.msg.agent .bubble', (b, magic) =>
-    b.some((x) => (x.textContent ?? '').includes(magic)), MAGIC);
+  const recalled = await page.$$eval(
+    '.msg.agent .bubble',
+    (b, magic) => b.some((x) => (x.textContent ?? '').includes(magic)),
+    MAGIC
+  );
   note(recalled, `agent recalled the codeword across the resume (${MAGIC})`);
 
   // A Send button stuck on "Stop" means the turn never reported completion, and
   // the user is left unsure whether the agent is still working.
   const backToSend = await page
-    .waitForFunction(() => document.getElementById('send').textContent.trim() === 'Send', undefined, {
-      timeout: 45_000,
-    })
+    .waitForFunction(
+      () => document.getElementById('send').textContent.trim() === 'Send',
+      undefined,
+      {
+        timeout: 45_000,
+      }
+    )
     .then(() => true)
     .catch(() => false);
   note(backToSend, 'send button resets to "Send" once the turn ends');

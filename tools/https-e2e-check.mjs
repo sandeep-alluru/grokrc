@@ -68,7 +68,9 @@ try {
     wsUrls.some((u) => u.startsWith('wss://')),
     'WebSocket upgraded to wss:// through tailscale serve'
   );
-  const live = await page.evaluate(() => document.getElementById('conn').className.includes('live'));
+  const live = await page.evaluate(() =>
+    document.getElementById('conn').className.includes('live')
+  );
   note(live, 'connection indicator is live');
 
   /* a real turn, streamed over wss */
@@ -79,7 +81,10 @@ try {
 
   const replied = await page
     .waitForFunction(
-      () => [...document.querySelectorAll('.msg.agent .bubble')].some((b) => (b.textContent ?? '').trim()),
+      () =>
+        [...document.querySelectorAll('.msg.agent .bubble')].some((b) =>
+          (b.textContent ?? '').trim()
+        ),
       undefined,
       { timeout: 180_000 }
     )
@@ -91,7 +96,10 @@ try {
   const reply = await page.$$eval('.msg.agent .bubble', (b) =>
     b.map((x) => (x.textContent ?? '').trim()).filter(Boolean)
   );
-  note(reply.some((t) => /TLS-OK/i.test(t)), `agent said TLS-OK (got: "${reply[0]?.slice(0, 60)}")`);
+  note(
+    reply.some((t) => /TLS-OK/i.test(t)),
+    `agent said TLS-OK (got: "${reply[0]?.slice(0, 60)}")`
+  );
 
   /* secure-context-only capabilities */
   const sw = await page.evaluate(async () => {

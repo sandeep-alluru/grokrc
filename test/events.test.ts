@@ -1,10 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import {
-  normalizePermission,
-  normalizeSessionUpdate,
-  optionIntent,
-} from '../src/daemon/events.ts';
+import { normalizePermission, normalizeSessionUpdate, optionIntent } from '../src/daemon/events.ts';
 import { NdjsonDecoder } from '../src/acp/transport.ts';
 import type { JsonRpcMessage } from '../src/acp/protocol.ts';
 
@@ -39,10 +35,12 @@ test('tool_call maps ACP status vocabulary onto ours and emits a status event', 
 
 test('completed and failed map to ok and error', () => {
   const ok = normalizeSessionUpdate({
-    sessionId: 's', update: { sessionUpdate: 'tool_call_update', toolCallId: 't', status: 'completed' },
+    sessionId: 's',
+    update: { sessionUpdate: 'tool_call_update', toolCallId: 't', status: 'completed' },
   })[0]!;
   const bad = normalizeSessionUpdate({
-    sessionId: 's', update: { sessionUpdate: 'tool_call_update', toolCallId: 't', status: 'failed' },
+    sessionId: 's',
+    update: { sessionUpdate: 'tool_call_update', toolCallId: 't', status: 'failed' },
   })[0]!;
   assert.equal(ok.k === 'tool' && ok.status, 'ok');
   assert.equal(bad.k === 'tool' && bad.status, 'error');
@@ -93,13 +91,21 @@ test('permission requests become approval events with classified options', () =>
       { optionId: 'a', name: 'Allow once', kind: 'allow_once' },
       { optionId: 'r', name: 'Reject', kind: 'reject_once' },
     ],
-    toolCall: { toolCallId: 't1', title: 'Run rm -rf build', kind: 'execute', rawInput: { cmd: 'rm -rf build' } },
+    toolCall: {
+      toolCallId: 't1',
+      title: 'Run rm -rf build',
+      kind: 'execute',
+      rawInput: { cmd: 'rm -rf build' },
+    },
   });
   assert.equal(ev.k, 'approval');
   if (ev.k !== 'approval') throw new Error('unreachable');
   assert.equal(ev.title, 'Run rm -rf build');
   assert.equal(ev.requestId, 'req-1');
-  assert.deepEqual(ev.options.map((o) => o.intent), ['allow', 'deny']);
+  assert.deepEqual(
+    ev.options.map((o) => o.intent),
+    ['allow', 'deny']
+  );
 });
 
 test('permission with no toolCall still yields a usable title', () => {
@@ -127,7 +133,11 @@ test('NdjsonDecoder reports bad lines without losing the stream', () => {
   const dec = new NdjsonDecoder();
   const got: JsonRpcMessage[] = [];
   const bad: string[] = [];
-  dec.push('not json\n{"jsonrpc":"2.0","method":"ok"}\n', (m) => got.push(m), (l) => bad.push(l));
+  dec.push(
+    'not json\n{"jsonrpc":"2.0","method":"ok"}\n',
+    (m) => got.push(m),
+    (l) => bad.push(l)
+  );
   assert.equal(bad.length, 1);
   assert.equal(got.length, 1);
 });

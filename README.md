@@ -90,6 +90,25 @@ add it to your home screen. That's it.
       Y8M8GF
 ```
 
+### Run it as a service
+
+```bash
+packaging/systemd/install.sh                    # loopback, behind a tunnel
+packaging/systemd/install.sh -- --lan           # reachable on your LAN
+```
+
+A **user** unit, not a system one — it needs `~/.grok/auth.json` and must spawn agents as
+you, so no sudo is involved. The installer enables lingering so it starts at boot and
+survives logout.
+
+```
+systemctl --user status grokrc     journalctl --user -u grokrc -f
+systemctl --user restart grokrc    packaging/systemd/uninstall.sh
+```
+
+Pair a device against a running service with `grokrc up --pair` (or edit
+`~/.config/grokrc/grokrc.env` and restart).
+
 | Command | |
 |---|---|
 | `grokrc up` | start daemon · `--lan` `--port` `--leader` `--model` `--cwd` |

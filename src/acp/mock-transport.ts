@@ -41,7 +41,11 @@ export const REAL_PERMISSION_PARAMS = {
       kind: 'allow_always',
     },
     { optionId: 'allow-once', name: 'Yes', kind: 'allow_once' },
-    { optionId: 'reject-once', name: 'No, and tell Grok what to do differently', kind: 'reject_once' },
+    {
+      optionId: 'reject-once',
+      name: 'No, and tell Grok what to do differently',
+      kind: 'reject_once',
+    },
   ],
   toolCall: {
     toolCallId: 'tool-1',
@@ -59,17 +63,71 @@ export function defaultScript(sessionId: string): MockScriptStep[] {
     params: { sessionId, update },
   });
   return [
-    { delay: 10, notify: upd({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Considering the request…' } }) },
-    { delay: 10, notify: upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'I will create ' } }) },
-    { delay: 10, notify: upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'hello.txt for you.' } }) },
-    { delay: 10, notify: upd({ sessionUpdate: 'plan', entries: [
-      { content: 'Write hello.txt', status: 'in_progress' },
-      { content: 'Confirm contents', status: 'pending' },
-    ] }) },
-    { delay: 10, notify: upd({ sessionUpdate: 'tool_call', toolCallId: 'tool-1', title: 'Write `/tmp/demo/hello.txt`', kind: 'edit', status: 'in_progress', rawInput: { file_path: '/tmp/demo/hello.txt' } }) },
-    { delay: 20, request: { method: 'session/request_permission', params: { ...REAL_PERMISSION_PARAMS, sessionId } } },
-    { delay: 10, notify: upd({ sessionUpdate: 'tool_call_update', toolCallId: 'tool-1', status: 'completed', rawOutput: 'wrote 5 bytes' }) },
-    { delay: 10, notify: upd({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Done — created hello.txt.' } }) },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'agent_thought_chunk',
+        content: { type: 'text', text: 'Considering the request…' },
+      }),
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'I will create ' },
+      }),
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'hello.txt for you.' },
+      }),
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'plan',
+        entries: [
+          { content: 'Write hello.txt', status: 'in_progress' },
+          { content: 'Confirm contents', status: 'pending' },
+        ],
+      }),
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-1',
+        title: 'Write `/tmp/demo/hello.txt`',
+        kind: 'edit',
+        status: 'in_progress',
+        rawInput: { file_path: '/tmp/demo/hello.txt' },
+      }),
+    },
+    {
+      delay: 20,
+      request: {
+        method: 'session/request_permission',
+        params: { ...REAL_PERMISSION_PARAMS, sessionId },
+      },
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-1',
+        status: 'completed',
+        rawOutput: 'wrote 5 bytes',
+      }),
+    },
+    {
+      delay: 10,
+      notify: upd({
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'Done — created hello.txt.' },
+      }),
+    },
     { delay: 10, notify: upd({ sessionUpdate: 'turn_completed' }) },
   ];
 }
@@ -101,7 +159,7 @@ export class MockTransport extends EventEmitter implements Transport {
     if (m.id !== undefined && m.method === undefined) {
       const outcome = (m.result as { outcome?: { outcome: string; optionId?: string } })?.outcome;
       this.permissionAnswers.push({
-        optionId: outcome?.outcome === 'selected' ? outcome.optionId ?? null : null,
+        optionId: outcome?.outcome === 'selected' ? (outcome.optionId ?? null) : null,
       });
       return;
     }
@@ -146,7 +204,12 @@ export class MockTransport extends EventEmitter implements Transport {
         // Block until answered, exactly like the real agent does.
         const id = this.#nextRequestId++;
         const before = this.permissionAnswers.length;
-        this.#emit({ jsonrpc: '2.0', id, method: step.request.method, params: step.request.params });
+        this.#emit({
+          jsonrpc: '2.0',
+          id,
+          method: step.request.method,
+          params: step.request.params,
+        });
         const deadline = Date.now() + 15_000;
         while (this.permissionAnswers.length === before && Date.now() < deadline && !this.#closed) {
           await new Promise((r) => setTimeout(r, 20));

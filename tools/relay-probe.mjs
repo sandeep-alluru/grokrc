@@ -71,7 +71,8 @@ wss.on('connection', (ws, req) => {
     600
   );
   setTimeout(
-    () => send({ jsonrpc: '2.0', id: 2, method: 'session/new', params: { cwd: ROOT, mcpServers: [] } }),
+    () =>
+      send({ jsonrpc: '2.0', id: 2, method: 'session/new', params: { cwd: ROOT, mcpServers: [] } }),
     2500
   );
 

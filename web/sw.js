@@ -9,7 +9,7 @@ self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('push', (event) => {
-  let data = {};
+  let data;
   try {
     data = event.data ? event.data.json() : {};
   } catch {

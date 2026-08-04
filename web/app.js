@@ -97,10 +97,18 @@ async function apiPost(path, bodyObj) {
 }
 
 const el = {
-  conn: $('conn'), title: $('title'), back: $('back'),
-  vPair: $('v-pair'), vList: $('v-list'), vSession: $('v-session'),
-  code: $('code'), pairGo: $('pair-go'), pairErr: $('pair-err'),
-  composer: $('composer'), input: $('input'), send: $('send'),
+  conn: $('conn'),
+  title: $('title'),
+  back: $('back'),
+  vPair: $('v-pair'),
+  vList: $('v-list'),
+  vSession: $('v-session'),
+  code: $('code'),
+  pairGo: $('pair-go'),
+  pairErr: $('pair-err'),
+  composer: $('composer'),
+  input: $('input'),
+  send: $('send'),
 };
 
 const state = {
@@ -289,7 +297,9 @@ function renderList() {
     row.className = 'session';
 
     const dot = document.createElement('span');
-    dot.className = 'dot' + (s.pendingApprovals ? ' wait' : s.mode === 'observed' ? '' : ' live');
+    dot.className =
+      'dot' +
+      (s.pendingApprovals ? ' wait' : s.externallyActive || s.mode !== 'observed' ? ' live' : '');
 
     const meta = document.createElement('div');
     meta.className = 'meta';
@@ -300,8 +310,11 @@ function renderList() {
     sub.className = 'sub';
     // Most of this list is history on disk. Say plainly which rows you can
     // actually talk to, or every past session looks like a live one.
-    sub.textContent =
-      s.mode === 'observed' ? `past session · ${s.cwd}` : `${s.mode} · ${s.cwd}`;
+    sub.textContent = s.externallyActive
+      ? `live in terminal · ${s.cwd}`
+      : s.mode === 'observed'
+        ? `past session · ${s.cwd}`
+        : `${s.mode} · ${s.cwd}`;
     meta.append(name, sub);
 
     row.append(dot, meta);
@@ -386,6 +399,17 @@ function renderResumeBar(s) {
 
   const label = document.createElement('div');
   label.className = 'sub';
+
+  // A session a terminal still owns must NOT offer Resume — that would put a
+  // second agent on the same conversation. Watching is the correct action.
+  if (s.externallyActive) {
+    label.textContent =
+      '● Live in your terminal — mirroring it here, read-only. It updates as the agent works.';
+    bar.append(label);
+    el.vSession.prepend(bar);
+    return;
+  }
+
   label.textContent = 'Read-only. Reopen it to keep going.';
 
   const btn = document.createElement('button');
@@ -433,8 +457,10 @@ function applyEvent(ev, replaying = false) {
         appendBubble('user', ev.text);
       } else if (ev.final) {
         // Whole message: replace whatever we streamed, so replay isn't doubled.
-        if (state.streaming) { state.streaming.textContent = ev.text; state.streaming = null; }
-        else appendBubble('agent', ev.text);
+        if (state.streaming) {
+          state.streaming.textContent = ev.text;
+          state.streaming = null;
+        } else appendBubble('agent', ev.text);
       } else {
         if (!state.streaming) state.streaming = appendBubble('agent', '');
         state.streaming.textContent += ev.text;
@@ -457,9 +483,15 @@ function applyEvent(ev, replaying = false) {
       break;
     }
 
-    case 'tool': upsertTool(ev); break;
-    case 'plan': upsertPlan(ev); break;
-    case 'approval': upsertApproval(ev); break;
+    case 'tool':
+      upsertTool(ev);
+      break;
+    case 'plan':
+      upsertPlan(ev);
+      break;
+    case 'approval':
+      upsertApproval(ev);
+      break;
 
     case 'approval-resolved': {
       const node = state.approvalNodes.get(ev.requestId);
@@ -478,7 +510,9 @@ function applyEvent(ev, replaying = false) {
       if (ev.state !== 'working' && ev.state !== 'thinking') state.streaming = null;
       break;
 
-    case 'error': appendError(ev.message); break;
+    case 'error':
+      appendError(ev.message);
+      break;
   }
   if (!replaying) scrollDown();
 }
@@ -506,8 +540,7 @@ function upsertTool(ev) {
   let node = state.toolNodes.get(ev.toolId);
   if (!node) {
     node = document.createElement('div');
-    node.innerHTML =
-      '<div class="hd"><span class="nm"></span><span class="st"></span></div>';
+    node.innerHTML = '<div class="hd"><span class="nm"></span><span class="st"></span></div>';
     state.toolNodes.set(ev.toolId, node);
     el.vSession.append(node);
   }
@@ -518,7 +551,10 @@ function upsertTool(ev) {
   const body = ev.output ?? ev.input;
   if (body !== undefined && body !== null) {
     let pre = node.querySelector('pre');
-    if (!pre) { pre = document.createElement('pre'); node.append(pre); }
+    if (!pre) {
+      pre = document.createElement('pre');
+      node.append(pre);
+    }
     pre.textContent = readableToolBody(body);
   }
 }
@@ -539,7 +575,9 @@ function readableToolBody(body) {
     const trimmed = {};
     for (const [k, v] of Object.entries(body)) {
       const isByteArray =
-        Array.isArray(v) && v.length > 4 && v.every((n) => typeof n === 'number' && n >= 0 && n < 256);
+        Array.isArray(v) &&
+        v.length > 4 &&
+        v.every((n) => typeof n === 'number' && n >= 0 && n < 256);
       if (!isByteArray) trimmed[k] = v;
     }
     return JSON.stringify(trimmed, null, 2);
@@ -577,7 +615,9 @@ function upsertApproval(ev) {
   if (ev.toolName) {
     const why = document.createElement('div');
     why.className = 'why';
-    why.textContent = ev.toolName + (ev.locations?.length ? ' · ' + ev.locations.map(l => l.path).join(', ') : '');
+    why.textContent =
+      ev.toolName +
+      (ev.locations?.length ? ' · ' + ev.locations.map((l) => l.path).join(', ') : '');
     box.append(why);
   }
 
@@ -595,10 +635,13 @@ function upsertApproval(ev) {
   // the widest permission under the user's thumb. Narrow grants come first
   // here, and "always" is visually demoted so it can't be tapped by reflex.
   const rank = (o) =>
-    o.intent === 'allow' && o.kind === 'allow_once' ? 0
-    : o.intent === 'allow' ? 1
-    : o.intent === 'deny' ? 2
-    : 3;
+    o.intent === 'allow' && o.kind === 'allow_once'
+      ? 0
+      : o.intent === 'allow'
+        ? 1
+        : o.intent === 'deny'
+          ? 2
+          : 3;
   const options = [...ev.options].sort((a, b) => rank(a) - rank(b));
 
   for (const opt of options) {

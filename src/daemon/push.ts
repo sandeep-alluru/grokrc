@@ -95,7 +95,10 @@ export class PushService {
    * Push an approval request. Called for every approval regardless of whether a
    * socket is connected — a connected socket does not mean a watching human.
    */
-  async notifyApproval(ev: Extract<RcEvent, { k: 'approval' }>, sessionTitle: string): Promise<void> {
+  async notifyApproval(
+    ev: Extract<RcEvent, { k: 'approval' }>,
+    sessionTitle: string
+  ): Promise<void> {
     await this.#send({
       title: 'Grok needs approval',
       body: `${sessionTitle}: ${ev.title}`.slice(0, 160),
