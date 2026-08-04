@@ -35,10 +35,26 @@ export interface StoredSubscription {
   createdAt: number;
 }
 
+export interface PushStats {
+  sent: number;
+  /** Subscription gone for good (404/410) — expected, pruned. */
+  expired: number;
+  /** Something is wrong — bad keys, rejecting service, network. NOT pruned. */
+  failed: number;
+}
+
+export interface PushError {
+  message: string;
+  at: number;
+  endpoint: string;
+}
+
 export class PushService {
   #keys: VapidKeys | null = null;
   #subs: StoredSubscription[] = [];
   #loaded = false;
+  #stats: PushStats = { sent: 0, expired: 0, failed: 0 };
+  #lastError: PushError | null = null;
 
   /** Generate VAPID keys on first run and reuse them thereafter. */
   async load(): Promise<void> {
@@ -71,6 +87,20 @@ export class PushService {
 
   get subscriberCount(): number {
     return this.#subs.length;
+  }
+
+  /**
+   * Delivery counters, so "push isn't working" is answerable.
+   * `expired` (browser dropped the subscription) is tracked apart from `failed`
+   * (something is wrong) — they need different responses.
+   */
+  get stats(): Readonly<PushStats> {
+    return { ...this.#stats };
+  }
+
+  /** The most recent delivery fault, or null. Surfaced by `grokrc doctor`. */
+  get lastError(): Readonly<PushError> | null {
+    return this.#lastError ? { ...this.#lastError } : null;
   }
 
   async subscribe(deviceId: string, subscription: webpush.PushSubscription): Promise<void> {
@@ -129,11 +159,33 @@ export class PushService {
       this.#subs.map(async (s) => {
         try {
           await webpush.sendNotification(s.subscription, body);
+          this.#stats.sent++;
         } catch (err) {
-          // 404/410 mean the browser dropped the subscription for good — prune
-          // it, or the list grows forever and every send retries dead endpoints.
           const status = (err as { statusCode?: number }).statusCode;
-          if (status === 404 || status === 410) dead.push(s.subscription.endpoint);
+
+          // 404/410 mean the browser dropped the subscription for good — prune,
+          // or the list grows forever and every send retries dead endpoints.
+          if (status === 404 || status === 410) {
+            dead.push(s.subscription.endpoint);
+            this.#stats.expired++;
+            return;
+          }
+
+          // ANYTHING ELSE is a fault, not an expiry: bad VAPID keys, a rejecting
+          // push service, a network outage. These used to be swallowed entirely,
+          // so a completely broken push setup looked identical to an idle one.
+          // Deliberately NOT pruned — unsubscribing someone's phone because of a
+          // transient outage is worse than retrying a live endpoint.
+          this.#stats.failed++;
+          this.#lastError = {
+            message: `push failed (${status ?? 'no status'}): ${(err as Error).message}`.slice(
+              0,
+              300
+            ),
+            at: Date.now(),
+            endpoint: new URL(s.subscription.endpoint).host,
+          };
+          console.warn(`  push: ${this.#lastError.message}`);
         }
       })
     );

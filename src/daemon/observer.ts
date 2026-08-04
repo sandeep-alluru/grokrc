@@ -18,6 +18,7 @@
  */
 import { EventEmitter } from 'node:events';
 import { createReadStream } from 'node:fs';
+import { StringDecoder } from 'node:string_decoder';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { normalizeSessionUpdate, type RcEvent } from './events.ts';
@@ -44,6 +45,9 @@ export class SessionObserver extends EventEmitter {
   #path: string;
   #offset = 0;
   #partial = '';
+  /** Persists across polls so a multi-byte character split by a read boundary
+   *  is completed rather than mangled. */
+  #decoder = new StringDecoder('utf8');
   #timer: NodeJS.Timeout | null = null;
   #reading = false;
   #pollMs: number;
@@ -88,13 +92,17 @@ export class SessionObserver extends EventEmitter {
         // reading from a stale offset into the middle of a line.
         this.#offset = 0;
         this.#partial = '';
+        // A fresh decoder too: any half-character it was holding belongs to the
+        // file that no longer exists, and would corrupt the first line of the new one.
+        this.#decoder = new StringDecoder('utf8');
         this.emit('event', { k: 'raw', sessionId: '', kind: 'log_truncated', payload: null });
       }
       if (st.size === this.#offset) return;
 
-      const chunk = await this.#read(this.#offset, st.size - 1);
+      const bytes = await this.#read(this.#offset, st.size - 1);
       this.#offset = st.size;
-      this.#partial += chunk;
+      // The decoder carries any incomplete UTF-8 sequence to the next pass.
+      this.#partial += this.#decoder.write(bytes);
 
       let emitted = false;
       let nl: number;
@@ -122,12 +130,23 @@ export class SessionObserver extends EventEmitter {
     }
   }
 
-  #read(start: number, end: number): Promise<string> {
+  /**
+   * Read a byte range as RAW bytes.
+   *
+   * Deliberately no `encoding` option. We poll at byte offsets against a file
+   * a live agent is still appending to, so a read boundary lands inside a
+   * multi-byte character routinely. Decoding each range independently turned
+   * every em-dash, arrow and emoji that straddled a boundary into replacement
+   * characters — `done — created` became `done ??? created`. Decoding is done
+   * by a persistent StringDecoder instead, which holds the incomplete tail of a
+   * sequence until the bytes that finish it arrive.
+   */
+  #read(start: number, end: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      let out = '';
-      createReadStream(this.#path, { start, end, encoding: 'utf8' })
-        .on('data', (c) => (out += c))
-        .on('end', () => resolve(out))
+      const chunks: Buffer[] = [];
+      createReadStream(this.#path, { start, end })
+        .on('data', (c) => chunks.push(c as Buffer))
+        .on('end', () => resolve(Buffer.concat(chunks)))
         .on('error', reject);
     });
   }
@@ -137,7 +156,11 @@ export class SessionObserver extends EventEmitter {
     try {
       parsed = JSON.parse(line) as LogLine;
     } catch {
-      return; // a torn final line; the next poll re-reads it whole
+      // NOT a torn line — only complete newline-terminated lines reach here, and
+      // this one has already been consumed from #partial with the offset moved
+      // past it, so it will never be seen again. This is genuinely malformed
+      // JSON. Dropping one line beats aborting the tail of a live session.
+      return;
     }
 
     // Both `session/update` and the vendor-prefixed `_x.ai/session/update`
