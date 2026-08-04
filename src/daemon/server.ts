@@ -24,6 +24,12 @@ export interface ServerOptions {
   push?: PushService;
   /** Default cwd for sessions created from a client that doesn't name one. */
   defaultCwd?: string;
+  /**
+   * How many past (read-only) sessions to list. Live sessions are always shown.
+   * Grok accumulates a directory per session forever, so an uncapped list buries
+   * the one you actually want under months of history.
+   */
+  historyLimit?: number;
 }
 
 type ClientMsg =
@@ -69,7 +75,9 @@ export class RemoteControlServer {
     this.#opts = { host: opts.host ?? '127.0.0.1', port: opts.port ?? 4319, ...opts };
 
     this.#http = createServer((req, res) => void this.#onHttp(req, res));
-    this.#wss = new WebSocketServer({ server: this.#http });
+    // Cap frame size so a hostile or buggy client can't exhaust memory with one
+    // message. Prompts are text; 1 MiB is generous.
+    this.#wss = new WebSocketServer({ server: this.#http, maxPayload: 1024 * 1024 });
     this.#wss.on('connection', (ws) => this.#onConnection(ws));
 
     // Fan out every session event to the clients watching that session.
@@ -518,11 +526,13 @@ export class RemoteControlServer {
 
   async #sendSessions(client: Client): Promise<void> {
     const live = this.#opts.sessions.list();
-    const onDisk = await this.#opts.sessions.discoverOnDisk();
+    const limit = this.#opts.historyLimit ?? 10;
+    const onDisk = await this.#opts.sessions.discoverOnDisk(limit);
     const liveIds = new Set(live.map((s) => s.id));
+    // Live sessions always appear; history is capped to the most recent.
     send(client.ws, {
       t: 'sessions',
-      sessions: [...live, ...onDisk.filter((s) => !liveIds.has(s.id))],
+      sessions: [...live, ...onDisk.filter((s) => !liveIds.has(s.id)).slice(0, limit)],
     });
   }
 
