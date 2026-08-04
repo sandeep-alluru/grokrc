@@ -15,6 +15,16 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
+import {
+  CONFIG_KEYS,
+  coerceValue,
+  configPath,
+  isKnownKey,
+  loadConfig,
+  missingCwdNotice,
+  saveConfig,
+  validateConfig,
+} from './daemon/config.ts';
 import { checkPermissionPosture, posturteWarning } from './daemon/preflight.ts';
 import { PushService } from './daemon/push.ts';
 import { SessionManager } from './daemon/session-manager.ts';
@@ -79,12 +89,23 @@ grokrc — remote control for Grok Build
       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
 
   grokrc pair        Print a pairing code for a new device
+  grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
   grokrc devices     List paired devices
   grokrc revoke <id> Revoke a device  (--all to revoke everything)
   grokrc doctor      Check that grok is installed and ACP responds
 `;
 
 async function cmdUp(flags: Flags): Promise<void> {
+  // Settings are the durable answer; flags override for this invocation only.
+  const cfg = await loadConfig();
+  const issues = validateConfig(cfg);
+  if (issues.length) {
+    console.log(`\n  ⚠ problems in ${configPath()}:`);
+    for (const i of issues) console.log(`      ${i.key}: ${i.message}`);
+    console.log('');
+    if (issues.some((i) => i.fatal)) process.exit(1);
+  }
+
   const auth = new AuthStore();
   await auth.load();
 
@@ -92,12 +113,17 @@ async function cmdUp(flags: Flags): Promise<void> {
   if (flags['no-push'] !== true) await push.load();
 
   const sessions = new SessionManager({
-    model: typeof flags.model === 'string' ? flags.model : undefined,
-    useLeader: flags.leader === true,
+    model: typeof flags.model === 'string' ? flags.model : cfg.model,
+    useLeader: flags.leader === true || cfg.leader === true,
   });
 
-  const host = flags.lan === true ? '0.0.0.0' : ((flags.host as string) ?? '127.0.0.1');
-  const port = Number(flags.port ?? 4319);
+  const lan = flags.lan === true || cfg.lan === true;
+  const host = lan ? '0.0.0.0' : ((flags.host as string) ?? cfg.host ?? '127.0.0.1');
+  const port = Number(flags.port ?? cfg.port ?? 4319);
+
+  // The one setting with no safe default — see config.ts.
+  const defaultCwd =
+    typeof flags.cwd === 'string' ? resolve(flags.cwd) : (cfg.defaultCwd ?? process.cwd());
 
   const server = new RemoteControlServer({
     host,
@@ -106,8 +132,8 @@ async function cmdUp(flags: Flags): Promise<void> {
     sessions,
     auth,
     push: flags['no-push'] === true ? undefined : push,
-    defaultCwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
-    historyLimit: flags.history !== undefined ? Number(flags.history) : undefined,
+    defaultCwd,
+    historyLimit: flags.history !== undefined ? Number(flags.history) : cfg.historyLimit,
   });
 
   // Say so loudly if the agent will never ask for approval — otherwise the
@@ -115,6 +141,10 @@ async function cmdUp(flags: Flags): Promise<void> {
   const posture = await checkPermissionPosture();
   const warning = posturteWarning(posture);
   if (warning) console.log(warning);
+
+  // No configured project directory means phone-created sessions land wherever
+  // the process happens to be — under systemd, the user's home.
+  if (!cfg.defaultCwd && typeof flags.cwd !== 'string') console.log(missingCwdNotice());
 
   const bound = await server.listen();
   const shown = host === '0.0.0.0' ? (lanAddress() ?? '0.0.0.0') : host;
@@ -214,6 +244,77 @@ async function cmdRevoke(rest: string[], flags: Flags): Promise<void> {
   console.log((await auth.revoke(id)) ? `  revoked ${id}` : `  no such device: ${id}`);
 }
 
+/**
+ *   grokrc config                       show current settings
+ *   grokrc config set <key> <value>
+ *   grokrc config unset <key>
+ */
+async function cmdConfig(rest: string[]): Promise<void> {
+  const cfg = await loadConfig();
+  const [action, key, ...valueParts] = rest;
+
+  if (!action || action === 'show' || action === 'list') {
+    console.log(`\n  ${configPath()}\n`);
+    if (Object.keys(cfg).length === 0) console.log('  (empty — nothing configured yet)');
+    for (const k of CONFIG_KEYS) {
+      const v = cfg[k];
+      if (v !== undefined) console.log(`  ${k.padEnd(14)} ${JSON.stringify(v)}`);
+    }
+    if (!cfg.defaultCwd) console.log(missingCwdNotice());
+    else console.log('');
+    return;
+  }
+
+  if (action === 'set') {
+    if (!key || !isKnownKey(key)) {
+      console.log(`\n  unknown key: ${key ?? '(none)'}`);
+      console.log(`  valid keys: ${CONFIG_KEYS.join(', ')}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    const raw = valueParts.join(' ');
+    if (!raw) {
+      console.log(`\n  usage: grokrc config set ${key} <value>\n`);
+      process.exitCode = 1;
+      return;
+    }
+    // Resolve paths relative to where the user is standing, so `config set
+    // defaultCwd .` does the obvious thing.
+    const value = key === 'defaultCwd' ? resolve(raw) : coerceValue(key, raw);
+    const next = { ...cfg, [key]: value };
+
+    const issues = validateConfig(next);
+    const bad = issues.find((i) => i.key === key);
+    if (bad) {
+      console.log(`\n  ${key} ${bad.message}: ${JSON.stringify(value)}\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    await saveConfig(next);
+    console.log(`\n  ${key} = ${JSON.stringify(value)}`);
+    console.log(`  saved to ${configPath()}`);
+    console.log('  restart to apply:  systemctl --user restart grokrc\n');
+    return;
+  }
+
+  if (action === 'unset') {
+    if (!key || !isKnownKey(key)) {
+      console.log(`\n  unknown key: ${key ?? '(none)'}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    const next = { ...cfg };
+    delete next[key];
+    await saveConfig(next);
+    console.log(`\n  ${key} unset\n`);
+    return;
+  }
+
+  console.log('\n  usage: grokrc config [show | set <key> <value> | unset <key>]\n');
+  process.exitCode = 1;
+}
+
 async function cmdDoctor(): Promise<void> {
   console.log('');
   try {
@@ -280,6 +381,8 @@ async function main(): Promise<void> {
         cwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
       }).run();
     }
+    case 'config':
+      return cmdConfig(rest);
     case 'doctor':
       return cmdDoctor();
     case 'relay': {

@@ -90,6 +90,35 @@ add it to your home screen. That's it.
       Y8M8GF
 ```
 
+### Configure it first — one setting is required
+
+```bash
+grokrc config set defaultCwd /path/to/your/projects
+```
+
+**This has no default and grokrc will not guess one.** Sessions started from your phone
+open in the daemon's working directory — and under systemd that is your home directory,
+not a project, so the agent begins with no repo in context. The daemon prints a notice
+at startup until you set it.
+
+```bash
+grokrc config                    # show current settings
+grokrc config set lan true       # bind 0.0.0.0 instead of loopback
+grokrc config unset model
+```
+
+| Key | |
+|---|---|
+| `defaultCwd` | **required** — working directory for new sessions |
+| `port` · `host` · `lan` | where the daemon listens |
+| `historyLimit` | how many past sessions to list (default 10) |
+| `model` | model override for new sessions |
+| `leader` | share one backend with `grok agent leader` |
+
+Precedence: **CLI flag → `~/.grokrc/config.json` → built-in default.** Settings are
+validated on write and on start — a `defaultCwd` that doesn't exist is refused rather
+than silently ignored.
+
 ### Run it as a service
 
 ```bash
