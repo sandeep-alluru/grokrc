@@ -64,6 +64,7 @@ el.pairGo.addEventListener('click', async () => {
     state.token = body.token;
     localStorage.setItem(TOKEN_KEY, body.token);
     connect();
+    void setupPush();
   } catch (err) {
     el.pairErr.textContent = err.message;
   } finally {
@@ -202,6 +203,10 @@ function renderList() {
 }
 
 el.back.addEventListener('click', () => {
+  // Tell the daemon to stop tailing so observers don't accumulate.
+  if (state.current?.mode === 'observed') {
+    sendMsg({ t: 'close', sessionId: state.current.id });
+  }
   state.current = null;
   sendMsg({ t: 'sessions' });
   show(el.vList);
@@ -216,7 +221,18 @@ function openSession(s) {
   el.title.textContent = s.title;
   el.vSession.replaceChildren();
   show(el.vSession);
-  sendMsg({ t: 'open', sessionId: s.id });
+  // Observed sessions are read-only — there is no way to inject a prompt into a
+  // session we don't own, so don't offer a composer that would silently fail.
+  const readOnly = s.mode === 'observed';
+  el.composer.hidden = readOnly;
+  if (readOnly) {
+    const note = document.createElement('div');
+    note.className = 'empty';
+    note.textContent = 'Watching a session started in your terminal — read-only.';
+    el.vSession.append(note);
+  }
+  // cwd lets the daemon locate the on-disk log for a session it doesn't own.
+  sendMsg({ t: 'open', sessionId: s.id, cwd: s.cwd });
 }
 
 /* ─── transcript ─────────────────────────────────────────────────────────── */
@@ -413,7 +429,65 @@ el.send.addEventListener('click', () => {
   el.input.style.height = 'auto';
 });
 
+/* ─── push notifications ─────────────────────────────────────────────────── */
+
+function urlBase64ToUint8Array(base64) {
+  const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4))
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const raw = atob(padded);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+async function setupPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!state.token) return;
+
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+
+    const { publicKey } = await (await fetch('/api/push/key')).json();
+    if (!publicKey) return; // daemon started with --no-push
+
+    // Ask only after pairing — a permission prompt on first paint gets denied,
+    // and a denied permission is sticky.
+    if (Notification.permission === 'default') {
+      if ((await Notification.requestPermission()) !== 'granted') return;
+    }
+    if (Notification.permission !== 'granted') return;
+
+    const sub =
+      (await reg.pushManager.getSubscription()) ??
+      (await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      }));
+
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: state.token, subscription: sub }),
+    });
+  } catch (err) {
+    // Push is an enhancement; the app must work without it (and will fail here
+    // on plain http:// over LAN, where service workers are not permitted).
+    console.warn('push unavailable:', err.message);
+  }
+}
+
+// Tapping a notification focuses an existing tab — jump it to the right session.
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type !== 'open-session' || !e.data.sessionId) return;
+  const target = state.sessions.find((s) => s.id === e.data.sessionId);
+  if (target) openSession(target);
+  else sendMsg({ t: 'sessions' });
+});
+
 /* ─── boot ───────────────────────────────────────────────────────────────── */
 
-if (state.token) connect();
-else show(el.vPair);
+if (state.token) {
+  connect();
+  void setupPush();
+} else {
+  show(el.vPair);
+}

@@ -2,9 +2,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Device tokens and pairing state — never commit
+# Device tokens, push keys, pairing state — never commit
 .grokrc/
 devices.json
+vapid.json
+push-subscriptions.json
 
 .env
 .env.*
