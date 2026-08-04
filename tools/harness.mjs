@@ -1,0 +1,182 @@
+/**
+ * Shared harness for the real-stack tools.
+ *
+ * Directive 02: one implementation, parameterized by the work item. Three tools
+ * (e2e-drive, live-ui-check, resume-check) each rebuilt the same
+ * AuthStore + SessionManager + RemoteControlServer block, and four each
+ * re-launched a browser. Every fix to that block had to be made N times, and the
+ * copies had already begun to drift — one isolated GROK_HOME, the others did not.
+ *
+ * Everything here operates on the REAL stack (directive 03): a real daemon, real
+ * pairing over HTTP, a real browser. Nothing is simulated.
+ */
+import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const SHOTS = join(ROOT, 'docs/screenshots');
+
+/** Temp dirs created through this module, removed by `cleanup()`. */
+const scratch = [];
+
+async function scratchDir(prefix) {
+  const d = await mkdtemp(join(tmpdir(), prefix));
+  scratch.push(d);
+  return d;
+}
+
+/**
+ * An isolated GROK_HOME with prompting turned ON.
+ *
+ * Grok does not ask for permission by default — `[features] support_permission`
+ * is false, and a user config may also set `[ui] permission_mode = "auto"`.
+ * Neither takes effect from a project `.grok/config.toml`; both are user-config
+ * only. So a tool that needs to observe an approval must supply its own GROK_HOME
+ * rather than edit the owner's real one.
+ *
+ * Credentials are copied so the run does not require a fresh login.
+ */
+export async function isolatedGrokHome({ prompting = true } = {}) {
+  const home = await scratchDir('grokrc-grokhome-');
+  const real = join(process.env.HOME, '.grok');
+
+  if (prompting) {
+    await writeFile(
+      join(home, 'config.toml'),
+      '[features]\nsupport_permission = true\n\n[ui]\npermission_mode = "default"\n'
+    );
+  }
+  for (const f of ['auth.json', 'agent_id']) {
+    try {
+      await writeFile(join(home, f), await readFile(join(real, f)));
+    } catch {
+      /* optional */
+    }
+  }
+  process.env.GROK_HOME = home;
+  return home;
+}
+
+/**
+ * Boot a real daemon on an ephemeral port with isolated pairing state.
+ *
+ * `transportFactory` is passed straight through: omit it for a REAL grok agent,
+ * supply one to replay captures. The caller decides — this module does not
+ * choose a fake on anyone's behalf.
+ */
+export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
+  const cfgDir = await scratchDir('grokrc-cfg-');
+  process.env.GROKRC_HOME = cfgDir;
+
+  const { AuthStore } = await import('../dist/daemon/auth.js');
+  const { SessionManager } = await import('../dist/daemon/session-manager.js');
+  const { RemoteControlServer } = await import('../dist/daemon/server.js');
+
+  const workDir = defaultCwd ?? (await scratchDir('grokrc-work-'));
+
+  const auth = new AuthStore();
+  await auth.load();
+  const sessions = new SessionManager(transportFactory ? { transportFactory } : {});
+  const server = new RemoteControlServer({
+    host: '127.0.0.1',
+    port: 0,
+    webRoot: join(ROOT, 'web'),
+    sessions,
+    auth,
+    push,
+    defaultCwd: workDir,
+  });
+  const { port } = await server.listen();
+
+  return {
+    auth,
+    sessions,
+    server,
+    workDir,
+    port,
+    base: `http://127.0.0.1:${port}`,
+    async close() {
+      sessions.closeAll();
+      await server.close();
+    },
+  };
+}
+
+/** Pair a device against a running daemon and return its token. */
+export async function pairDevice(base, auth, deviceName = 'harness') {
+  const { code } = auth.beginPairing();
+  const res = await fetch(`${base}/api/pair`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code, deviceName }),
+  });
+  if (!res.ok) throw new Error(`pairing failed: ${res.status}`);
+  return (await res.json()).token;
+}
+
+/**
+ * A real Chromium at phone width, already paired and sitting on the session list.
+ *
+ * Console errors and uncaught page errors are collected rather than ignored —
+ * a silent console error is how a client-side fault hides behind a green run.
+ */
+export async function pairedPage({ base, auth, origin, code } = {}) {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    permissions: ['notifications'],
+  });
+  const page = await ctx.newPage();
+
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
+  page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text()}`));
+
+  const target = origin ?? base;
+  await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  await page.waitForSelector('#v-pair.on', { timeout: 20_000 });
+
+  const pairingCode = code ?? auth.beginPairing().code;
+  await page.fill('#code', pairingCode);
+  await page.click('#pair-go');
+  await page.waitForSelector('#v-list.on', { timeout: 25_000 });
+
+  await mkdir(SHOTS, { recursive: true });
+  return {
+    browser,
+    page,
+    problems,
+    async close() {
+      await browser.close();
+    },
+  };
+}
+
+/** Consistent pass/fail reporting across tools. */
+export function reporter() {
+  const problems = [];
+  return {
+    problems,
+    note(ok, msg) {
+      console.log(`  ${ok ? '✓' : '✗'} ${msg}`);
+      if (!ok) problems.push(msg);
+    },
+    finish(label = '') {
+      console.log(
+        `\n─── ${problems.length ? `${problems.length} PROBLEM(S)` : 'ALL CLEAR'} ${label}───`
+      );
+      for (const p of problems) console.log(`  · ${p}`);
+      return problems.length ? 1 : 0;
+    },
+  };
+}
+
+/** Remove every scratch dir this module created. */
+export async function cleanup() {
+  for (const d of scratch.splice(0)) {
+    await rm(d, { recursive: true, force: true }).catch(() => {});
+  }
+}

@@ -12,14 +12,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
-    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "test": "npm run test:mock && npm run build && npm run test:real",
     "test:unit": "node --test --experimental-strip-types test/events.test.ts test/observer.test.ts test/preflight.test.ts test/push.test.ts test/relay.test.ts test/server.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "probe": "node tools/acp-probe.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
-    "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\""
+    "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
+    "test:mock": "node --test --experimental-strip-types test/*.test.ts",
+    "test:real": "node tools/live-ui-check.mjs && node tools/resume-check.mjs"
   },
   "files": [
     "dist",
