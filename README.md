@@ -52,8 +52,29 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 
 ## Use
 
+### ⚠️ Required config — Grok does not ask for permission by default
+
+Found the hard way, by driving a real turn end-to-end: **`[features]
+support_permission` defaults to `false`**, and a user config may also set
+`[ui] permission_mode` to `auto` / `dontAsk` / `bypassPermissions` /
+`acceptEdits`. Under any of those, `session/request_permission` is never sent —
+so one-tap approval silently does nothing *and* your agent executes every write
+and shell command unattended.
+
+Put this in `~/.grok/config.toml`:
+
+```toml
+[features]
+support_permission = true
+
+[ui]
+permission_mode = "default"
+```
+
+`grokrc doctor` checks this and `grokrc up` refuses to be quiet about it.
+
 ```bash
-grokrc doctor       # verify grok is installed and ACP responds
+grokrc doctor       # verify grok, ACP, and that the agent will actually prompt
 grokrc up --lan     # start the daemon, reachable from your phone
 ```
 
@@ -132,13 +153,28 @@ once it lands.
 - ✅ Pairing, device tokens, authenticated WebSocket
 - ✅ PWA — session list, streaming, tool cards, plans, one-tap approvals
 - ✅ **Observed mode** — mirrors sessions you started by hand in a terminal
-- ✅ **Relay mode** — daemon dials out; no inbound port
-- ✅ **Web Push** — self-hosted VAPID; the phone buzzes when the agent is blocked
-- ✅ 38 tests; build, typecheck, and `grokrc doctor` green
+- 🟡 **Relay mode** — transport works and is tested, but the PWA isn't served or paired
+  through it yet, so it isn't usable end-to-end
+- 🟡 **Web Push** — plumbing complete and tested; real delivery to a device unverified
+- ✅ **Verified end-to-end against a live agent** — real turn, real
+  `session/request_permission`, approved from a remote client, agent proceeded
+  (`tools/e2e-drive.mjs`, capture in `docs/captures/e2e-drive.json`)
+- ✅ 49 tests; build, typecheck, and `grokrc doctor` green
 
-Next: `grokrc pair` against a live daemon (needs a control socket), image prompts
-once the agent advertises `promptCapabilities.image`, and end-to-end encryption
-through the relay so a hosted forwarder can't see plaintext.
+Next: serve the PWA through the relay; e2e encryption; open the PWA in a real
+browser; `grokrc pair` against a live daemon.
+
+## Limitations
+
+| | |
+|---|---|
+| PWA | **Never loaded in a browser.** Served and tested at the HTTP level, but zero visual/interaction verification. The riskiest remaining gap |
+| Relay | Transport verified, but no static serving and no `/api/*` proxying — a phone can't load or pair the app through it yet. And no e2e encryption: the relay sees plaintext, so self-host it |
+| Push delivery | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it |
+| Shared mode | `--leader` is passed through but never exercised |
+| Observed mode | Read-only by construction — a log file can't accept input |
+| `grokrc pair` | Stub; prints guidance instead of issuing a code |
+| Model coverage | Tested with one tool (`write`). Diff rendering for edits, and long/streaming output, unverified |
 
 ---
 
@@ -163,8 +199,13 @@ grokrc relay --port 8080
 grokrc up --relay ws://your-vps:8080
 ```
 
-It prints a phone URL. Works on cellular, behind NAT, with no port forward and no
-Tailnet.
+> ⚠️ **Incomplete.** The relay forwards WebSocket frames only — it does not serve the
+> PWA or proxy `/api/pair` and `/api/push/*`. So the transport works and is tested, but a
+> phone cannot yet *load or pair* the app through a relay. Use `--lan` today. Fixing this
+> means serving the web assets and proxying those routes through the relay.
+
+> ⚠️ The relay sees plaintext. End-to-end encryption is designed but not implemented —
+> self-host it and treat the host as trusted.
 
 The relay is deliberately stupid: it forwards opaque frames between one daemon and
 N clients in a room, and never parses ACP. **It is not a trust boundary** — a
