@@ -114,6 +114,8 @@ const state = {
   approvalNodes: new Map(),
   /** streaming agent bubble currently being appended to */
   streaming: null,
+  /** current thinking block being appended to (thinking streams token-by-token) */
+  thinkingNode: null,
   planNode: null,
   busy: false,
   backoff: 500,
@@ -289,7 +291,10 @@ function renderList() {
     name.textContent = s.title;
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = `${s.mode} · ${s.cwd}`;
+    // Most of this list is history on disk. Say plainly which rows you can
+    // actually talk to, or every past session looks like a live one.
+    sub.textContent =
+      s.mode === 'observed' ? `past session · ${s.cwd}` : `${s.mode} · ${s.cwd}`;
     meta.append(name, sub);
 
     row.append(dot, meta);
@@ -302,7 +307,7 @@ function renderList() {
     } else {
       const t = document.createElement('span');
       t.className = 'tag';
-      t.textContent = s.state;
+      t.textContent = s.mode === 'observed' ? 'read-only' : s.state;
       row.append(t);
     }
 
@@ -333,12 +338,16 @@ function openSession(s) {
   // Observed sessions are read-only — there is no way to inject a prompt into a
   // session we don't own, so don't offer a composer that would silently fail.
   el.composer.hidden = s.mode === 'observed';
+  el.title.textContent = s.mode === 'observed' ? `${s.title} (read-only)` : s.title;
   renderPlaceholder();
   // cwd lets the daemon locate the on-disk log for a session it doesn't own.
   sendMsg({ t: 'open', sessionId: s.id, cwd: s.cwd });
 }
 
 /* ─── transcript ─────────────────────────────────────────────────────────── */
+
+/** Mirrors INTERRUPTS_STREAM in the daemon — see session-manager.ts. */
+const INTERRUPTS = new Set(['tool', 'plan', 'approval', 'error', 'text']);
 
 /**
  * An empty session must not look like a broken one. Also carries the read-only
@@ -375,6 +384,9 @@ function clearPlaceholder() {
 
 function applyEvent(ev, replaying = false) {
   if (ev.k !== 'status' && ev.k !== 'commands') clearPlaceholder();
+  // Only genuinely interrupting content ends a thinking run. Metadata events
+  // (status, commands, mode, raw) interleave constantly and must not split it.
+  if (INTERRUPTS.has(ev.k)) state.thinkingNode = null;
   switch (ev.k) {
     case 'text': {
       if (ev.role === 'user') {
@@ -392,10 +404,17 @@ function applyEvent(ev, replaying = false) {
     }
 
     case 'thinking': {
-      const d = document.createElement('div');
-      d.className = 'thinking';
-      d.textContent = ev.text;
-      el.vSession.append(d);
+      // Thinking streams token-by-token. A new node per chunk turned every
+      // single word into its own bordered block — accumulate into one instead.
+      if (!state.thinkingNode) {
+        state.thinkingNode = document.createElement('div');
+        state.thinkingNode.className = 'thinking';
+        el.vSession.append(state.thinkingNode);
+      }
+      // `final` carries the whole coalesced block — REPLACE what we streamed,
+      // don't append, or the reasoning renders twice.
+      if (ev.final) state.thinkingNode.textContent = ev.text;
+      else state.thinkingNode.textContent += ev.text;
       break;
     }
 
@@ -461,8 +480,32 @@ function upsertTool(ev) {
   if (body !== undefined && body !== null) {
     let pre = node.querySelector('pre');
     if (!pre) { pre = document.createElement('pre'); node.append(pre); }
-    pre.textContent = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+    pre.textContent = readableToolBody(body);
   }
+}
+
+/**
+ * Grok's tool results wrap the useful text in structure — a Bash result carries
+ * `output` as an array of BYTE VALUES plus a human-readable `output_for_prompt`.
+ * Dumping the raw object showed a wall of numbers, so prefer whichever field is
+ * actually meant to be read.
+ */
+function readableToolBody(body) {
+  if (typeof body === 'string') return body;
+  if (body && typeof body === 'object') {
+    for (const key of ['output_for_prompt', 'output_text', 'stdout', 'content', 'text']) {
+      if (typeof body[key] === 'string' && body[key].trim()) return body[key];
+    }
+    // Byte arrays are noise; drop them and show the rest.
+    const trimmed = {};
+    for (const [k, v] of Object.entries(body)) {
+      const isByteArray =
+        Array.isArray(v) && v.length > 4 && v.every((n) => typeof n === 'number' && n >= 0 && n < 256);
+      if (!isByteArray) trimmed[k] = v;
+    }
+    return JSON.stringify(trimmed, null, 2);
+  }
+  return String(body);
 }
 
 function upsertPlan(ev) {

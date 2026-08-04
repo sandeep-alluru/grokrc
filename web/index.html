@@ -89,8 +89,15 @@
     text-align: left; white-space: pre-wrap; word-wrap: break-word;
   }
   .msg.agent .bubble { white-space: pre-wrap; word-wrap: break-word; }
-  .thinking { color: var(--dim); font-style: italic; font-size: 13px;
-    border-left: 2px solid var(--line); padding-left: 10px; margin-bottom: 12px; }
+  /* Reasoning can run to thousands of words and would otherwise push the actual
+     answer off-screen. Cap it and let it scroll in place. `pre-wrap` matters:
+     without it the streamed text collapses oddly on reflow. */
+  .thinking {
+    color: var(--dim); font-style: italic; font-size: 13px;
+    border-left: 2px solid var(--line); padding-left: 10px; margin-bottom: 12px;
+    white-space: pre-wrap; word-wrap: break-word;
+    max-height: 9.5em; overflow-y: auto;
+  }
 
   .tool {
     background: var(--panel); border: 1px solid var(--line); border-left-width: 3px;
@@ -145,6 +152,10 @@
     border-top: 1px solid var(--line); background: var(--panel);
     padding: 10px 12px calc(10px + var(--safe-b)); display: flex; gap: 8px;
   }
+  /* An author `display` rule beats the UA stylesheet's [hidden]{display:none},
+     so setting .hidden on the composer had NO visual effect — read-only
+     observed sessions still showed a working-looking input. Must be explicit. */
+  footer[hidden] { display: none; }
   footer textarea {
     flex: 1; resize: none; max-height: 120px; padding: 10px 12px;
     background: var(--panel-2); color: var(--fg);

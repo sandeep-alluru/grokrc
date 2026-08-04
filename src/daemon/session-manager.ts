@@ -28,6 +28,13 @@ const GROK_HOME = process.env.GROK_HOME ?? join(homedir(), '.grok');
 /** Per-session scrollback retained for reconnecting clients. */
 const EVENT_LOG_LIMIT = 2000;
 
+/**
+ * Event kinds that genuinely interrupt a streamed message and so should close
+ * it off. Everything else (status, commands, mode, raw, approval-resolved) is
+ * metadata that interleaves freely and must NOT split the message.
+ */
+const INTERRUPTS_STREAM = new Set<RcEvent['k']>(['tool', 'plan', 'approval', 'error']);
+
 export type SessionMode = 'owned' | 'shared' | 'observed';
 
 export interface SessionInfo {
@@ -47,8 +54,12 @@ interface LiveSession {
   client: AcpClient;
   log: RcEvent[];
   approvals: Map<string, PermissionRequest>;
-  /** Accumulates streamed chunks so reconnecting clients get whole messages. */
-  buffer: string;
+  /**
+   * The chunk run currently being accumulated. Agent text and thinking both
+   * stream token-by-token and must each be coalesced into one block; tracking
+   * the kind is what keeps them from merging into each other.
+   */
+  stream: { kind: 'text' | 'thinking'; text: string } | null;
 }
 
 interface ObservedSession {
@@ -241,7 +252,7 @@ export class SessionManager extends EventEmitter {
       client,
       log: [],
       approvals: new Map(),
-      buffer: '',
+      stream: null,
     };
     this.#sessions.set(id, session);
     this.#wire(session);
@@ -374,15 +385,39 @@ export class SessionManager extends EventEmitter {
   #wire(s: LiveSession): void {
     s.client.on('session-update', (params) => {
       for (const ev of normalizeSessionUpdate(params)) {
-        // Coalesce streamed text so reconnecting clients replay whole messages
-        // instead of thousands of one-token fragments.
-        if (ev.k === 'text' && ev.role === 'agent' && !ev.final) {
-          s.buffer += ev.text;
+        // Coalesce streamed chunks so reconnecting clients replay whole
+        // messages instead of thousands of one-token fragments. Thinking
+        // streams the same way text does — missing that made every thought
+        // token render as its own block.
+        // The agent echoes the prompt back as `user_message_chunk`. We already
+        // recorded it in prompt(), so honouring the echo shows every message
+        // twice. Observed sessions are the opposite case — there the echo is
+        // the ONLY source of the user's messages, so it must be kept.
+        if (ev.k === 'text' && ev.role === 'user') continue;
+
+        let streamKind: 'text' | 'thinking' | null = null;
+        let chunk = '';
+        if (ev.k === 'thinking') {
+          streamKind = 'thinking';
+          chunk = ev.text;
+        } else if (ev.k === 'text' && ev.role === 'agent' && !ev.final) {
+          streamKind = 'text';
+          chunk = ev.text;
+        }
+
+        if (streamKind) {
+          if (s.stream && s.stream.kind !== streamKind) this.#flush(s);
+          s.stream = { kind: streamKind, text: (s.stream?.text ?? '') + chunk };
           this.emit('event', ev); // live clients still get the token stream
           s.info.updatedAt = Date.now();
           continue;
         }
-        if (ev.k !== 'text' || ev.role !== 'agent') this.#flush(s);
+
+        // Only genuinely interrupting content ends a streamed message. Metadata
+        // — status ticks, command lists, mode changes, unknown passthrough —
+        // arrives mid-stream constantly, and flushing on it chopped a single
+        // reply into several bubbles.
+        if (INTERRUPTS_STREAM.has(ev.k)) this.#flush(s);
         this.#push(s, ev);
       }
     });
@@ -417,12 +452,20 @@ export class SessionManager extends EventEmitter {
     });
   }
 
-  /** Emit the accumulated agent message as one final block. */
+  /** Emit whatever is currently streaming as one finished block. */
   #flush(s: LiveSession): void {
-    if (!s.buffer) return;
-    const text = s.buffer;
-    s.buffer = '';
-    this.#push(s, { k: 'text', sessionId: s.info.id, role: 'agent', text, final: true });
+    const stream = s.stream;
+    if (!stream?.text) {
+      s.stream = null;
+      return;
+    }
+    s.stream = null;
+    this.#push(
+      s,
+      stream.kind === 'thinking'
+        ? { k: 'thinking', sessionId: s.info.id, text: stream.text, final: true }
+        : { k: 'text', sessionId: s.info.id, role: 'agent', text: stream.text, final: true }
+    );
   }
 
   #push(s: LiveSession, ev: RcEvent): void {

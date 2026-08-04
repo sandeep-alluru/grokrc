@@ -24,7 +24,13 @@ export type ToolStatus = 'pending' | 'running' | 'ok' | 'error';
 
 export type RcEvent =
   | { k: 'text'; sessionId: string; role: 'agent' | 'user'; text: string; final: boolean }
-  | { k: 'thinking'; sessionId: string; text: string }
+  /**
+   * `final` distinguishes a streamed chunk from the coalesced whole, exactly as
+   * it does for `text`. Without it the client cannot tell "append this token"
+   * from "here is the finished block", and appends both — rendering the entire
+   * reasoning twice.
+   */
+  | { k: 'thinking'; sessionId: string; text: string; final: boolean }
   | {
       k: 'tool';
       sessionId: string;
@@ -113,7 +119,7 @@ export function normalizeSessionUpdate(params: SessionUpdateParams): RcEvent[] {
       return [{ k: 'text', sessionId, role: 'user', text: textOf(u.content), final: false }];
 
     case 'agent_thought_chunk':
-      return [{ k: 'thinking', sessionId, text: textOf(u.content) }];
+      return [{ k: 'thinking', sessionId, text: textOf(u.content), final: false }];
 
     case 'tool_call':
     case 'tool_call_update': {

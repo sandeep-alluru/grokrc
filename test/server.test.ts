@@ -136,6 +136,29 @@ test('commands before hello are refused', async () => {
   sock.close();
 });
 
+test('prompting a session that does not exist reports an error', async () => {
+  // Previously swallowed by `.catch(() => {})`, so a prompt into a read-only
+  // observed session vanished with no feedback at all.
+  const { code } = auth.beginPairing();
+  const res = await fetch(`${base}/api/pair`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code, deviceName: 'err-phone' }),
+  });
+  const { token } = await res.json();
+
+  const sock = await ws();
+  sock.send(JSON.stringify({ t: 'hello', token }));
+  await next(sock); // ready
+  await next(sock); // sessions
+
+  sock.send(JSON.stringify({ t: 'prompt', sessionId: 'does-not-exist', text: 'hi' }));
+  const msg = await next(sock);
+  assert.equal(msg.t, 'error');
+  assert.match(msg.message, /no such session/);
+  sock.close();
+});
+
 test('a paired device gets ready then the session list', async () => {
   const { code } = auth.beginPairing();
   const res = await fetch(`${base}/api/pair`, {
