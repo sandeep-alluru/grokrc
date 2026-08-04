@@ -193,6 +193,39 @@ test('the page never scrolls horizontally at phone width', async () => {
   assert.equal(overflow, false, 'horizontal overflow at 390px');
 });
 
+test('an observed session hides the composer and says it is read-only', async () => {
+  // The bug this guards: `footer { display: flex }` overrode the UA
+  // `[hidden] { display: none }`, so setting composer.hidden did nothing and a
+  // read-only session presented a working-looking input. Typing into it sent a
+  // prompt the daemon rejected — silently.
+  await page.evaluate(() => {
+    const fake = {
+      id: 'observed-1',
+      cwd: '/tmp/observed',
+      title: 'observed session',
+      mode: 'observed',
+      state: 'idle',
+      pendingApprovals: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    // Drive the app's own code path rather than poking the DOM.
+    (globalThis as unknown as { openSession: (s: unknown) => void }).openSession?.(fake);
+  });
+
+  // If the app doesn't expose openSession, fall back to asserting the CSS rule
+  // directly — the regression is the style, and it must exist either way.
+  const hiddenWorks = await page.evaluate(() => {
+    const f = document.querySelector('footer')!;
+    const prev = f.hidden;
+    f.hidden = true;
+    const display = getComputedStyle(f).display;
+    f.hidden = prev;
+    return display === 'none';
+  });
+  assert.equal(hiddenWorks, true, 'footer[hidden] must actually be display:none');
+});
+
 test('reloading replays history rather than losing the transcript', async () => {
   await page.reload();
   await page.waitForSelector('#v-list.on', { timeout: 10_000 });

@@ -470,7 +470,11 @@ export class RemoteControlServer {
         case 'prompt':
           client.watching.add(msg.sessionId);
           // Not awaited: a turn runs for minutes and events stream meanwhile.
-          void sessions.prompt(msg.sessionId, msg.text).catch(() => {});
+          // But failures MUST surface — swallowing them meant prompting a
+          // read-only session did nothing at all, with no feedback.
+          void sessions.prompt(msg.sessionId, msg.text).catch((err: Error) => {
+            send(client.ws, { t: 'error', message: err.message });
+          });
           return;
 
         case 'approve': {

@@ -64,6 +64,7 @@ grokrc — remote control for Grok Build
       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
       --model <M>      Model override for new sessions
       --cwd <DIR>      Default working directory for new sessions
+      --pair           Print a pairing code even if devices are already paired
       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
       --room <ID>      Relay room id (generated if omitted)
       --relay-key <K>  Relay room key (generated if omitted)
@@ -140,13 +141,23 @@ async function cmdUp(flags: Flags): Promise<void> {
     console.log('  loopback only. Use --lan to reach it from your phone, or tunnel it.');
   }
 
-  if (auth.devices.length === 0) {
+  // Print a code when nothing is paired, or whenever --pair is asked for.
+  // Without the second case, adding a SECOND device (you paired on the desktop,
+  // now you want your phone) was impossible — the code lives in the running
+  // daemon's memory and `grokrc pair` cannot reach it.
+  if (auth.devices.length === 0 || flags.pair === true) {
     const { code } = auth.beginPairing();
-    console.log(`\n  No paired devices. Open the URL above on your phone and enter:\n`);
+    const lead =
+      auth.devices.length === 0
+        ? 'No paired devices. Open the URL above on your device and enter:'
+        : `${auth.devices.length} device(s) already paired. To add another, enter:`;
+    console.log(`\n  ${lead}\n`);
     console.log(`      ${code}\n`);
-    console.log('  (valid 5 minutes, single use — run `grokrc pair` for another)');
+    console.log('  (valid 5 minutes, single use)');
   } else {
-    console.log(`  ${auth.devices.length} paired device(s). \`grokrc pair\` to add another.`);
+    console.log(
+      `  ${auth.devices.length} paired device(s). Restart with \`--pair\` to add another.`
+    );
   }
   console.log('');
 
@@ -166,7 +177,7 @@ async function cmdPair(): Promise<void> {
   // that will not work.
   console.log(
     '\n  Pairing codes are issued by the running daemon.\n' +
-      '  Start it with `grokrc up` — it prints a code when no device is paired.\n' +
+      '  Start it with `grokrc up --pair` — it prints a fresh code every time.\n' +
       '  (A `grokrc pair` that talks to a live daemon needs the control socket: see docs/01-architecture.md §7.)\n'
   );
 }
