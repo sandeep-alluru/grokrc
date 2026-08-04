@@ -144,6 +144,15 @@
   }
   .approval.resolved { opacity: .55; border-color: var(--line); }
 
+  /* Sticky so it stays reachable in a long transcript — a resume affordance you
+     have to scroll to find is one you won't find. */
+  .resume-bar {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; margin-bottom: 14px;
+  }
+  .resume-bar .btn-primary { margin-top: 8px; }
+
   .err-line { color: var(--err); font-size: 13px; margin-bottom: 10px; }
   .empty { color: var(--dim); text-align: center; padding: 40px 20px; font-size: 14px; }
 

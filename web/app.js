@@ -236,6 +236,13 @@ function handle(msg) {
     case 'created':
       openSession(msg.session);
       break;
+    case 'resumed':
+      // Now live: drop the resume bar, reveal the composer, keep the transcript.
+      state.current = msg.session;
+      el.title.textContent = msg.session.title;
+      el.composer.hidden = false;
+      el.vSession.querySelector('[data-resume]')?.remove();
+      break;
     case 'history':
       renderTranscript(msg.events);
       break;
@@ -339,6 +346,7 @@ function openSession(s) {
   // session we don't own, so don't offer a composer that would silently fail.
   el.composer.hidden = s.mode === 'observed';
   el.title.textContent = s.mode === 'observed' ? `${s.title} (read-only)` : s.title;
+  if (s.mode === 'observed') renderResumeBar(s);
   renderPlaceholder();
   // cwd lets the daemon locate the on-disk log for a session it doesn't own.
   sendMsg({ t: 'open', sessionId: s.id, cwd: s.cwd });
@@ -360,9 +368,37 @@ function renderPlaceholder() {
   d.dataset.placeholder = '1';
   d.textContent =
     state.current?.mode === 'observed'
-      ? 'Watching a session started in your terminal — read-only.'
+      ? 'Watching a session started elsewhere — read-only.'
       : 'No messages yet. Send one below to start.';
   el.vSession.append(d);
+}
+
+/**
+ * A past session is read-only only until you ask for it back. Grok can reopen
+ * it (`session/load`), so offer that rather than leaving a dead transcript with
+ * no way to continue — which is exactly what a session you started yourself
+ * looked like once its process ended.
+ */
+function renderResumeBar(s) {
+  const bar = document.createElement('div');
+  bar.className = 'resume-bar';
+  bar.dataset.resume = '1';
+
+  const label = document.createElement('div');
+  label.className = 'sub';
+  label.textContent = 'Read-only. Reopen it to keep going.';
+
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary';
+  btn.textContent = 'Resume session';
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Resuming…';
+    sendMsg({ t: 'resume', sessionId: s.id, cwd: s.cwd });
+  });
+
+  bar.append(label, btn);
+  el.vSession.prepend(bar);
 }
 
 function renderTranscript(events) {
@@ -372,7 +408,10 @@ function renderTranscript(events) {
   state.streaming = null;
   state.planNode = null;
   for (const ev of events) applyEvent(ev, true);
-  if (!events.length || state.current?.mode === 'observed') renderPlaceholder();
+  if (!events.length) renderPlaceholder();
+  // History replaces the transcript wholesale, so the resume affordance has to
+  // be re-added here or it vanishes the moment the log arrives.
+  if (state.current?.mode === 'observed') renderResumeBar(state.current);
   scrollDown();
 }
 

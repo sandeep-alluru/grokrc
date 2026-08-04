@@ -66,7 +66,8 @@ interface ObservedSession {
   info: SessionInfo;
   observer: SessionObserver;
   log: RcEvent[];
-  buffer: string;
+  /** Chunk run being accumulated — mirrors LiveSession.stream. */
+  stream: { kind: 'text' | 'thinking'; text: string } | null;
   /** Clients currently watching; the tailer stops when this hits zero. */
   watchers: number;
 }
@@ -159,7 +160,7 @@ export class SessionManager extends EventEmitter {
       },
       observer: new SessionObserver({ sessionDir: dir }),
       log: [],
-      buffer: '',
+      stream: null,
       watchers: 1,
     };
 
@@ -174,20 +175,47 @@ export class SessionManager extends EventEmitter {
       /* a session can exist before its summary is written */
     }
 
+    /** Same stream/flush model as owned sessions, so replay yields whole blocks. */
+    const flushObserved = () => {
+      const stream = obs.stream;
+      if (!stream?.text) {
+        obs.stream = null;
+        return;
+      }
+      obs.stream = null;
+      this.#pushObserved(
+        obs,
+        stream.kind === 'thinking'
+          ? { k: 'thinking', sessionId: id, text: stream.text, final: true }
+          : { k: 'text', sessionId: id, role: 'agent', text: stream.text, final: true }
+      );
+    };
+
     obs.observer.on('event', (ev) => {
-      // Same chunk coalescing as owned sessions, so replay yields whole messages.
-      if (ev.k === 'text' && ev.role === 'agent' && !ev.final) {
-        obs.buffer += ev.text;
+      let streamKind: 'text' | 'thinking' | null = null;
+      let chunk = '';
+      if (ev.k === 'thinking' && !ev.final) {
+        streamKind = 'thinking';
+        chunk = ev.text;
+      } else if (ev.k === 'text' && ev.role === 'agent' && !ev.final) {
+        streamKind = 'text';
+        chunk = ev.text;
+      }
+
+      if (streamKind) {
+        if (obs.stream && obs.stream.kind !== streamKind) flushObserved();
+        obs.stream = { kind: streamKind, text: (obs.stream?.text ?? '') + chunk };
         this.emit('event', { ...ev, sessionId: id });
         return;
       }
-      if (obs.buffer) {
-        const text = obs.buffer;
-        obs.buffer = '';
-        this.#pushObserved(obs, { k: 'text', sessionId: id, role: 'agent', text, final: true });
-      }
+
+      if (INTERRUPTS_STREAM.has(ev.k)) flushObserved();
       this.#pushObserved(obs, { ...ev, sessionId: id } as RcEvent);
     });
+
+    // Reaching the end of the log flushes whatever was still streaming —
+    // otherwise a log ending mid-message loses that message entirely.
+    obs.observer.on('idle', flushObserved);
 
     obs.observer.on('error', (err) => {
       this.#pushObserved(obs, { k: 'error', sessionId: id, message: err.message, fatal: false });
@@ -256,6 +284,79 @@ export class SessionManager extends EventEmitter {
     };
     this.#sessions.set(id, session);
     this.#wire(session);
+    this.emit('session-list-changed');
+    return { ...session.info };
+  }
+
+  /**
+   * Reopen a persisted session as a LIVE, writable one.
+   *
+   * Observed mode only ever mirrors a log, so a session you started earlier
+   * became permanently read-only once its process ended — you could read it but
+   * never continue it. Grok advertises `loadSession: true`, so the agent can
+   * genuinely resume it; `session/load` replays the conversation back to us as
+   * session/update notifications, which is why wiring happens before the call.
+   */
+  async resume(id: string, cwd: string, opts: { model?: string } = {}): Promise<SessionInfo> {
+    const existing = this.#sessions.get(id);
+    if (existing) return { ...existing.info, pendingApprovals: existing.approvals.size };
+
+    // Stop mirroring — we're about to own it.
+    const obs = this.#observed.get(id);
+    if (obs) {
+      obs.observer.stop();
+      this.#observed.delete(id);
+    }
+
+    const model = opts.model ?? this.#opts.model;
+    const transport =
+      this.#opts.transportFactory?.(cwd, model) ??
+      new StdioTransport({
+        command: this.#opts.grokCommand ?? 'grok',
+        cwd,
+        model,
+        useLeader: this.#opts.useLeader,
+        leaderSocket: this.#opts.leaderSocket,
+      });
+    const client = new AcpClient({ transport });
+    await client.initialize();
+
+    if (!client.capabilities?.loadSession) {
+      client.close();
+      throw new Error('this agent build cannot resume sessions (no loadSession capability)');
+    }
+
+    const now = Date.now();
+    const session: LiveSession = {
+      info: {
+        id,
+        cwd,
+        title: obs?.info.title ?? defaultTitle(cwd),
+        model,
+        mode: this.#opts.useLeader ? 'shared' : 'owned',
+        state: 'idle',
+        createdAt: obs?.info.createdAt ?? now,
+        updatedAt: now,
+        pendingApprovals: 0,
+      },
+      client,
+      // Keep anything already mirrored so the transcript doesn't blank out.
+      log: obs?.log ?? [],
+      approvals: new Map(),
+      stream: null,
+    };
+    this.#sessions.set(id, session);
+    this.#wire(session); // before load, so the replayed history is captured
+
+    try {
+      await client.loadSession(id, cwd);
+    } catch (err) {
+      this.#sessions.delete(id);
+      client.close();
+      throw err;
+    }
+
+    this.#flush(session);
     this.emit('session-list-changed');
     return { ...session.info };
   }

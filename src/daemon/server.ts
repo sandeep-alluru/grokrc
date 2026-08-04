@@ -30,6 +30,7 @@ type ClientMsg =
   | { t: 'hello'; token: string }
   | { t: 'sessions' }
   | { t: 'open'; sessionId: string; cwd?: string }
+  | { t: 'resume'; sessionId: string; cwd: string }
   | { t: 'create'; cwd?: string; model?: string; title?: string }
   | { t: 'prompt'; sessionId: string; text: string }
   | { t: 'approve'; sessionId: string; requestId: string; optionId: string | null }
@@ -453,6 +454,20 @@ export class RemoteControlServer {
             t: 'history',
             sessionId: msg.sessionId,
             events: sessions.history(msg.sessionId),
+          });
+          return;
+        }
+
+        case 'resume': {
+          // Turn a read-only past session into a live one you can keep talking to.
+          const info = await sessions.resume(msg.sessionId, msg.cwd);
+          client.observing.delete(msg.sessionId);
+          client.watching.add(info.id);
+          send(client.ws, { t: 'resumed', session: info });
+          send(client.ws, {
+            t: 'history',
+            sessionId: info.id,
+            events: sessions.history(info.id),
           });
           return;
         }
