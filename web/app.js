@@ -127,6 +127,8 @@ const state = {
   planNode: null,
   busy: false,
   backoff: 500,
+  /** Daemon shares one `grok agent leader` backend — set from the ready frame. */
+  leaderMode: false,
 };
 
 /* ─── views ──────────────────────────────────────────────────────────────── */
@@ -234,6 +236,7 @@ function sendMsg(payload) {
 function handle(msg) {
   switch (msg.t) {
     case 'ready':
+      state.leaderMode = !!msg.leaderMode;
       show(el.vList);
       sendMsg({ t: 'sessions' });
       break;
@@ -400,21 +403,28 @@ function renderResumeBar(s) {
   const label = document.createElement('div');
   label.className = 'sub';
 
-  // A session a terminal still owns must NOT offer Resume — that would put a
-  // second agent on the same conversation. Watching is the correct action.
-  if (s.externallyActive) {
+  // A session another process owns can only be JOINED when a shared leader is
+  // running — otherwise taking it would put a second, independent agent on the
+  // same conversation. Without a leader, watching is the only safe action.
+  // `joinable` is the daemon's verdict on the OWNING process — a session can be
+  // live elsewhere and still not joinable (anything started before leader mode
+  // was on). Trust that flag, not merely "is something else running".
+  if (s.externallyActive && !(s.joinable && state.leaderMode)) {
     label.textContent =
-      '● Live in your terminal — mirroring it here, read-only. It updates as the agent works.';
+      '● Live in a terminal that is not sharing a backend — mirroring it here, read-only. ' +
+      'Restart that session with a shared leader to drive it from your phone.';
     bar.append(label);
     el.vSession.prepend(bar);
     return;
   }
 
-  label.textContent = 'Read-only. Reopen it to keep going.';
+  label.textContent = s.externallyActive
+    ? '● Live in your terminal, on a shared backend — you can drive it from here too.'
+    : 'Read-only. Reopen it to keep going.';
 
   const btn = document.createElement('button');
   btn.className = 'btn-primary';
-  btn.textContent = 'Resume session';
+  btn.textContent = s.externallyActive ? 'Take control' : 'Resume session';
   btn.addEventListener('click', () => {
     btn.disabled = true;
     btn.textContent = 'Resuming…';

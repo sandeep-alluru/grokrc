@@ -48,6 +48,37 @@ function assertSafeSessionId(id: string): void {
   }
 }
 
+export interface ActiveSession {
+  sessionId: string;
+  pid: number;
+  cwd: string;
+  /**
+   * The owning process is a shared `grok agent leader`, so another client may
+   * safely join the SAME backend. A standalone TUI is not joinable — attaching
+   * would create a second, independent agent on one conversation.
+   */
+  leaderHosted: boolean;
+}
+
+/**
+ * Is this pid a shared leader?
+ *
+ * Asking whether *our daemon* runs with --leader is the wrong question: a
+ * session started before leader mode was enabled still belongs to a standalone
+ * agent. The only thing that makes joining safe is the OWNING process being a
+ * leader, so that is what gets checked.
+ */
+async function isLeaderProcess(pid: number): Promise<boolean> {
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const { stdout } = await promisify(execFile)('ps', ['-o', 'args=', '-p', String(pid)]);
+    return /\bagent\s+leader\b/.test(stdout);
+  } catch {
+    return false; // unknown ⇒ treat as not joinable
+  }
+}
+
 /** cwd becomes a path segment and a process spawn directory. */
 function assertSafeCwd(cwd: string): void {
   if (typeof cwd !== 'string' || !cwd.startsWith('/')) {
@@ -75,6 +106,13 @@ export interface SessionInfo {
    * session, so the UI must offer watching only.
    */
   externallyActive?: boolean;
+  /**
+   * The owning process is a shared leader, so this daemon can attach to the SAME
+   * backend. Distinct from `externallyActive`: a session can be live elsewhere
+   * and still not be joinable — which is true of anything started before leader
+   * mode was turned on.
+   */
+  joinable?: boolean;
 }
 
 interface LiveSession {
@@ -124,6 +162,15 @@ export class SessionManager extends EventEmitter {
   constructor(opts: SessionManagerOptions = {}) {
     super();
     this.#opts = opts;
+  }
+
+  /**
+   * True when agents share one `grok agent leader` backend. It changes what the
+   * UI may offer: a session another process owns can be JOINED (same backend)
+   * rather than only watched.
+   */
+  get leaderMode(): boolean {
+    return this.#opts.useLeader === true;
   }
 
   /** Emitted for every event on any session. */
@@ -351,13 +398,19 @@ export class SessionManager extends EventEmitter {
       throw new Error(`no persisted session ${id} under ${cwd}`);
     }
 
-    // Refuse in the daemon, not just the UI: resuming a session a terminal still
-    // owns would put two agents on one conversation, each unaware of the other's
-    // writes. Watch it instead.
-    const active = await this.activeOnDisk();
-    if (active.some((a) => a.sessionId === id)) {
+    // Attaching to a session another process owns is only dangerous WITHOUT a
+    // shared leader: two independent agents on one conversation, each blind to
+    // the other's writes. With `--leader` they are the same backend, so joining
+    // is the intended behaviour — that is the whole point of leader mode.
+    // Joining is safe only when the OWNING process is a shared leader — then it
+    // is the same backend, which is the point of leader mode. A standalone TUI
+    // (including any session started before leader mode was enabled) is not
+    // joinable: a second agent on one conversation corrupts it.
+    const owner = (await this.activeOnDisk()).find((a) => a.sessionId === id);
+    if (owner && !(owner.leaderHosted && this.#opts.useLeader)) {
       throw new Error(
-        `session ${id} is live in another process — watch it read-only, or close that terminal first`
+        `session ${id} is live in a standalone process (pid ${owner.pid}) — watch it read-only, ` +
+          `or close it and reopen with a shared leader to drive it from here`
       );
     }
 
@@ -489,8 +542,10 @@ export class SessionManager extends EventEmitter {
       return out;
     }
 
-    // Which sessions a terminal still owns — those can be watched but not resumed.
-    const activeIds = new Set((await this.activeOnDisk()).map((a) => a.sessionId));
+    // Which sessions another process still owns, and whether that process is a
+    // shared leader (joinable) or standalone (watch-only).
+    const active = await this.activeOnDisk();
+    const activeById = new Map(active.map((a) => [a.sessionId, a]));
 
     for (const encodedCwd of dirs) {
       const cwd = safeDecode(encodedCwd);
@@ -518,7 +573,8 @@ export class SessionManager extends EventEmitter {
             createdAt: toMs(s.created_at),
             updatedAt: toMs(s.updated_at),
             pendingApprovals: 0,
-            externallyActive: activeIds.has(s.info?.id ?? id),
+            externallyActive: activeById.has(s.info?.id ?? id),
+            joinable: activeById.get(s.info?.id ?? id)?.leaderHosted ?? false,
           });
         } catch {
           // Not every directory has a readable summary (partial writes, subagents).
@@ -535,20 +591,26 @@ export class SessionManager extends EventEmitter {
    * entry's pid is checked — a stale record would otherwise permanently mark a
    * finished session as un-resumable.
    */
-  async activeOnDisk(): Promise<{ sessionId: string; pid: number; cwd: string }[]> {
+  async activeOnDisk(): Promise<ActiveSession[]> {
     try {
       const raw = await readFile(join(GROK_HOME, 'active_sessions.json'), 'utf8');
       const arr = JSON.parse(raw) as { session_id: string; pid: number; cwd: string }[];
-      return arr
-        .filter((a) => {
-          try {
-            process.kill(a.pid, 0); // signal 0 = liveness probe, sends nothing
-            return true;
-          } catch {
-            return false;
-          }
-        })
-        .map((a) => ({ sessionId: a.session_id, pid: a.pid, cwd: a.cwd }));
+      const live = arr.filter((a) => {
+        try {
+          process.kill(a.pid, 0); // signal 0 = liveness probe, sends nothing
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      return Promise.all(
+        live.map(async (a) => ({
+          sessionId: a.session_id,
+          pid: a.pid,
+          cwd: a.cwd,
+          leaderHosted: await isLeaderProcess(a.pid),
+        }))
+      );
     } catch {
       return [];
     }

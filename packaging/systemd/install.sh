@@ -65,7 +65,11 @@ install -m 0644 "$UNIT_SRC" "$UNIT_DIR/grokrc.service"
 echo "  unit:  $UNIT_DIR/grokrc.service"
 
 systemctl --user daemon-reload
-systemctl --user enable --now grokrc.service
+systemctl --user enable grokrc.service
+# `enable --now` does NOT restart a service that is already running, so
+# re-running the installer with different args would silently keep the old ones.
+# Restart unconditionally: this script's whole job is to apply the current config.
+systemctl --user restart grokrc.service
 
 # Without lingering, user units stop at logout and never start at boot — which
 # defeats the point of installing a service at all.

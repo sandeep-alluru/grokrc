@@ -432,7 +432,13 @@ export class RemoteControlServer {
         return;
       }
       client.device = device;
-      send(client.ws, { t: 'ready', device: { id: device.id, name: device.name } });
+      // leaderMode tells the client whether a session another process owns can
+      // be joined (shared backend) or only watched.
+      send(client.ws, {
+        t: 'ready',
+        device: { id: device.id, name: device.name },
+        leaderMode: this.#opts.sessions.leaderMode,
+      });
       await this.#sendSessions(client);
       return;
     }

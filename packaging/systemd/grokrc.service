@@ -24,7 +24,16 @@ Type=simple
 # Paths and flags live in an env file so this unit is not machine-specific and
 # can be committed to the repo unchanged. install.sh generates it.
 EnvironmentFile=%h/.config/grokrc/grokrc.env
-ExecStart=/usr/bin/env ${GROKRC_NODE} ${GROKRC_ENTRY} up ${GROKRC_ARGS}
+#
+# NOTE the deliberate mix of ${VAR} and $VAR — systemd treats them differently:
+#   ${GROKRC_NODE} / ${GROKRC_ENTRY}  → ONE argument, never split (paths may
+#                                        contain spaces)
+#   $GROKRC_ARGS                      → split on whitespace into SEPARATE
+#                                        arguments
+# With ${GROKRC_ARGS}, "--lan --leader" arrives as a single argv entry and the
+# CLI silently parses neither flag — the daemon came up on loopback while
+# claiming to have been told --lan.
+ExecStart=/usr/bin/env ${GROKRC_NODE} ${GROKRC_ENTRY} up $GROKRC_ARGS
 
 Restart=on-failure
 RestartSec=5
