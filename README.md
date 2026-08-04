@@ -175,7 +175,8 @@ once it lands.
 | Malicious relay | E2E encryption defeats a *passive* relay, not one serving modified JS. Self-host it |
 | Relay metadata | Routes, message sizes, and timing are visible. Contents are not |
 | Push delivery | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it |
-| Observed mode | Read-only by construction — a log file can't accept input |
+| Observed mode | Read-only while mirroring — use **Resume** to take it live |
+| Log tail | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
 | `grokrc pair` | Stub; prints guidance instead of issuing a code |
 | Tool coverage | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified |
 
@@ -192,6 +193,17 @@ blank screen, and the header relabelled itself "Sessions" while inside a session
 the list re-render stole the title.
 
 ---
+
+## Resuming past sessions
+
+Opening a past session shows it read-only with a **Resume session** button. Grok
+advertises `loadSession`, so resuming reopens it as a genuinely live session with its
+full context — not a new conversation. Verified end-to-end in
+`tools/resume-check.mjs`: plant a codeword, kill the session, resume it from the UI, and
+the agent still recalls it.
+
+Without this, any session whose process had ended was permanently read-only — you could
+read the transcript but never continue it.
 
 ## Observed mode
 

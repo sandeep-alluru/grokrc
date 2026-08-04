@@ -56,6 +56,8 @@ export class SessionObserver extends EventEmitter {
   }
 
   override on(event: 'event', cb: (e: RcEvent) => void): this;
+  /** Emitted when the log tail is reached — flush any accumulated stream. */
+  override on(event: 'idle', cb: () => void): this;
   override on(event: 'error', cb: (e: Error) => void): this;
   override on(event: string, cb: (...a: any[]) => void): this {
     return super.on(event, cb);
@@ -94,12 +96,22 @@ export class SessionObserver extends EventEmitter {
       this.#offset = st.size;
       this.#partial += chunk;
 
+      let emitted = false;
       let nl: number;
       while ((nl = this.#partial.indexOf('\n')) !== -1) {
         const line = this.#partial.slice(0, nl).trim();
         this.#partial = this.#partial.slice(nl + 1);
-        if (line) this.#emitLine(line);
+        if (line) {
+          this.#emitLine(line);
+          emitted = true;
+        }
       }
+
+      // Signal that the log tail has been reached. A log that ends mid-stream —
+      // the common case, since the last thing written is usually the agent's
+      // final message — leaves accumulated chunks with nothing to flush them.
+      // Without this the last reply vanished from replayed history.
+      if (emitted) this.emit('idle');
     } catch (err) {
       // ENOENT is normal: the session directory can exist before the log does.
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
