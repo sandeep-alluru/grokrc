@@ -185,6 +185,9 @@ function connect() {
     : '';
   const ws = new WebSocket(`${proto}://${location.host}${path}`);
   state.ws = ws;
+  // Test hook: browser tests need to simulate a network drop, and there is no
+  // other way to reach a module-scoped socket from page.evaluate().
+  globalThis.__rcws = ws;
 
   ws.addEventListener('open', () => {
     state.backoff = 500;
@@ -225,20 +228,56 @@ function connect() {
 // Outbound frames are sealed in relay mode. Chained for the same ordering
 // reason as inbound — an approval answer must not overtake the prompt.
 let outbound = Promise.resolve();
+
+/**
+ * Send, or say why not.
+ *
+ * This used to `return` silently when the socket wasn't open, so a prompt typed
+ * during a reconnect vanished with no feedback at all — the same failure mode as
+ * the swallowed prompt rejection in the daemon. Anything the user *typed* is now
+ * queued and flushed on reconnect; bookkeeping frames are dropped, because
+ * replaying a stale `sessions` request after reconnect is noise.
+ */
+const outboundQueue = [];
+const QUEUEABLE = new Set(['prompt', 'approve']);
+
 function sendMsg(payload) {
   const raw = JSON.stringify(payload);
   outbound = outbound.then(async () => {
-    if (state.ws?.readyState !== 1) return;
+    if (state.ws?.readyState !== 1) {
+      if (QUEUEABLE.has(payload.t)) {
+        outboundQueue.push(payload);
+        appendError('Not connected — will send when the connection returns.');
+      }
+      return;
+    }
     state.ws.send(await sealIfRelayed(raw));
   });
+}
+
+/** Replay anything the user typed while the socket was down. */
+function flushOutbound() {
+  if (!outboundQueue.length) return;
+  const pending = outboundQueue.splice(0);
+  appendError(`Reconnected — sending ${pending.length} queued message(s).`);
+  for (const p of pending) sendMsg(p);
 }
 
 function handle(msg) {
   switch (msg.t) {
     case 'ready':
       state.leaderMode = !!msg.leaderMode;
-      show(el.vList);
+      // On a RECONNECT the user is usually mid-session. Unconditionally showing
+      // the list threw them out of the transcript they were reading — often
+      // mid-turn, with no explanation. Reopen what they had instead.
+      if (state.current) {
+        show(el.vSession);
+        sendMsg({ t: 'open', sessionId: state.current.id, cwd: state.current.cwd });
+      } else {
+        show(el.vList);
+      }
       sendMsg({ t: 'sessions' });
+      flushOutbound();
       break;
     case 'sessions':
       state.sessions = msg.sessions;
