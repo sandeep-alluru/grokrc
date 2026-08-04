@@ -14,7 +14,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AcpClient, type PermissionRequest } from '../acp/client.ts';
-import { StdioTransport } from '../acp/transport.ts';
+import { StdioTransport, type Transport } from '../acp/transport.ts';
 import { SessionObserver } from './observer.ts';
 import {
   normalizePermission,
@@ -66,6 +66,12 @@ export interface SessionManagerOptions {
   /** Share one backend with a running `grok agent leader`, so the TUI and phone
    *  drive the same session. */
   useLeader?: boolean;
+  /**
+   * Override how the agent transport is created. Exists so tests can substitute
+   * a scripted agent — driving the UI against real captured payloads without
+   * spending tokens or inheriting model non-determinism.
+   */
+  transportFactory?: (cwd: string, model?: string) => Transport;
 }
 
 export class SessionManager extends EventEmitter {
@@ -201,12 +207,15 @@ export class SessionManager extends EventEmitter {
   /* ─── lifecycle ───────────────────────────────────────────────────────── */
 
   async create(cwd: string, opts: { title?: string; model?: string } = {}): Promise<SessionInfo> {
-    const transport = new StdioTransport({
-      command: this.#opts.grokCommand ?? 'grok',
-      cwd,
-      model: opts.model ?? this.#opts.model,
-      useLeader: this.#opts.useLeader,
-    });
+    const model = opts.model ?? this.#opts.model;
+    const transport =
+      this.#opts.transportFactory?.(cwd, model) ??
+      new StdioTransport({
+        command: this.#opts.grokCommand ?? 'grok',
+        cwd,
+        model,
+        useLeader: this.#opts.useLeader,
+      });
     const client = new AcpClient({ transport });
 
     await client.initialize();

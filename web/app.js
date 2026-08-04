@@ -8,6 +8,34 @@
 
 const $ = (id) => document.getElementById(id);
 const TOKEN_KEY = 'grokrc.token';
+const RELAY_KEY = 'grokrc.relay';
+
+/**
+ * Relay awareness.
+ *
+ * Served directly by the daemon, everything is same-origin and these are null.
+ * Served by a relay, the page URL carries ?room=&key= — which must be attached
+ * to the WebSocket path and to every /api call so the relay knows which daemon
+ * to tunnel to. Persisted because a PWA launched from the home screen opens at
+ * "/" with no query string.
+ */
+const relay = (() => {
+  const q = new URLSearchParams(location.search);
+  const room = q.get('room');
+  const key = q.get('key');
+  if (room && key) {
+    localStorage.setItem(RELAY_KEY, JSON.stringify({ room, key }));
+    return { room, key };
+  }
+  try {
+    return JSON.parse(localStorage.getItem(RELAY_KEY) || 'null');
+  } catch {
+    return null;
+  }
+})();
+
+/** Same-origin path, plus the room when we're behind a relay. */
+const api = (path) => (relay ? `${path}?room=${encodeURIComponent(relay.room)}` : path);
 
 const el = {
   conn: $('conn'), title: $('title'), back: $('back'),
@@ -54,7 +82,7 @@ el.pairGo.addEventListener('click', async () => {
   el.pairGo.disabled = true;
   el.pairErr.textContent = '';
   try {
-    const res = await fetch('/api/pair', {
+    const res = await fetch(api('/api/pair'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code, deviceName: navigator.userAgent.slice(0, 60) }),
@@ -81,7 +109,12 @@ el.code.addEventListener('keydown', (e) => {
 function connect() {
   if (!state.token) return show(el.vPair);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${location.host}`);
+  // Behind a relay the socket must name its room; direct to the daemon it's
+  // just the origin.
+  const path = relay
+    ? `/client?room=${encodeURIComponent(relay.room)}&key=${encodeURIComponent(relay.key)}`
+    : '';
+  const ws = new WebSocket(`${proto}://${location.host}${path}`);
   state.ws = ws;
 
   ws.addEventListener('open', () => {
@@ -148,7 +181,10 @@ function handle(msg) {
 /* ─── session list ───────────────────────────────────────────────────────── */
 
 function renderList() {
-  el.title.textContent = 'Sessions';
+  // The list re-renders whenever the daemon broadcasts a change — including
+  // while you're inside a session. Only claim the header if the list is what's
+  // actually on screen, or opening a session immediately relabels it "Sessions".
+  if (!state.current) el.title.textContent = 'Sessions';
   el.vList.replaceChildren();
 
   const newBtn = document.createElement('button');
@@ -223,19 +259,29 @@ function openSession(s) {
   show(el.vSession);
   // Observed sessions are read-only — there is no way to inject a prompt into a
   // session we don't own, so don't offer a composer that would silently fail.
-  const readOnly = s.mode === 'observed';
-  el.composer.hidden = readOnly;
-  if (readOnly) {
-    const note = document.createElement('div');
-    note.className = 'empty';
-    note.textContent = 'Watching a session started in your terminal — read-only.';
-    el.vSession.append(note);
-  }
+  el.composer.hidden = s.mode === 'observed';
+  renderPlaceholder();
   // cwd lets the daemon locate the on-disk log for a session it doesn't own.
   sendMsg({ t: 'open', sessionId: s.id, cwd: s.cwd });
 }
 
 /* ─── transcript ─────────────────────────────────────────────────────────── */
+
+/**
+ * An empty session must not look like a broken one. Also carries the read-only
+ * notice for observed sessions — it lives here rather than in openSession
+ * because history replaces the transcript wholesale and would otherwise wipe it.
+ */
+function renderPlaceholder() {
+  const d = document.createElement('div');
+  d.className = 'empty';
+  d.dataset.placeholder = '1';
+  d.textContent =
+    state.current?.mode === 'observed'
+      ? 'Watching a session started in your terminal — read-only.'
+      : 'No messages yet. Send one below to start.';
+  el.vSession.append(d);
+}
 
 function renderTranscript(events) {
   el.vSession.replaceChildren();
@@ -244,10 +290,18 @@ function renderTranscript(events) {
   state.streaming = null;
   state.planNode = null;
   for (const ev of events) applyEvent(ev, true);
+  if (!events.length || state.current?.mode === 'observed') renderPlaceholder();
   scrollDown();
 }
 
+/** Drop the placeholder as soon as there is anything real to show. */
+function clearPlaceholder() {
+  if (state.current?.mode === 'observed') return; // the read-only notice stays
+  el.vSession.querySelector('[data-placeholder]')?.remove();
+}
+
 function applyEvent(ev, replaying = false) {
+  if (ev.k !== 'status' && ev.k !== 'commands') clearPlaceholder();
   switch (ev.k) {
     case 'text': {
       if (ev.role === 'user') {
@@ -460,7 +514,7 @@ async function setupPush() {
   try {
     const reg = await navigator.serviceWorker.register('/sw.js');
 
-    const { publicKey } = await (await fetch('/api/push/key')).json();
+    const { publicKey } = await (await fetch(api('/api/push/key'))).json();
     if (!publicKey) return; // daemon started with --no-push
 
     // Ask only after pairing — a permission prompt on first paint gets denied,
@@ -477,7 +531,7 @@ async function setupPush() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       }));
 
-    await fetch('/api/push/subscribe', {
+    await fetch(api('/api/push/subscribe'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token: state.token, subscription: sub }),

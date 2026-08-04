@@ -18,9 +18,28 @@
  *
  *   node dist/relay/server.js --port 8080
  */
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+function json(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(body));
+}
 
 interface Room {
   id: string;
@@ -39,8 +58,11 @@ interface Room {
 export interface RelayFrame {
   /** Which phone this frame belongs to. */
   c: string;
-  /** 'up' client→daemon, 'down' daemon→client, plus connection lifecycle. */
-  t: 'up' | 'down' | 'open' | 'close';
+  /**
+   * 'up'/'down' carry WebSocket payloads; 'open'/'close' are lifecycle;
+   * 'http'/'http-res' tunnel an /api/* call so pairing works through the relay.
+   */
+  t: 'up' | 'down' | 'open' | 'close' | 'http' | 'http-res';
   d?: string;
 }
 
@@ -53,14 +75,26 @@ function safeEqual(a: string, b: string): boolean {
 
 export class RelayServer {
   #rooms = new Map<string, Room>();
-  #http = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, service: 'grokrc-relay' }));
-  });
+  #webRoot: string;
+  #pendingHttp = new Map<string, (status: number, body: string) => void>();
+  #nextHttpId = 1;
+  /**
+   * The relay must serve the app itself, not just forward sockets — a phone on
+   * cellular has no route to the daemon's HTTP listener, so without this there
+   * is no way to load or pair the client remotely.
+   *
+   * Static assets are served from the relay's own copy of `web/`. Anything under
+   * `/api/` is tunnelled to the daemon over the existing WebSocket, so pairing
+   * and push registration work without opening a port on the dev machine.
+   */
+  #http = createServer((req, res) => void this.#onHttp(req, res));
   #wss = new WebSocketServer({ noServer: true });
   #nextClientId = 1;
 
-  constructor() {
+  constructor(opts: { webRoot?: string } = {}) {
+    this.#webRoot =
+      opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web');
+
     this.#http.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url ?? '/', 'http://relay');
       const roomId = url.searchParams.get('room');
@@ -90,6 +124,73 @@ export class RelayServer {
     });
   }
 
+  async #onHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? '/', 'http://relay');
+
+    if (url.pathname === '/health') {
+      return json(res, 200, { ok: true, service: 'grokrc-relay', rooms: this.#rooms.size });
+    }
+
+    // Tunnel /api/* to the daemon so pairing and push work through the relay.
+    if (url.pathname.startsWith('/api/')) {
+      return this.#proxyApi(req, res, url);
+    }
+
+    const rel = url.pathname === '/' || url.pathname === '/client' ? '/index.html' : url.pathname;
+    const root = resolve(this.#webRoot);
+    const target = resolve(join(root, normalize(rel)));
+    if (!target.startsWith(root + '/') && target !== root) {
+      return json(res, 403, { error: 'forbidden' });
+    }
+    try {
+      const body = await readFile(target);
+      res.writeHead(200, {
+        'content-type': MIME[extname(target)] ?? 'application/octet-stream',
+        'cache-control': 'no-cache',
+      });
+      res.end(body);
+    } catch {
+      json(res, 404, { error: 'not found' });
+    }
+  }
+
+  /**
+   * Forward an HTTP API call to the daemon over the room's socket and wait for
+   * its reply. The room is named by query string because the browser sends it
+   * from the page's own URL.
+   */
+  async #proxyApi(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+    const roomId = url.searchParams.get('room');
+    const room = roomId ? this.#rooms.get(roomId) : null;
+    if (!room?.daemon) return json(res, 503, { error: 'no daemon for room' });
+
+    let body = '';
+    for await (const chunk of req) {
+      body += chunk;
+      if (body.length > 16384) {
+        req.destroy();
+        return json(res, 413, { error: 'too large' });
+      }
+    }
+
+    const id = `http-${this.#nextHttpId++}`;
+    const timer = setTimeout(() => {
+      if (this.#pendingHttp.delete(id)) json(res, 504, { error: 'daemon timeout' });
+    }, 15_000);
+
+    this.#pendingHttp.set(id, (status, payload) => {
+      clearTimeout(timer);
+      res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(payload);
+    });
+
+    this.#toDaemon(room, {
+      c: id,
+      t: 'http',
+      d: JSON.stringify({ method: req.method, path: url.pathname, body }),
+    });
+  }
+
   #attachDaemon(room: Room, ws: WebSocket): void {
     // One daemon per room; a reconnect supersedes the stale socket.
     room.daemon?.close();
@@ -102,6 +203,16 @@ export class RelayServer {
       } catch {
         return;
       }
+      // Reply to a tunnelled HTTP request.
+      if (frame.t === 'http-res') {
+        const pending = this.#pendingHttp.get(frame.c);
+        if (!pending) return;
+        this.#pendingHttp.delete(frame.c);
+        const { status, body } = JSON.parse(frame.d ?? '{}') as { status: number; body: string };
+        pending(status, body);
+        return;
+      }
+
       const client = room.clients.get(frame.c);
       if (!client) return;
       if (frame.t === 'close') return void client.close();
