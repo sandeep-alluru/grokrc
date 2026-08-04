@@ -65,6 +65,7 @@ grokrc — remote control for Grok Build
       --model <M>      Model override for new sessions
       --cwd <DIR>      Default working directory for new sessions
       --pair           Print a pairing code even if devices are already paired
+      --history <N>    How many past sessions to list (default 10)
       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
       --room <ID>      Relay room id (generated if omitted)
       --relay-key <K>  Relay room key (generated if omitted)
@@ -101,6 +102,7 @@ async function cmdUp(flags: Flags): Promise<void> {
     auth,
     push: flags['no-push'] === true ? undefined : push,
     defaultCwd: typeof flags.cwd === 'string' ? resolve(flags.cwd) : process.cwd(),
+    historyLimit: flags.history !== undefined ? Number(flags.history) : undefined,
   });
 
   // Say so loudly if the agent will never ask for approval — otherwise the

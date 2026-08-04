@@ -12,7 +12,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { AcpClient, type PermissionRequest } from '../acp/client.ts';
 import { StdioTransport, type Transport } from '../acp/transport.ts';
 import { SessionObserver } from './observer.ts';
@@ -34,6 +34,26 @@ const EVENT_LOG_LIMIT = 2000;
  * metadata that interleaves freely and must NOT split the message.
  */
 const INTERRUPTS_STREAM = new Set<RcEvent['k']>(['tool', 'plan', 'approval', 'error']);
+
+/**
+ * Session ids come from a remote client and become a filesystem path segment,
+ * so they are validated rather than trusted. Grok issues UUIDs; this accepts
+ * that shape plus a little slack, and nothing containing a separator or a dot.
+ */
+const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+function assertSafeSessionId(id: string): void {
+  if (typeof id !== 'string' || !SESSION_ID_RE.test(id)) {
+    throw new Error(`invalid session id: ${JSON.stringify(String(id).slice(0, 40))}`);
+  }
+}
+
+/** cwd becomes a path segment and a process spawn directory. */
+function assertSafeCwd(cwd: string): void {
+  if (typeof cwd !== 'string' || !cwd.startsWith('/')) {
+    throw new Error(`cwd must be an absolute path, got ${JSON.stringify(String(cwd).slice(0, 60))}`);
+  }
+}
 
 export type SessionMode = 'owned' | 'shared' | 'observed';
 
@@ -139,13 +159,22 @@ export class SessionManager extends EventEmitter {
    * hand in a terminal. Read-only. Idempotent; refcounted by watcher.
    */
   async observe(id: string, cwd: string): Promise<SessionInfo> {
+    assertSafeSessionId(id);
+    assertSafeCwd(cwd);
+
     const existing = this.#observed.get(id);
     if (existing) {
       existing.watchers++;
       return { ...existing.info };
     }
 
-    const dir = join(GROK_HOME, 'sessions', encodeURIComponent(cwd), id);
+    const sessionsRoot = join(GROK_HOME, 'sessions');
+    const dir = join(sessionsRoot, encodeURIComponent(cwd), id);
+    // Belt and braces: even with both inputs validated, confirm the resolved
+    // path never escapes the session store.
+    if (!resolvePath(dir).startsWith(resolvePath(sessionsRoot) + '/')) {
+      throw new Error('invalid session id: resolved outside the session store');
+    }
     const now = Date.now();
     const obs: ObservedSession = {
       info: {
@@ -298,8 +327,21 @@ export class SessionManager extends EventEmitter {
    * session/update notifications, which is why wiring happens before the call.
    */
   async resume(id: string, cwd: string, opts: { model?: string } = {}): Promise<SessionInfo> {
+    assertSafeSessionId(id);
+    assertSafeCwd(cwd);
+
     const existing = this.#sessions.get(id);
     if (existing) return { ...existing.info, pendingApprovals: existing.approvals.size };
+
+    // Resume spawns an agent with `cwd` as its working directory. Requiring the
+    // session to already exist on disk bounds that to somewhere grok has
+    // actually run, instead of letting a client name any directory on the box.
+    const dir = join(GROK_HOME, 'sessions', encodeURIComponent(cwd), id);
+    try {
+      if (!(await stat(dir)).isDirectory()) throw new Error('not a directory');
+    } catch {
+      throw new Error(`no persisted session ${id} under ${cwd}`);
+    }
 
     // Stop mirroring — we're about to own it.
     const obs = this.#observed.get(id);
