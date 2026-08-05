@@ -38,6 +38,10 @@ diffs, and plans arrive as typed JSON instead of characters on a screen.
 
 ## Install
 
+> **Full setup guide: [docs/SETUP.md](docs/SETUP.md)** — install, configure, reach it
+> from your phone (LAN / Tailscale / relay), run it as a service, enable push,
+> plus troubleshooting and the security model.
+
 ```bash
 git clone <this repo> && cd grokrc
 npm install && npm run build
