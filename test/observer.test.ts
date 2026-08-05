@@ -116,7 +116,11 @@ test('the vendor-prefixed _x.ai/session/update method is accepted', async () => 
 /* ─── real data ───────────────────────────────────────────────────────────── */
 
 test('parses a real Grok session log on this machine', async (t) => {
-  const root = join(process.env.GROK_HOME ?? join(homedir(), '.grok'), 'sessions');
+  // Deliberately the REAL home, not GROK_HOME. The point of this test is to
+  // parse logs a real grok actually wrote; the suite runs under a scratch
+  // GROK_HOME (tools/isolated-test.mjs) which by design contains none. Read-only,
+  // so it cannot pollute what it reads.
+  const root = join(homedir(), '.grok', 'sessions');
   if (!existsSync(root)) return t.skip('no ~/.grok/sessions on this machine');
 
   let found: string | null = null;

@@ -68,6 +68,12 @@ npm run format:check
 **`--test-concurrency=1` is deliberate.** Several test files launch Chromium; running
 them in parallel made the suite flaky. Do not remove it to speed things up.
 
+**The suite runs under a scratch `GROK_HOME`** (`tools/isolated-test.mjs`), because a
+real `grok` records every session it runs and keeps it forever. Your own `~/.grok` is
+counted before and after; if the suite writes there, the run fails and names what
+leaked. If a test genuinely needs to read your real history, read it explicitly —
+`test/observer.test.ts` does — and never write to it.
+
 Tests that need the `grok` binary **skip themselves** when it is absent, so CI stays
 green without it. If you are changing ACP behaviour, run the real-stack checks locally —
 CI cannot cover you there.
