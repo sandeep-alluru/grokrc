@@ -30,12 +30,12 @@ have what you need.
 
 ## 1. Requirements
 
-| | |
-|---|---|
-| **Node.js** | 22 or newer (`node --version`) |
-| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash` |
-| **OS** | Linux or macOS. The systemd unit is Linux-only; everything else is portable |
-| **A phone** | any browser. It installs as a PWA — no app store |
+|                |                                                                             |
+| -------------- | --------------------------------------------------------------------------- |
+| **Node.js**    | 22 or newer (`node --version`)                                              |
+| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`           |
+| **OS**         | Linux or macOS. The systemd unit is Linux-only; everything else is portable |
+| **A phone**    | any browser. It installs as a PWA — no app store                            |
 
 Check Grok is working before you start:
 
@@ -97,18 +97,18 @@ grokrc config set lan true        # listen on 0.0.0.0 instead of loopback
 grokrc config unset model
 ```
 
-| Key | Meaning |
-|---|---|
-| `defaultCwd` | **required** — working directory for new sessions |
-| `port` | default `4319` |
-| `host` | bind address; default `127.0.0.1` |
-| `lan` | `true` binds `0.0.0.0` so other devices can reach it |
-| `historyLimit` | how many past sessions to list (default 10) |
-| `model` | model override for new sessions |
-| `leader` | share one backend with `grok agent leader` |
+| Key            | Meaning                                              |
+| -------------- | ---------------------------------------------------- |
+| `defaultCwd`   | **required** — working directory for new sessions    |
+| `port`         | default `4319`                                       |
+| `host`         | bind address; default `127.0.0.1`                    |
+| `lan`          | `true` binds `0.0.0.0` so other devices can reach it |
+| `historyLimit` | how many past sessions to list (default 10)          |
+| `model`        | model override for new sessions                      |
+| `leader`       | share one backend with `grok agent leader`           |
 
 Precedence: **CLI flag → `~/.grokrc/config.json` → built-in default.**
-Settings are validated on write *and* on start — a `defaultCwd` that doesn't exist
+Settings are validated on write _and_ on start — a `defaultCwd` that doesn't exist
 is refused rather than silently ignored.
 
 ---
@@ -296,7 +296,7 @@ grokrc daemon, so either can answer an approval and both see the same events.
 
 It authenticates without a pairing code: it runs as you, and minting a device
 requires write access to `~/.grokrc`, which anyone holding it could forge anyway.
-Pairing codes exist to authenticate *remote* devices.
+Pairing codes exist to authenticate _remote_ devices.
 
 ```
 type a message and press enter · /q to quit · ctrl-c cancels the turn
@@ -315,11 +315,11 @@ still be watching.
 
 ## 10. Session modes
 
-| Mode | What it is | Can you type? |
-|---|---|---|
-| **owned** | started by grokrc — phone, terminal, or `+ New session` | yes |
-| **observed** | a session started elsewhere, mirrored from its log | no — read-only |
-| **shared** | running against `grok agent leader` | yes |
+| Mode         | What it is                                              | Can you type?  |
+| ------------ | ------------------------------------------------------- | -------------- |
+| **owned**    | started by grokrc — phone, terminal, or `+ New session` | yes            |
+| **observed** | a session started elsewhere, mirrored from its log      | no — read-only |
+| **shared**   | running against `grok agent leader`                     | yes            |
 
 Observed sessions appear automatically. grokrc tails
 `~/.grok/sessions/<cwd>/<id>/updates.jsonl`, which Grok writes for every session, so
@@ -328,7 +328,7 @@ simply become visible on your phone.
 
 **Resuming.** Any past session offers a **Resume** button and comes back with full
 context, because Grok supports `session/load`. A session another process still owns
-shows *"live in terminal"* and offers no Resume — joining it would put a second
+shows _"live in terminal"_ and offers no Resume — joining it would put a second
 agent on one conversation. That guard is enforced in the daemon, not just the UI.
 
 ---
@@ -366,7 +366,7 @@ Section 4. `support_permission` is off; approvals cannot fire.
 
 **Phone can't reach the URL**
 LAN: is `lan` set to `true`, and is the phone on the same network?
-Tailscale: is the *phone* enrolled? `tailscale status` must list it — `tailscale serve`
+Tailscale: is the _phone_ enrolled? `tailscale status` must list it — `tailscale serve`
 is tailnet-only by design and unreachable from non-members.
 
 **Sessions open in the wrong directory**
