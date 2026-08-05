@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup help and usage questions
+    url: https://github.com/sandeep-alluru/grokrc/discussions
+    about: Ask here before filing a bug — most setup problems are covered in the docs.
+  - name: Troubleshooting guide
+    url: https://github.com/sandeep-alluru/grokrc/blob/main/docs/TROUBLESHOOTING.md
+    about: Empty session list, approvals never appearing, push not working, and more.
+  - name: Report a security vulnerability
+    url: https://github.com/sandeep-alluru/grokrc/security/advisories/new
+    about: Please do not open a public issue for security problems.

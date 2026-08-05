@@ -175,11 +175,21 @@ test('tapping Yes answers the agent with allow-once', async () => {
 });
 
 test('the turn completes and the tool card shows success', async () => {
+  // Wait for the LAST thing the turn produces, not the first. The tool card
+  // flips to `ok` while the agent is still streaming its closing message, so
+  // waiting on the card and asserting on the text is a race — it fails roughly
+  // one run in two.
   await page.waitForFunction(
-    () => document.querySelector('.tool')?.className.includes('ok') ?? false,
+    () => (document.querySelector('#v-session')?.textContent ?? '').includes('Done — created'),
     undefined,
     { timeout: 15_000 }
   );
+
+  const okCard = await page.$$eval('.tool', (cards) =>
+    cards.some((c) => c.className.includes('ok'))
+  );
+  assert.equal(okCard, true, 'tool card should show success once the turn completes');
+
   const body = await page.textContent('#v-session');
   assert.match(body ?? '', /Done — created hello\.txt\./);
 });

@@ -1,14 +1,47 @@
 {
   "name": "grokrc",
   "version": "0.1.0",
-  "description": "Remote control for xAI's Grok Build CLI — drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
+  "description": "Remote control for xAI's Grok Build CLI \u2014 drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
   "type": "module",
+  "license": "MIT",
+  "author": "Sandeep Alluru",
+  "homepage": "https://github.com/sandeep-alluru/grokrc#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandeep-alluru/grokrc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sandeep-alluru/grokrc/issues"
+  },
+  "keywords": [
+    "acp",
+    "agent",
+    "agent-client-protocol",
+    "ai-agent",
+    "cli",
+    "coding-agent",
+    "grok",
+    "grok-build",
+    "mobile",
+    "pwa",
+    "remote-control",
+    "self-hosted",
+    "web-push",
+    "xai"
+  ],
   "bin": {
     "grokrc": "./dist/cli.js"
   },
   "engines": {
     "node": ">=20"
   },
+  "files": [
+    "dist",
+    "web",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
@@ -23,21 +56,6 @@
     "test:mock": "node --test --experimental-strip-types --test-concurrency=1 test/*.test.ts",
     "test:real": "node tools/live-ui-check.mjs && node tools/resume-check.mjs"
   },
-  "files": [
-    "dist",
-    "web"
-  ],
-  "keywords": [
-    "grok",
-    "grok-build",
-    "xai",
-    "acp",
-    "agent-client-protocol",
-    "remote-control",
-    "coding-agent",
-    "mobile"
-  ],
-  "license": "MIT",
   "dependencies": {
     "web-push": "^3.6.7",
     "ws": "^8.18.0"
