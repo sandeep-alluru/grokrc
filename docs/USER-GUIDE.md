@@ -354,21 +354,33 @@ grokrc revoke <id>          # revoke one
 grokrc revoke --all         # revoke everything, then re-pair
 ```
 
-Lost your phone? `grokrc revoke <id>`. The device's socket closes immediately and its
-token stops working.
+`grokrc devices` marks who is connected **right now** — `●` connected, `○` paired but
+absent. That state exists only in the running daemon, so without one the column is blank
+and the listing falls back to the store on disk.
 
-To add a device, the daemon must issue a pairing code:
+Lost your phone? `grokrc revoke <id>`. The token stops working and, if that device is
+connected, its socket is closed immediately rather than at its next reconnect.
+
+To add a device, ask the running daemon for a code:
 
 ```bash
-grokrc up --pair            # prints a fresh code on startup
+grokrc pair
+#
+#   Enter this on the device you are pairing:
+#
+#       Z37D8U
+#
+#   (valid 5 minutes, single use)
 ```
 
-Codes are 6 characters, valid 5 minutes, single use.
+Codes are 6 characters, valid 5 minutes, single use. **No restart required** — the CLI
+reaches the daemon over a Unix socket at `~/.grokrc/control.sock`, so the code is minted
+by the process that will actually redeem it.
 
-> **Known limitation:** `grokrc pair` cannot reach an already-running daemon — pairing
-> state is in memory and there is no control socket yet. Restart with `--pair`. If you
-> run grokrc as a service, add `--pair` to `~/.config/grokrc/grokrc.env` so every restart
-> prints one.
+`grokrc up --pair` still prints one at startup, which is convenient for the first device.
+
+With no daemon running, `grokrc pair` says so rather than printing a code nothing could
+redeem.
 
 ---
 

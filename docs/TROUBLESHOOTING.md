@@ -116,26 +116,21 @@ If that fails, the problem is the daemon, not the network.
   something that looks like a zero it is the letter `O`... which is not in the alphabet
   either. Look again; it is probably `Q` or `D`.
 - Case does not matter; it is upper-cased before comparison.
-- To issue a new code you must **restart the daemon with `--pair`**:
+- To issue a new code, ask the running daemon:
 
   ```bash
-  grokrc up --pair
+  grokrc pair
   ```
 
-  Running as a service? Add it permanently:
+  No restart needed. This works whether the daemon runs in a terminal or under systemd.
 
-  ```bash
-  # ~/.config/grokrc/grokrc.env
-  GROKRC_ARGS=--lan --pair
-  ```
+**"No grokrc daemon is running"** — `grokrc pair` refuses to print a code when nothing is
+listening, because it would live in a process about to exit and nothing could redeem it.
+Start the daemon first.
 
-  ```bash
-  systemctl --user daemon-reload && systemctl --user restart grokrc
-  journalctl --user -u grokrc --since -1m | grep -A2 'To add another'
-  ```
-
-`grokrc pair` on its own cannot reach a running daemon — pairing state is in memory and
-there is no control socket yet.
+**"control socket unavailable"** at startup means `~/.grokrc/control.sock` could not be
+created — usually a permissions problem on `~/.grokrc`, or a second daemon already
+running. The daemon still serves phones; only `grokrc pair` is affected.
 
 ---
 

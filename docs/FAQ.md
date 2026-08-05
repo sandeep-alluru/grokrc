@@ -108,11 +108,16 @@ The socket closes immediately and the token stops working.
 No. The daemon owns the session. Lock your phone mid-turn and the work continues; reopen
 and you get the full transcript.
 
-### Why does `grokrc pair` tell me to restart?
+### How does `grokrc pair` reach the running daemon?
 
-Pairing codes live in memory in the running daemon, and there is no control socket yet
-for the CLI to reach it. Restart with `grokrc up --pair`. This is a known limitation and
-a [good first issue](../CONTRIBUTING.md#8-good-first-issues).
+Over a Unix domain socket at `~/.grokrc/control.sock`, mode `0600`. Pairing codes live in
+the daemon's memory — `beginPairing()` writes them there, `redeem()` reads them from
+there — so a code must be minted by the process that will redeem it.
+
+It is a socket rather than an HTTP route because the HTTP server may be bound to
+`0.0.0.0` with `--lan`, and an unauthenticated "issue me a pairing code" endpoint
+reachable from the network would hand anyone on the Wi-Fi a way in. A Unix socket has no
+network presence at all; access is filesystem permissions.
 
 ### Why won't it start without `defaultCwd`?
 

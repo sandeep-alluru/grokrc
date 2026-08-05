@@ -25,6 +25,7 @@ import {
   saveConfig,
   validateConfig,
 } from './daemon/config.ts';
+import { ControlServer, ControlUnavailableError, controlRequest } from './daemon/control.ts';
 import { checkPermissionPosture, posturteWarning } from './daemon/preflight.ts';
 import { PushService } from './daemon/push.ts';
 import { SessionManager } from './daemon/session-manager.ts';
@@ -89,7 +90,7 @@ grokrc — remote control for Grok Build
       --session <id>   Open a specific session
       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
 
-  grokrc pair        Print a pairing code  (needs a restart — see docs/TROUBLESHOOTING.md)
+  grokrc pair        Print a pairing code for a new device (needs a running daemon)
   grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
   grokrc devices     List paired devices
   grokrc revoke <id> Revoke a device  (--all to revoke everything)
@@ -199,9 +200,56 @@ async function cmdUp(flags: Flags): Promise<void> {
   }
   console.log('');
 
+  // The CLI's way in to this process. Without it `grokrc pair` can only ask you
+  // to restart, which drops every live session to hand out six characters.
+  const control = new ControlServer({
+    pair: () => auth.beginPairing(),
+    devices: () => {
+      const live = server.connectedDeviceIds();
+      return auth.devices.map((d) => ({
+        id: d.id,
+        name: d.name,
+        pairedAt: d.pairedAt,
+        lastSeen: d.lastSeen,
+        connected: live.has(d.id),
+      }));
+    },
+    revoke: async (id) => {
+      const ok = await auth.revoke(id);
+      // Revoking in the store alone leaves an already-connected phone driving
+      // the agent until it happens to reconnect.
+      if (ok) server.disconnectDevice(id);
+      return ok;
+    },
+    revokeAll: async () => {
+      const ids = auth.devices.map((d) => d.id);
+      await auth.revokeAll();
+      for (const id of ids) server.disconnectDevice(id);
+      return ids.length;
+    },
+    status: () => ({
+      pid: process.pid,
+      host: shown,
+      port: bound.port,
+      devices: auth.devices.length,
+      connected: server.connectedDeviceIds().size,
+      sessions: sessions.list().length,
+      push: push.subscriberCount,
+    }),
+  });
+
+  try {
+    await control.listen();
+  } catch (err) {
+    // A control channel that will not start must not stop the daemon serving
+    // phones — it only costs you `grokrc pair` without a restart.
+    console.log(`  ⚠ control socket unavailable: ${(err as Error).message}`);
+  }
+
   const shutdown = async () => {
     console.log('\nshutting down…');
     sessions.closeAll();
+    await control.close();
     await server.close();
     process.exit(0);
   };
@@ -210,39 +258,99 @@ async function cmdUp(flags: Flags): Promise<void> {
 }
 
 async function cmdPair(): Promise<void> {
-  // Pairing codes live in the running daemon's memory, so this only makes sense
-  // as a hint until the control socket lands. Say so rather than printing a code
-  // that will not work.
-  console.log(
-    '\n  Pairing codes are issued by the running daemon.\n' +
-      '  Start it with `grokrc up --pair` — it prints a fresh code every time.\n' +
-      '  (A `grokrc pair` that talks to a live daemon needs the control socket: see docs/01-architecture.md §7.)\n'
-  );
+  try {
+    const { code, expiresAt } = await controlRequest<{ code: string; expiresAt: number }>('pair');
+    const mins = Math.max(0, Math.round((expiresAt - Date.now()) / 60_000));
+    console.log(`\n  Enter this on the device you are pairing:\n`);
+    console.log(`      ${code}\n`);
+    console.log(`  (valid ${mins} minutes, single use)\n`);
+  } catch (err) {
+    if (!(err instanceof ControlUnavailableError)) {
+      console.log(`\n  could not reach the daemon: ${(err as Error).message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    // No daemon: a code minted here would live in a process that is about to
+    // exit, and nothing could redeem it. Say that instead of printing one.
+    console.log(
+      '\n  No grokrc daemon is running — a code issued here could never be redeemed.\n' +
+        '  Start one with `grokrc up`, then run `grokrc pair` again.\n'
+    );
+    process.exitCode = 1;
+  }
 }
 
 async function cmdDevices(): Promise<void> {
-  const auth = new AuthStore();
-  await auth.load();
-  if (auth.devices.length === 0) return console.log('\n  no paired devices\n');
+  interface Row {
+    id: string;
+    name: string;
+    pairedAt: number;
+    lastSeen: number;
+    connected: boolean;
+  }
+
+  let rows: Row[];
+  let live = true;
+  try {
+    ({ devices: rows } = await controlRequest<{ devices: Row[] }>('devices'));
+  } catch (err) {
+    if (!(err instanceof ControlUnavailableError)) {
+      console.log(`\n  could not reach the daemon: ${(err as Error).message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    // No daemon — the store on disk still answers who is paired, just not who
+    // is connected. Degrade rather than fail.
+    const auth = new AuthStore();
+    await auth.load();
+    rows = auth.devices.map((d) => ({ ...d, connected: false }));
+    live = false;
+  }
+
+  if (rows.length === 0) return console.log('\n  no paired devices\n');
+
   console.log('');
-  for (const d of auth.devices) {
+  for (const d of rows) {
+    const dot = live ? (d.connected ? '●' : '○') : ' ';
     console.log(
-      `  ${d.id}  ${d.name.padEnd(20)}  paired ${new Date(d.pairedAt).toLocaleString()}  last seen ${new Date(d.lastSeen).toLocaleString()}`
+      `  ${dot} ${d.id}  ${d.name.slice(0, 40).padEnd(40)}  paired ${new Date(d.pairedAt).toLocaleString()}  last seen ${new Date(d.lastSeen).toLocaleString()}`
     );
   }
-  console.log('');
+  console.log(
+    live
+      ? '\n  ● connected now   ○ paired, not connected\n'
+      : '\n  (no daemon running — connection state unknown)\n'
+  );
 }
 
 async function cmdRevoke(rest: string[], flags: Flags): Promise<void> {
-  const auth = new AuthStore();
-  await auth.load();
-  if (flags.all === true) {
-    await auth.revokeAll();
-    return console.log('  all devices revoked');
-  }
+  const all = flags.all === true;
   const id = rest[0];
-  if (!id) return console.log('  usage: grokrc revoke <deviceId> | --all');
-  console.log((await auth.revoke(id)) ? `  revoked ${id}` : `  no such device: ${id}`);
+  if (!all && !id) return console.log('  usage: grokrc revoke <deviceId> | --all');
+
+  try {
+    const { revoked } = await controlRequest<{ revoked: number }>(
+      'revoke',
+      all ? { all: true } : { deviceId: id }
+    );
+    if (all) return console.log(`  revoked ${revoked} device(s); their sockets were closed`);
+    console.log(revoked ? `  revoked ${id}; its socket was closed` : `  no such device: ${id}`);
+  } catch (err) {
+    if (!(err instanceof ControlUnavailableError)) {
+      console.log(`\n  could not reach the daemon: ${(err as Error).message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    // No daemon: write to the store directly. Nothing is connected, so there
+    // is no socket to close.
+    const auth = new AuthStore();
+    await auth.load();
+    if (all) {
+      await auth.revokeAll();
+      return console.log('  all devices revoked');
+    }
+    console.log((await auth.revoke(id!)) ? `  revoked ${id}` : `  no such device: ${id}`);
+  }
 }
 
 /**

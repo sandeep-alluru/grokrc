@@ -11,6 +11,12 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ### Added
 
+- **Control socket** (`src/daemon/control.ts`) — a Unix domain socket at
+  `~/.grokrc/control.sock` (mode `0600`) letting the CLI talk to the running daemon.
+  `grokrc pair` issues a code without a restart; `grokrc devices` shows who is connected
+  right now; `grokrc revoke` closes the revoked device's socket immediately instead of at
+  its next reconnect. All three fall back to the on-disk store when no daemon is running.
+  A stale socket left by a crashed daemon is reclaimed; a live one is never stolen.
 - **Public repository packaging** — `LICENSE` (MIT), `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue and pull-request templates, Dependabot.
 - **`docs/USER-GUIDE.md`** — task-oriented guide for daily use.

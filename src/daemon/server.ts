@@ -304,6 +304,37 @@ export class RemoteControlServer {
     await new Promise<void>((res) => this.#http.close(() => res()));
   }
 
+  /**
+   * Device ids holding a live authenticated socket right now.
+   *
+   * This is the one thing `grokrc devices` cannot learn by reading auth.json —
+   * the store records when a device last spoke, not whether it is here.
+   */
+  connectedDeviceIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const c of this.#clients) if (c.device) ids.add(c.device.id);
+    return ids;
+  }
+
+  /**
+   * Close every socket belonging to a device, used when it is revoked.
+   *
+   * Revoking by writing to the store alone leaves an already-connected phone
+   * driving the agent until it happens to reconnect. 4401 is the code the client
+   * treats as "token rejected": it discards the token and returns to pairing
+   * rather than reconnect-looping.
+   */
+  disconnectDevice(deviceId: string): number {
+    let n = 0;
+    for (const c of this.#clients) {
+      if (c.device?.id === deviceId) {
+        c.ws.close(4401, 'device revoked');
+        n++;
+      }
+    }
+    return n;
+  }
+
   /* ─── HTTP ────────────────────────────────────────────────────────────── */
 
   async #onHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
