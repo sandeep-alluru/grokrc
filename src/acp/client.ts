@@ -67,7 +67,19 @@ export class AcpClient extends EventEmitter {
     this.#fsCapability = opts.fsCapability ?? true;
 
     this.#transport.on('message', (m) => this.#onMessage(m));
-    this.#transport.on('error', (e) => this.emit('error', e));
+    this.#transport.on('error', (e) => {
+      // A bare `emit('error')` with no listener is THROWN by Node, so a failed
+      // spawn killed the entire daemon and every other live session with it.
+      // The blast radius of one broken session must be that session: reject its
+      // in-flight work, and only emit when someone is actually listening.
+      this.#closed = true;
+      for (const [id, p] of this.#pending) {
+        clearTimeout(p.timer);
+        p.reject(e instanceof Error ? e : new Error(String(e)));
+        this.#pending.delete(id);
+      }
+      if (this.listenerCount('error') > 0) this.emit('error', e);
+    });
     this.#transport.on('stderr', (t) => this.emit('stderr', t));
     this.#transport.on('close', (info) => {
       this.#closed = true;
