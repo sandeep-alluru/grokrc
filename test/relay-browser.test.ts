@@ -48,7 +48,8 @@ const daemon = new RemoteControlServer({
   webRoot: WEB,
   sessions,
   auth,
-  defaultCwd: '/tmp/demo',
+  // A directory that actually exists: cwd is validated before spawning.
+  defaultCwd: tmp,
 });
 await daemon.listen();
 daemon.connectRelay({ url: `ws://127.0.0.1:${relayPort}`, room: ROOM, key: KEY });

@@ -112,6 +112,25 @@ export function looksLikeGrok(args: string): boolean {
   return base === 'grok' || base === 'grok.exe';
 }
 
+/**
+ * The directory has to still be there.
+ *
+ * Node reports a missing `cwd` as `spawn <cmd> ENOENT` — indistinguishable from
+ * a missing binary, and the reason two production crashes were first misread as
+ * "grok is not on the PATH". Sessions outlive the directories they ran in, so
+ * every deleted project is a session in the list that cannot be resumed.
+ */
+async function assertCwdExists(cwd: string): Promise<void> {
+  try {
+    if (!(await stat(cwd)).isDirectory()) {
+      throw new Error(`working directory is not a directory: ${cwd}`);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('working directory')) throw err;
+    throw new Error(`working directory no longer exists: ${cwd}`, { cause: err });
+  }
+}
+
 /** cwd becomes a path segment and a process spawn directory. */
 function assertSafeCwd(cwd: string): void {
   if (typeof cwd !== 'string' || !cwd.startsWith('/')) {
@@ -375,6 +394,7 @@ export class SessionManager extends EventEmitter {
     // arrives from a remote client. Validating one path and not the other is
     // how a hole survives a security pass.
     assertSafeCwd(cwd);
+    await assertCwdExists(cwd);
 
     // Each session is a live grok process. Without a ceiling, a client looping
     // on `create` forks agents until the machine falls over — cheap to trigger,
@@ -437,6 +457,7 @@ export class SessionManager extends EventEmitter {
   async resume(id: string, cwd: string, opts: { model?: string } = {}): Promise<SessionInfo> {
     assertSafeSessionId(id);
     assertSafeCwd(cwd);
+    await assertCwdExists(cwd);
 
     const existing = this.#sessions.get(id);
     if (existing) return { ...existing.info, pendingApprovals: existing.approvals.size };

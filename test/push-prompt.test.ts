@@ -38,7 +38,8 @@ const server = new RemoteControlServer({
   webRoot: resolve(import.meta.dirname, '../web'),
   sessions,
   auth,
-  defaultCwd: '/tmp/demo',
+  // A directory that actually exists: cwd is validated before spawning.
+  defaultCwd: tmp,
 });
 const { port } = await server.listen();
 const base = `http://127.0.0.1:${port}`;

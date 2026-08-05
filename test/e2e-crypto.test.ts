@@ -94,7 +94,8 @@ const daemon = new RemoteControlServer({
   webRoot: WEB,
   sessions,
   auth,
-  defaultCwd: '/tmp/demo',
+  // A directory that actually exists: cwd is validated before spawning.
+  defaultCwd: tmp,
 });
 await daemon.listen();
 
