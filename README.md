@@ -9,7 +9,7 @@ phone — over the agent's own protocol, not a screen scrape.
   <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-153%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-166%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
 </p>
 
@@ -240,7 +240,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 153 tests — unit, browser (real Chromium against the real PWA), and real-stack
+- ✅ 166 tests — unit, browser (real Chromium against the real PWA), and real-stack
   checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
@@ -254,7 +254,6 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 | Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery to a desktop browser is verified; to an iOS device it is not |
 | Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                       |
 | Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
-| `grokrc pair`   | Stub; prints guidance instead of issuing a code                                                                                                                                                  |
 | Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                     |
 
 ### How the browser tests work
@@ -345,7 +344,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 153 tests: mock suite -> build -> real-stack checks
+npm test          # 166 tests: mock suite -> build -> real-stack checks
 npm run typecheck
 npm run probe     # capture real ACP frames -> docs/captures/
 node --experimental-strip-types src/cli.ts up   # run from source, no build

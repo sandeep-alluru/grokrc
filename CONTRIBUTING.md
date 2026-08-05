@@ -202,8 +202,9 @@ daemon owns sessions and how observed mode reads Grok's own logs.
 
 ## 8. Good first issues
 
-- **`grokrc pair` against a running daemon.** Pairing codes live in memory, so the
-  command currently tells you to restart with `--pair`. It needs a control socket.
+- **More control-socket commands.** `grokrc doctor` still spawns its own probe session
+  rather than asking the running daemon for its state, and `config set` still needs a
+  restart to apply. The channel exists (`src/daemon/control.ts`); the commands do not.
 - **Android home-screen install guidance.** The docs are iOS-heavy because that is where
   push is hardest.
 - **Test files still using `MockTransport` where a real-stack check would be stronger** —
