@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest a capability grokrc does not have
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        grokrc has a deliberately narrow scope: drive a Grok Build agent from a phone
+        over ACP. Requests that fit that shape are much more likely to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you hitting?
+      description: Describe the situation, not the solution. What can you not do today?
+      placeholder: |
+        When the agent asks for approval while I am away from my desk, I only find
+        out the next time I open the app.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried or considered?
+      description: Including workarounds that partly work.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Phone client (PWA)
+        - Daemon / session handling
+        - ACP protocol coverage
+        - Relay / networking
+        - Notifications
+        - Terminal client
+        - Packaging / install
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues
+          required: true

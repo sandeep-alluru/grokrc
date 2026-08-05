@@ -1,0 +1,104 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The most useful bug report is one that lets someone
+        else reproduce the failure — please prioritise that over describing it.
+
+        **Security issue?** Do not file it here. See
+        [SECURITY.md](https://github.com/sandeep-alluru/grokrc/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you see, and what did you expect instead?
+      placeholder: |
+        The session list stayed empty after pairing. I expected my running
+        Grok session to appear as an observed session.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands and taps. Include anything that makes it more or less likely.
+      placeholder: |
+        1. grokrc up --lan --pair
+        2. Pair the phone with the printed code
+        3. Start `grok` in another terminal in ~/code
+        4. Pull to refresh on the phone — the session never appears
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `grokrc doctor`
+      description: This captures your Grok version and whether ACP responds. Paste it verbatim.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: grokrc-version
+    attributes:
+      label: grokrc version
+      placeholder: '0.1.0 (or a commit SHA if running from source)'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-reached
+    attributes:
+      label: How is the daemon reached?
+      options:
+        - Loopback (default)
+        - '--lan'
+        - Tailscale
+        - Relay (--relay)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: Client
+      description: Browser and OS, and whether it is installed to the home screen.
+      placeholder: 'iOS 18.7 Safari, added to Home Screen'
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Daemon host OS and Node version
+      placeholder: 'Ubuntu 24.04, Node 22.22.2'
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Daemon output, or `journalctl --user -u grokrc -n 100` if running as a service.
+        Browser console errors are valuable for UI bugs.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I can reproduce this on the latest `main`
+          required: true
+        - label: I searched existing issues
+          required: true
+        - label: I have removed tokens, pairing codes, and other secrets from the output above
+          required: true

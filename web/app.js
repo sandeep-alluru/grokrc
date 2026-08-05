@@ -338,6 +338,11 @@ function renderList() {
   newBtn.addEventListener('click', () => sendMsg({ t: 'create' }));
   el.vList.append(newBtn);
 
+  // iOS only honours a permission request inside a user gesture, so this row
+  // exists to BE that gesture. It also reports why push is off, instead of the
+  // app silently never subscribing.
+  renderPushPrompt();
+
   if (!state.sessions.length) {
     const p = document.createElement('div');
     p.className = 'empty';
@@ -778,22 +783,49 @@ function urlBase64ToUint8Array(base64) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-async function setupPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  if (!state.token) return;
+/**
+ * Register for push.
+ *
+ * `fromGesture` matters on iOS: `Notification.requestPermission()` is only
+ * honoured inside a user gesture. Called during page load it is silently
+ * ignored — no prompt, no error, permission stays "default" — so the app
+ * connects normally and simply never subscribes. That is exactly what happened
+ * on the owner's iPhone: paired, PWA running, zero subscriptions.
+ *
+ * On boot we therefore only re-subscribe if permission was ALREADY granted.
+ * Asking is deferred to a button the user taps.
+ *
+ * Returns a short status string so the UI can say what happened instead of
+ * failing invisibly.
+ */
+async function setupPush({ fromGesture = false } = {}) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return 'unsupported: this browser has no service worker or push support';
+  }
+  if (!state.token) return 'not paired yet';
+  if (!globalThis.isSecureContext) {
+    return 'needs HTTPS — push cannot work over plain http';
+  }
+  if (Notification.permission === 'denied') {
+    return 'blocked in system settings — enable notifications for this app, then retry';
+  }
+  if (Notification.permission === 'default' && !fromGesture) {
+    // Asking here would be swallowed on iOS. Let the user tap instead.
+    return 'needs-permission';
+  }
 
   try {
     const reg = await navigator.serviceWorker.register('/sw.js');
 
     const { publicKey } = await (await fetch(api('/api/push/key'))).json();
-    if (!publicKey) return; // daemon started with --no-push
+    if (!publicKey) return 'daemon has push disabled (--no-push)';
 
-    // Ask only after pairing — a permission prompt on first paint gets denied,
-    // and a denied permission is sticky.
+    // Only reached from a gesture, or when permission was already granted.
     if (Notification.permission === 'default') {
-      if ((await Notification.requestPermission()) !== 'granted') return;
+      const res = await Notification.requestPermission();
+      if (res !== 'granted') return `permission ${res}`;
     }
-    if (Notification.permission !== 'granted') return;
+    if (Notification.permission !== 'granted') return `permission ${Notification.permission}`;
 
     const sub =
       (await reg.pushManager.getSubscription()) ??
@@ -803,12 +835,104 @@ async function setupPush() {
       }));
 
     // Carries a device token — must be sealed like pairing is.
-    await apiPost('/api/push/subscribe', { token: state.token, subscription: sub });
+    const { ok, body } = await apiPost('/api/push/subscribe', {
+      token: state.token,
+      subscription: sub,
+    });
+    if (!ok) return `daemon refused the subscription: ${body.error ?? 'unknown'}`;
+    return 'ok';
   } catch (err) {
-    // Push is an enhancement; the app must work without it (and will fail here
-    // on plain http:// over LAN, where service workers are not permitted).
+    // Push is an enhancement; the app must work without it. But it must not fail
+    // INVISIBLY — an unexplained absence of notifications is unfixable by a user.
     console.warn('push unavailable:', err.message);
+    return `failed: ${err.message}`;
   }
+}
+
+/**
+ * A tappable row that both explains the state and satisfies iOS's gesture
+ * requirement. Shown in the session list whenever push is not yet active.
+ */
+function renderPushPrompt() {
+  // Push already works — nothing to say.
+  if (pushPermission() === 'granted') return;
+
+  const blocker = pushBlocker();
+
+  const row = document.createElement('div');
+  row.className = 'notice';
+  row.dataset.pushPrompt = '1';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const name = document.createElement('div');
+  name.className = 'name';
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+
+  if (blocker) {
+    // The platform cannot do push from here. Say so and name the way out —
+    // an early `return` would leave the user hunting for a button that the
+    // code decided not to draw.
+    name.textContent = '🔔 Notifications are off';
+    sub.textContent = blocker;
+    row.style.opacity = '0.75';
+  } else {
+    name.textContent = '🔔 Enable notifications';
+    sub.textContent =
+      pushPermission() === 'denied'
+        ? 'Blocked — allow notifications for this app in system settings, then tap'
+        : 'Get told when a turn finishes or the agent needs approval';
+  }
+  meta.append(name, sub);
+  row.append(meta);
+
+  // Tapping is what satisfies iOS's gesture requirement. Kept live even when
+  // blocked, so a user who just fixed system settings can retry in place.
+  row.addEventListener('click', async () => {
+    sub.textContent = 'requesting…';
+    const status = await setupPush({ fromGesture: true });
+    if (status === 'ok') {
+      name.textContent = '🔔 Notifications enabled';
+      sub.textContent = 'You will be notified when a turn finishes.';
+      setTimeout(() => row.remove(), 2500);
+    } else {
+      sub.textContent = status;
+    }
+  });
+
+  el.vList.append(row);
+}
+
+/** `Notification.permission`, or null where the API does not exist (iOS Safari tab). */
+function pushPermission() {
+  return typeof Notification === 'undefined' ? null : Notification.permission;
+}
+
+/** True when running as an installed app rather than a browser tab. */
+function isStandalone() {
+  return (
+    globalThis.matchMedia?.('(display-mode: standalone)').matches === true ||
+    navigator.standalone === true
+  );
+}
+
+/**
+ * Why push cannot be turned on from this page, or null when it can.
+ *
+ * The interesting case is iOS: `PushManager` exists ONLY in a home-screen app,
+ * so a Safari tab is not broken — it is the wrong container, and saying which
+ * one to use is the entire fix.
+ */
+function pushBlocker() {
+  if (!globalThis.isSecureContext) return 'Needs HTTPS — open this page over https.';
+  if (!('serviceWorker' in navigator)) return 'This browser has no service worker support.';
+  if (!('PushManager' in window)) {
+    return isStandalone()
+      ? 'This browser does not support push notifications.'
+      : 'Tap Share → Add to Home Screen, then open grokrc from that icon — iOS only allows notifications there.';
+  }
+  return null;
 }
 
 // Tapping a notification focuses an existing tab — jump it to the right session.
@@ -823,6 +947,8 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
 
 if (state.token) {
   connect();
+  // No gesture here — on iOS an unprompted request is swallowed. This only
+  // re-subscribes when permission was granted previously.
   void setupPush();
 } else {
   show(el.vPair);

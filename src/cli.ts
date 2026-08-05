@@ -76,6 +76,7 @@ grokrc — remote control for Grok Build
       --cwd <DIR>      Default working directory for new sessions
       --pair           Print a pairing code even if devices are already paired
       --history <N>    How many past sessions to list (default 10)
+      --no-push        Disable Web Push (no VAPID keys, no subscriptions)
       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
       --room <ID>      Relay room id (generated if omitted)
       --relay-key <K>  Relay room key (generated if omitted)
@@ -88,7 +89,7 @@ grokrc — remote control for Grok Build
       --session <id>   Open a specific session
       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
 
-  grokrc pair        Print a pairing code for a new device
+  grokrc pair        Print a pairing code  (needs a restart — see docs/TROUBLESHOOTING.md)
   grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
   grokrc devices     List paired devices
   grokrc revoke <id> Revoke a device  (--all to revoke everything)

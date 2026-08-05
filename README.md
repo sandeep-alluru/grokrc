@@ -5,6 +5,26 @@ phone — over the agent's own protocol, not a screen scrape.
 
 > Existing tools put a terminal on your phone. This puts the **agent** on your phone.
 
+<p>
+  <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-153%20passing-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
+</p>
+
+**[Setup](docs/SETUP.md)** · **[User Guide](docs/USER-GUIDE.md)** ·
+**[Troubleshooting](docs/TROUBLESHOOTING.md)** · **[FAQ](docs/FAQ.md)** ·
+**[Architecture](docs/01-architecture.md)** · **[Security](SECURITY.md)** ·
+**[Contributing](CONTRIBUTING.md)**
+
+<p align="center">
+  <img src="docs/screenshots/sessions.png" alt="Session list" width="30%">
+  <img src="docs/screenshots/live-turn.png" alt="A live turn" width="30%">
+  <img src="docs/screenshots/approval.png" alt="One-tap approval" width="30%">
+</p>
+<p align="center"><em>Session list · a live turn · a real permission request, answered with one tap</em></p>
+
 ---
 
 ## Why this exists
@@ -208,9 +228,10 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ Pairing, device tokens, authenticated WebSocket
 - ✅ PWA — session list, streaming, tool cards, plans, one-tap approvals
 - ✅ **Observed mode** — mirrors sessions you started by hand in a terminal
-- 🟡 **Relay mode** — transport works and is tested, but the PWA isn't served or paired
-  through it yet, so it isn't usable end-to-end
-- 🟡 **Web Push** — plumbing complete and tested; real delivery to a device unverified
+- ✅ **Relay mode** — the relay serves the PWA and tunnels `/api/*`, so a phone with no
+  route to your machine can load the app, pair, and drive a session
+- 🟡 **Web Push** — delivered to a real desktop browser (`sent: 1, failed: 0`); delivery
+  to an iOS home-screen app is **not yet confirmed on a device**
 - ✅ **Verified end-to-end against a live agent** — real turn, real
   `session/request_permission`, approved from a remote client, agent proceeded
   (`tools/e2e-drive.mjs`, capture in `docs/captures/e2e-drive.json`)
@@ -219,7 +240,8 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 83 tests; build, typecheck, and `grokrc doctor` green
+- ✅ 153 tests — unit, browser (real Chromium against the real PWA), and real-stack
+  checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
 
@@ -229,7 +251,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                              |
 | Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                  |
-| Push delivery   | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it                                                    |
+| Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery to a desktop browser is verified; to an iOS device it is not |
 | Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                       |
 | Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
 | `grokrc pair`   | Stub; prints guidance instead of issuing a code                                                                                                                                                  |
@@ -323,7 +345,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 19 tests, no agent spawned
+npm test          # 153 tests: mock suite -> build -> real-stack checks
 npm run typecheck
 npm run probe     # capture real ACP frames -> docs/captures/
 node --experimental-strip-types src/cli.ts up   # run from source, no build
@@ -333,4 +355,40 @@ node --experimental-strip-types src/cli.ts up   # run from source, no build
 vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, update
 `src/acp/protocol.ts`, and the rest of the codebase stays put.
 
-MIT.
+---
+
+## Documentation
+
+| Document                                       | What is in it                                          |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| [Setup](docs/SETUP.md)                         | Install, configure, networking, run as a service       |
+| [User Guide](docs/USER-GUIDE.md)               | Daily use — sessions, approvals, resume, notifications |
+| [Troubleshooting](docs/TROUBLESHOOTING.md)     | Symptom-first fixes                                    |
+| [FAQ](docs/FAQ.md)                             | Short answers                                          |
+| [Architecture](docs/01-architecture.md)        | How the daemon, ACP client, and observer fit together  |
+| [Research](docs/00-research.md)                | Prior art, and why screen-scraping was rejected        |
+| [Security](SECURITY.md)                        | Threat model and vulnerability reporting               |
+| [Contributing](CONTRIBUTING.md)                | Dev setup and the bar for a change                     |
+| [Changelog](CHANGELOG.md)                      | What changed                                           |
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first —
+the bar for a bug fix is specific: **reproduce it, show a test failing before your fix
+and passing after, and isolate which change was load-bearing.**
+
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Found a vulnerability? **Do not open a public issue.** See [SECURITY.md](SECURITY.md).
+
+The most important security setting is not in grokrc at all — it is Grok's
+`support_permission`, which defaults to **off**. With it off your agent acts without
+asking anyone. `grokrc doctor` checks it.
+
+## License
+
+[MIT](LICENSE) © 2026 Sandeep Alluru
+
+Not affiliated with xAI. "Grok" and "Grok Build" are trademarks of X.AI Corp.
