@@ -1,0 +1,107 @@
+/**
+ * The load-bearing controls, and the test that must notice when each is gone.
+ *
+ * DATA ONLY. The runner is tools/verify-guards.mjs — one implementation over
+ * this list, never a script per guard.
+ *
+ * Every entry here was verified by hand once, and the proof was written into a
+ * commit message. Prose does not re-run. This file exists so `npm run
+ * verify:guards` re-proves all of it: disable the control, and the named test
+ * MUST fail. A test that still passes with its control removed is measuring
+ * nothing, however green it looks.
+ *
+ * Fields
+ *   id       stable slug, shown in the report
+ *   why      what breaks in the product if this control is lost
+ *   file     source file to mutate
+ *   find     exact text to replace — MUST occur `count` times, or the entry is
+ *            reported as drift rather than silently skipped
+ *   replace  the disabled form
+ *   count    expected occurrences (default 1)
+ *   test     the test file that must fail once the control is disabled
+ */
+export const GUARDS = [
+  {
+    id: 'push-prompt-always-renders',
+    why: 'iOS Safari tabs have no PushManager; the early return left users with no row and no reason',
+    file: 'web/app.js',
+    find: "  // Push already works — nothing to say.\n  if (pushPermission() === 'granted') return;",
+    replace:
+      "  if (!('PushManager' in window)) return;\n  // Push already works — nothing to say.\n  if (pushPermission() === 'granted') return;",
+    test: 'test/push-prompt.test.ts',
+  },
+  {
+    id: 'push-row-is-not-a-session',
+    why: '`.session` must mean a session; when this row wore it, click(".session") opened a notification prompt',
+    file: 'web/app.js',
+    find: "  row.className = 'notice';",
+    replace: "  row.className = 'session';",
+    test: 'test/push-prompt.test.ts',
+  },
+  {
+    id: 'handback-survives-transcript-render',
+    why: 'history replay wipes the session view; without the re-render there is no way to return a session to a terminal',
+    file: 'web/app.js',
+    find: '  else if (state.current) renderHandBackBar(state.current);',
+    replace: '',
+    test: 'test/handback.test.ts',
+  },
+  {
+    id: 'takeover-pid-identity',
+    why: 'pids get recycled; without the argv[0] check a stale registry entry makes a phone tap kill an unrelated process',
+    file: 'src/daemon/session-manager.ts',
+    find: '    if (!looksLikeGrok(args)) {',
+    replace: '    if (false && !looksLikeGrok(args)) {',
+    test: 'test/takeover.test.ts',
+  },
+  {
+    id: 'cwd-must-exist',
+    why: 'a deleted working directory spawns as ENOENT and used to be reported as a missing grok binary',
+    file: 'src/daemon/session-manager.ts',
+    find: '    await assertCwdExists(cwd);\n',
+    replace: '',
+    count: 2, // create() and resume() — the twin
+    test: 'test/spawn-failure.test.ts',
+  },
+  {
+    id: 'spawn-error-is-not-fatal',
+    why: "an 'error' event with no listener is thrown by Node, so one unspawnable session killed the whole daemon",
+    file: 'src/acp/client.ts',
+    find: "    this.#transport.on('error', (e) => {",
+    replace:
+      "    this.#transport.on('error', (e) => this.emit('error', e));\n    const __unused = ((e) => {",
+    test: 'test/spawn-failure.test.ts',
+  },
+  {
+    id: 'harness-refuses-real-grok-home',
+    why: 'tests spawning a real agent wrote 80 sessions into the developer’s own ~/.grok',
+    file: 'tools/harness.mjs',
+    find: "  if (!transportFactory) {\n    const real = join(process.env.HOME ?? '', '.grok');",
+    replace: "  if (false) {\n    const real = join(process.env.HOME ?? '', '.grok');",
+    test: 'test/harness-isolation.test.ts',
+  },
+  {
+    id: 'ndjson-line-ceiling',
+    why: 'an unterminated ACP line would grow until the daemon ran out of memory',
+    file: 'src/acp/transport.ts',
+    find: 'const MAX_LINE_BYTES = 8 * 1024 * 1024;',
+    replace: 'const MAX_LINE_BYTES = Number.MAX_SAFE_INTEGER;',
+    test: 'test/transport-resilience.test.ts',
+  },
+  {
+    id: 'stdin-error-handler',
+    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon',
+    file: 'src/acp/transport.ts',
+    find: "    this.#child.stdin.on('error', (err: NodeJS.ErrnoException) => {",
+    replace: "    this.#child.stdin.on('__disabled', (err: NodeJS.ErrnoException) => {",
+    test: 'test/transport-resilience.test.ts',
+  },
+  {
+    id: 'relay-room-ownership',
+    why: 'without it one tenant answers another tenant’s /api/pair with a forged token',
+    file: 'src/relay/server.ts',
+    find: '        if (pending.roomId !== room.id) return;',
+    replace: '',
+    test: 'test/relay-isolation.test.ts',
+  },
+];

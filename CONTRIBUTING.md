@@ -102,6 +102,25 @@ is broken:
 3. **Isolate the control.** If your fix changes more than one thing, disable the part
    you believe is load-bearing and confirm the test fails again. Otherwise you do not
    know which change did the work.
+
+   Then **register it** in `tools/guards.mjs` so the proof re-runs:
+
+   ```js
+   { id: 'takeover-pid-identity',
+     why: 'pids get recycled; without the argv[0] check a phone tap kills something else',
+     file: 'src/daemon/session-manager.ts',
+     find: '    if (!looksLikeGrok(args)) {',
+     replace: '    if (false && !looksLikeGrok(args)) {',
+     test: 'test/takeover.test.ts' }
+   ```
+
+   ```bash
+   npm run guards          # list what is registered
+   npm run verify:guards   # disable each control; its test MUST fail
+   ```
+
+   CI runs this as its own job. Nine such proofs previously lived only in commit
+   messages, which do not re-run.
 4. **Look for the twin.** Nearly every defect in this codebase has had a second copy on
    a parallel path — `create()` missing a check that `resume()` had, and so on. Find it
    before you open the PR.

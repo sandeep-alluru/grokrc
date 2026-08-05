@@ -42,3 +42,25 @@ jobs:
       # themselves rather than fail, so this stays green without the binary.
       - name: Test
         run: npm test
+
+  # A green suite proves nothing on its own — a test may exercise nothing. This
+  # job disables each load-bearing control in turn and requires its test to FAIL.
+  # Separate job because it re-runs test files many times.
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: npm run build
+      - name: Every control must be load-bearing
+        run: npm run verify:guards
+      - name: No source file may be left mutated
+        run: git diff --exit-code
