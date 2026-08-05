@@ -15,24 +15,24 @@ remote control, and **no open-source project targets it** — every existing mob
 
 More importantly, they all work the same way: stream raw PTY bytes to a phone-sized
 `xterm.js` and run a regex over the ANSI output to guess whether the agent is waiting for
-you. MobileCLI literally documents a *"CLI Detection Engine"* that *"parses output to
-identify wait states."*
+you. MobileCLI literally documents a _"CLI Detection Engine"_ that _"parses output to
+identify wait states."_
 
 They screen-scrape because they must — Claude Code and Codex don't expose a structured
 agent protocol. **Grok Build does.** It speaks
 [ACP](https://agentclientprotocol.com) over `grok agent stdio`, so approvals, tool calls,
 diffs, and plans arrive as typed JSON instead of characters on a screen.
 
-|  | Existing tools | grokrc |
-|---|---|---|
-| Transport | PTY bytes | ACP JSON-RPC (typed) |
-| "Is it waiting on me?" | regex over ANSI | `session/request_permission` |
-| Approving a tool | send keystrokes, hope | one tap, answered by `optionId` |
-| Networking | inbound port + Tailscale | agent dials **out** — nothing exposed |
-| Shared session | separate/mirrored | `agent leader` — laptop + phone, **one** backend |
-| Watch a hand-started TUI session | ✗ | ✓ read-only via `updates.jsonl` |
-| Platforms | iOS (Android "in development") | PWA — both, day one |
-| Grok Build | unsupported | native |
+|                                  | Existing tools                 | grokrc                                              |
+| -------------------------------- | ------------------------------ | --------------------------------------------------- |
+| Transport                        | PTY bytes                      | ACP JSON-RPC (typed)                                |
+| "Is it waiting on me?"           | regex over ANSI                | `session/request_permission`                        |
+| Approving a tool                 | send keystrokes, hope          | one tap, answered by `optionId`                     |
+| Networking                       | inbound port + Tailscale       | agent dials **out** — nothing exposed               |
+| Shared session                   | separate/mirrored              | `grokrc term` — terminal + phone on **one** backend |
+| Watch a hand-started TUI session | ✗                              | ✓ read-only via `updates.jsonl`                     |
+| Platforms                        | iOS (Android "in development") | PWA — both, day one                                 |
+| Grok Build                       | unsupported                    | native                                              |
 
 ---
 
@@ -62,7 +62,7 @@ Found the hard way, by driving a real turn end-to-end: **`[features]
 support_permission` defaults to `false`**, and a user config may also set
 `[ui] permission_mode` to `auto` / `dontAsk` / `bypassPermissions` /
 `acceptEdits`. Under any of those, `session/request_permission` is never sent —
-so one-tap approval silently does nothing *and* your agent executes every write
+so one-tap approval silently does nothing _and_ your agent executes every write
 and shell command unattended.
 
 Put this in `~/.grok/config.toml`:
@@ -111,13 +111,13 @@ grokrc config set lan true       # bind 0.0.0.0 instead of loopback
 grokrc config unset model
 ```
 
-| Key | |
-|---|---|
-| `defaultCwd` | **required** — working directory for new sessions |
-| `port` · `host` · `lan` | where the daemon listens |
-| `historyLimit` | how many past sessions to list (default 10) |
-| `model` | model override for new sessions |
-| `leader` | share one backend with `grok agent leader` |
+| Key                     |                                                   |
+| ----------------------- | ------------------------------------------------- |
+| `defaultCwd`            | **required** — working directory for new sessions |
+| `port` · `host` · `lan` | where the daemon listens                          |
+| `historyLimit`          | how many past sessions to list (default 10)       |
+| `model`                 | model override for new sessions                   |
+| `leader`                | share one backend with `grok agent leader`        |
 
 Precedence: **CLI flag → `~/.grokrc/config.json` → built-in default.** Settings are
 validated on write and on start — a `defaultCwd` that doesn't exist is refused rather
@@ -142,15 +142,18 @@ systemctl --user restart grokrc    packaging/systemd/uninstall.sh
 Pair a device against a running service with `grokrc up --pair` (or edit
 `~/.config/grokrc/grokrc.env` and restart).
 
-| Command | |
-|---|---|
-| `grokrc up` | start daemon · `--lan` `--port` `--leader` `--model` `--cwd` |
-| `grokrc devices` | list paired devices |
-| `grokrc revoke <id>` | revoke one device (`--all` for everything) |
-| `grokrc doctor` | check grok + ACP handshake |
+| Command              |                                                              |
+| -------------------- | ------------------------------------------------------------ |
+| `grokrc up`          | start daemon · `--lan` `--port` `--leader` `--model` `--cwd` |
+| `grokrc devices`     | list paired devices                                          |
+| `grokrc revoke <id>` | revoke one device (`--all` for everything)                   |
+| `grokrc doctor`      | check grok + ACP handshake                                   |
 
-**`--leader`** attaches to a running `grok agent leader` so your terminal TUI and your phone
-drive the *same* session. Start something on your laptop, approve it from the couch.
+**Terminal + phone on one session** is `grokrc term`, not `--leader`. Grok's own TUI
+**cannot** join a shared backend — verified four ways: it never connects to
+`leader.sock`, `use_leader` appears nowhere in Grok's documentation, `grok inspect`
+surfaces no leader config, and `grok --help` has no `--leader`. `grokrc term` works
+around it by talking to the grokrc daemon, which is already a shared backend.
 
 ---
 
@@ -193,7 +196,7 @@ Remote control of a coding agent **is** remote code execution. Treated according
   `bypassPermissions` on its own. Remote approval means a human tapping a button.
 
 Do not expose the port directly to the public internet. Use a Tailnet, or relay mode
-once it lands.
+(see [docs/SETUP.md](docs/SETUP.md) §6).
 
 ---
 
@@ -222,15 +225,15 @@ once it lands.
 
 ## Limitations
 
-| | |
-|---|---|
-| Malicious relay | E2E encryption defeats a *passive* relay, not one serving modified JS. Self-host it |
-| Relay metadata | Routes, message sizes, and timing are visible. Contents are not |
-| Push delivery | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it |
-| Observed mode | Read-only while mirroring — use **Resume** to take it live |
-| Log tail | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
-| `grokrc pair` | Stub; prints guidance instead of issuing a code |
-| Tool coverage | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified |
+|                 |                                                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                              |
+| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                  |
+| Push delivery   | Plumbing tested; never delivered to a real device. iOS needs HTTPS **and** add-to-home-screen (16.4+), so `--lan` over plain http won't do it                                                    |
+| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                       |
+| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
+| `grokrc pair`   | Stub; prints guidance instead of issuing a code                                                                                                                                                  |
+| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                     |
 
 ### How the browser tests work
 
@@ -302,7 +305,7 @@ structure appear in **none** of them.
 The relay still sees routing metadata — that `/api/pair` was called, and message sizes and
 timing. It cannot see contents.
 
-> ⚠️ **What this does not defend against:** a *malicious* relay serving modified
+> ⚠️ **What this does not defend against:** a _malicious_ relay serving modified
 > JavaScript. The relay serves the client, so it could serve a version that leaks the key.
 > Encryption cannot fix code delivery. Self-host the relay, or load the client once from
 > the daemon over LAN. `--no-e2e` disables encryption and says so loudly.
@@ -313,9 +316,9 @@ relayed client still has to present a valid device token, which is tested.
 
 > `grok agent headless --grok-ws-url` also works — the probe in
 > `docs/captures/relay-probe.json` shows the agent speaking plain ACP over its own
-> outbound socket. grokrc doesn't use it, because pointing the *agent* at a relay
+> outbound socket. grokrc doesn't use it, because pointing the _agent_ at a relay
 > bypasses the daemon and loses event normalization and held approvals. Having the
-> *daemon* dial out gets the same NAT traversal and keeps both.
+> _daemon_ dial out gets the same NAT traversal and keeps both.
 
 ## Development
 
