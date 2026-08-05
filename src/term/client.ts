@@ -169,6 +169,15 @@ export class TerminalClient {
 
       case 'error':
         console.log(red(`\n  error: ${String(msg.message)}`));
+        // An error BEFORE any session is established is fatal: nothing started
+        // the input loop, so the process would sit with no prompt, no way to
+        // type, and no way to quit except ctrl-C. Exit with a real code instead
+        // of hanging — a refused resume is the common case (the session is live
+        // in a standalone terminal).
+        if (!this.#current) {
+          console.log(dim('\n  no session opened — nothing to drive from here.\n'));
+          process.exit(1);
+        }
         return;
     }
   }
@@ -176,6 +185,13 @@ export class TerminalClient {
   /* ─── session selection ─────────────────────────────────────────────────── */
 
   async #chooseSession(): Promise<void> {
+    // Covers EVERY selection path, not just the interactive menu. The daemon
+    // re-broadcasts the session list whenever anything changes; without this the
+    // --session and --new paths re-entered on each broadcast and re-sent their
+    // request, which is why a refused resume printed its error twice.
+    if (this.#choosing) return;
+    this.#choosing = true;
+
     if (this.#opts.newSession) {
       this.#send({ t: 'create', cwd: this.#opts.cwd });
       return;
@@ -208,11 +224,13 @@ export class TerminalClient {
       );
     });
 
-    this.#choosing = true;
+    // `#choosing` is a latch set at the top of this method and never cleared —
+    // a terminal client selects exactly one session per run. Clearing it here
+    // reopened the re-entry window between the answer and the session being
+    // established, which is the race this guard exists to close.
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const answer = await new Promise<string>((res) => rl.question(dim('\n  choose: '), res));
     rl.close();
-    this.#choosing = false;
 
     const n = Number(answer.trim());
     if (!Number.isInteger(n) || n < 0 || n > shown.length) {
