@@ -129,6 +129,8 @@ const state = {
   backoff: 500,
   /** Daemon shares one `grok agent leader` backend — set from the ready frame. */
   leaderMode: false,
+  /** The Resume button awaiting a reply, so a refusal can restore it. */
+  pendingResume: null,
 };
 
 /* ─── views ──────────────────────────────────────────────────────────────── */
@@ -288,6 +290,7 @@ function handle(msg) {
       break;
     case 'resumed':
       // Now live: drop the resume bar, reveal the composer, keep the transcript.
+      state.pendingResume = null;
       state.current = msg.session;
       el.title.textContent = msg.session.title;
       el.composer.hidden = false;
@@ -306,6 +309,15 @@ function handle(msg) {
       break;
     case 'error':
       appendError(msg.message);
+      // Restore a Resume button left mid-flight, or it reads 'Resuming…' forever
+      // with no way to retry.
+      if (state.pendingResume) {
+        state.pendingResume.disabled = false;
+        state.pendingResume.textContent = state.current?.externallyActive
+          ? 'Take control'
+          : 'Resume session';
+        state.pendingResume = null;
+      }
       break;
   }
 }
@@ -467,6 +479,11 @@ function renderResumeBar(s) {
   btn.addEventListener('click', () => {
     btn.disabled = true;
     btn.textContent = 'Resuming…';
+    // Resume can legitimately fail — the daemon refuses a session live in a
+    // standalone process, and refuses once MAX_LIVE_SESSIONS is reached. Without
+    // a recovery path the button would read "Resuming…" forever with no retry,
+    // which is the same dead-end the terminal client had on a refused resume.
+    state.pendingResume = btn;
     sendMsg({ t: 'resume', sessionId: s.id, cwd: s.cwd });
   });
 
@@ -480,6 +497,13 @@ function renderTranscript(events) {
   state.approvalNodes.clear();
   state.streaming = null;
   state.planNode = null;
+  // HARDENING, not a fix: replaceChildren() detaches every node, so a retained
+  // thinkingNode would receive appends nobody can see. Today that never bites,
+  // because history replay always contains a `text` event and applyEvent clears
+  // it as an INTERRUPTS kind — verified by test/client-state.ts, which passes
+  // against the code without this line. Relying on that incidental clear is the
+  // fragility; a replay of only thinking chunks would break it.
+  state.thinkingNode = null;
   for (const ev of events) applyEvent(ev, true);
   if (!events.length) renderPlaceholder();
   // History replaces the transcript wholesale, so the resume affordance has to

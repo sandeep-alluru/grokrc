@@ -315,6 +315,27 @@ async function cmdConfig(rest: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+/**
+ * Delete a session directory this process created.
+ *
+ * Only ever called with an id we just minted, and the path is re-derived the
+ * same way the session manager builds it. Best-effort: a diagnostic failing to
+ * tidy up must not fail the diagnostic.
+ */
+async function removeSessionDir(sessionId: string, cwd: string): Promise<void> {
+  try {
+    const { rm } = await import('node:fs/promises');
+    const { homedir } = await import('node:os');
+    const grokHome = process.env.GROK_HOME ?? resolve(homedir(), '.grok');
+    const dir = resolve(grokHome, 'sessions', encodeURIComponent(cwd), sessionId);
+    // Refuse to delete anything that is not inside the session store.
+    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;
+    await rm(dir, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+}
+
 async function cmdDoctor(): Promise<void> {
   console.log('');
   try {
@@ -340,6 +361,12 @@ async function cmdDoctor(): Promise<void> {
     );
     const s = await client.newSession(process.cwd());
     console.log(`  ✓ session/new ok (${s.sessionId})`);
+
+    // Clean up after ourselves. `session/new` persists a directory under
+    // ~/.grok/sessions, so every `doctor` run was leaving a junk session behind —
+    // they accumulate in the phone's session list and push real work out of the
+    // history cap. A diagnostic must not mutate the state it inspects.
+    await removeSessionDir(s.sessionId, process.cwd());
 
     // Push is the feature most likely to be quietly broken — it depends on
     // HTTPS, a service worker, and a third-party push service, none of which
