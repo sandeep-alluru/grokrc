@@ -11,6 +11,16 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ### Added
 
+- **Take over a terminal session from your phone.** A session started with plain `grok`
+  was visible but read-only, and taking it over meant stopping the TUI by hand — which
+  is impossible when the point is that you are away from the machine. **Take over** now
+  terminates the owning process and resumes the session with its history intact.
+  Guarded: only a pid Grok's registry names as this session's owner, only if its
+  `argv[0]` is actually `grok` (pids get recycled), never the daemon itself, and
+  `SIGTERM` only — `SIGKILL` risks an unflushed `updates.jsonl`. Two taps to confirm.
+- **Hand back to terminal.** Closes the session daemon-side and shows the exact
+  `cd <cwd> && grok -r <id>` to reopen it in Grok's TUI. Usually unnecessary —
+  `grokrc term --session <id>` drives the same session with nobody giving anything up.
 - **Control socket** (`src/daemon/control.ts`) — a Unix domain socket at
   `~/.grokrc/control.sock` (mode `0600`) letting the CLI talk to the running daemon.
   `grokrc pair` issues a code without a restart; `grokrc devices` shows who is connected

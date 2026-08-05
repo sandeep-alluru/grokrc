@@ -307,6 +307,22 @@ function handle(msg) {
       }
       applyEvent(msg.event);
       break;
+    case 'released': {
+      // Show the exact command rather than making the user rebuild it from a
+      // session id and a path they cannot see.
+      const bar = el.vSession.querySelector('[data-handback]');
+      if (bar) bar.remove();
+      appendBubble(
+        'agent',
+        msg.command
+          ? `Released. In your terminal:\n\n${msg.command}`
+          : 'Released. Reopen it with: grok -r ' + msg.sessionId
+      );
+      state.current = null;
+      sendMsg({ t: 'sessions' });
+      return;
+    }
+
     case 'error':
       appendError(msg.message);
       // Restore a Resume button left mid-flight, or it reads 'Resuming…' forever
@@ -419,6 +435,7 @@ function openSession(s) {
   el.composer.hidden = s.mode === 'observed';
   el.title.textContent = s.mode === 'observed' ? `${s.title} (read-only)` : s.title;
   if (s.mode === 'observed') renderResumeBar(s);
+  else renderHandBackBar(s);
   renderPlaceholder();
   // cwd lets the daemon locate the on-disk log for a session it doesn't own.
   sendMsg({ t: 'open', sessionId: s.id, cwd: s.cwd });
@@ -467,9 +484,45 @@ function renderResumeBar(s) {
   // was on). Trust that flag, not merely "is something else running".
   if (s.externallyActive && !(s.joinable && state.leaderMode)) {
     label.textContent =
-      '● Live in a terminal that is not sharing a backend — mirroring it here, read-only. ' +
-      'Restart that session with a shared leader to drive it from your phone.';
+      '● Live in a terminal that is not sharing a backend — mirroring it here, read-only.';
     bar.append(label);
+
+    // "Go restart it with a shared leader" is useless advice when the whole
+    // point is that you are away from that terminal. Taking over stops the
+    // terminal's grok and resumes the session here, keeping the history.
+    const take = document.createElement('button');
+    take.className = 'btn-primary';
+    take.textContent = 'Take over';
+
+    const warn = document.createElement('div');
+    warn.className = 'sub';
+    warn.style.marginTop = '6px';
+    warn.textContent = 'Stops the session in your terminal. The conversation is kept.';
+
+    // Two taps. This kills a process on a machine you cannot see, so a stray
+    // tap in a pocket must not do it.
+    let armed = false;
+    take.addEventListener('click', () => {
+      if (!armed) {
+        armed = true;
+        take.textContent = 'Tap again to stop the terminal';
+        take.classList.add('danger');
+        setTimeout(() => {
+          if (!armed) return;
+          armed = false;
+          take.textContent = 'Take over';
+          take.classList.remove('danger');
+        }, 5000);
+        return;
+      }
+      armed = false;
+      take.disabled = true;
+      take.textContent = 'Taking over…';
+      state.pendingResume = take;
+      sendMsg({ t: 'takeover', sessionId: s.id, cwd: s.cwd });
+    });
+
+    bar.append(take, warn);
     el.vSession.prepend(bar);
     return;
   }
@@ -515,6 +568,52 @@ function renderTranscript(events) {
   // be re-added here or it vanishes the moment the log arrives.
   if (state.current?.mode === 'observed') renderResumeBar(state.current);
   scrollDown();
+}
+
+/**
+ * Give a session back to a terminal.
+ *
+ * The daemon has to let go first: two agents on one conversation, each blind to
+ * the other's writes, is exactly what `externallyActive` exists to prevent. So
+ * this closes the session here and hands over the command to reopen it there.
+ *
+ * Most of the time you do not need this — `grokrc term --session <id>` drives the
+ * same session without anyone giving anything up. It is only for getting Grok's
+ * own TUI back.
+ */
+function renderHandBackBar(s) {
+  const bar = document.createElement('div');
+  bar.className = 'resume-bar';
+  bar.dataset.handback = '1';
+
+  const btn = document.createElement('button');
+  btn.className = 'btn-ghost';
+  btn.textContent = '⇄ Hand back to terminal';
+
+  const label = document.createElement('div');
+  label.className = 'sub';
+  label.style.marginTop = '6px';
+  label.textContent = 'Closes it here so Grok\u2019s TUI can reopen it.';
+
+  let armed = false;
+  btn.addEventListener('click', () => {
+    if (!armed) {
+      armed = true;
+      btn.textContent = 'Tap again to close it here';
+      setTimeout(() => {
+        if (!armed) return;
+        armed = false;
+        btn.textContent = '\u21c4 Hand back to terminal';
+      }, 5000);
+      return;
+    }
+    armed = false;
+    btn.disabled = true;
+    sendMsg({ t: 'release', sessionId: s.id });
+  });
+
+  bar.append(btn, label);
+  el.vSession.prepend(bar);
 }
 
 /** Drop the placeholder as soon as there is anything real to show. */

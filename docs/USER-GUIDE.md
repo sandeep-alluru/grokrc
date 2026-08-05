@@ -228,12 +228,51 @@ read-only.
 This works because Grok writes `updates.jsonl` per session and grokrc tails it. It is
 independent of ACP, which is why it works for sessions grokrc never started.
 
-**To take over**, stop Grok in the terminal, then Resume from the phone.
+### Taking it over from your phone
+
+Open the session and tap **Take over**. It asks twice — this stops a process on a
+machine you cannot see — then it terminates the terminal's `grok` and resumes the
+session here with its full history.
+
+The conversation is kept. Everything the terminal did is still there, and everything you
+do next is there when you go back.
+
+**What it will not do:** kill anything that is not Grok. Grok's registry can name a pid
+that has died and been recycled by the OS onto an unrelated program, so the daemon reads
+the process's `argv[0]` and refuses unless it is actually `grok`. It sends `SIGTERM`
+only — never `SIGKILL`, which risks losing the last message.
+
+### Giving it back
+
+Two ways, and the first is usually what you want:
+
+```bash
+grokrc term --session <id>      # no handback at all — both drive it at once
+```
+
+Once the daemon owns a session, your terminal and your phone are both clients of it.
+There is nothing to hand back.
+
+If you specifically want **Grok's own TUI** again, tap **⇄ Hand back to terminal**. The
+daemon closes the session — it has to let go, or two agents end up on one conversation —
+and shows you the exact command:
+
+```bash
+cd /path/to/project && grok -r <session-id>
+```
+
+Verified round trip with real Grok: a codeword planted in the TUI, a second planted by
+the daemon after takeover, and `grok -r` recalled both.
 
 > **Grok's TUI cannot join a shared grokrc backend.** This was verified four ways: the
 > TUI never connects to `leader.sock`, `use_leader` appears zero times in Grok's README,
-> `grok inspect` surfaces no leader config, and `grok --help` has no `--leader`. If you
-> want one session on both a terminal and a phone, use `grokrc term` — not the TUI.
+> `grok inspect` surfaces no leader config, and `grok --help` has no `--leader`. Take
+> over and hand back exist because joining is impossible — `grokrc term` avoids the
+> problem entirely by not using the TUI.
+
+> **A terminal sitting at the prompt is invisible here.** Grok registers a session in
+> `active_sessions.json` only once a conversation exists, so a freshly launched `grok`
+> with nothing typed into it will not appear in the list at all.
 
 ---
 
