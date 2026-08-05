@@ -85,7 +85,13 @@ CI cannot cover you there.
 | `test/*.test.ts`              | unit + browser tests (Playwright against the real PWA) |
 | `tools/live-ui-check.mjs`     | a full turn against real Grok, asserted in a real browser |
 | `tools/resume-check.mjs`      | close a session, resume it, prove memory survived |
+| `tools/live-check.mjs`        | drives the **running** daemon in a real browser (`npm run check:live`) |
 | `tools/*-probe.mjs`           | manual protocol probes, not part of `npm test`  |
+
+`npm test` boots its own daemon in-process, so it cannot see whether the daemon you
+are actually serving has been restarted, or whether a phone is running a cached
+bundle. Both have happened. `npm run check:live` pairs itself through the control
+socket and walks the real flows against the live daemon; run it after deploying.
 
 ---
 

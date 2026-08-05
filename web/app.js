@@ -6,6 +6,15 @@
  * requests) as real UI, rather than painting a terminal into a canvas.
  */
 
+/**
+ * Which build this file is.
+ *
+ * index.html is served with `src="/app.js?v=<hash>"`, so the running code can
+ * name itself. Without this, "the fix is deployed but your phone disagrees" was
+ * indistinguishable from "the fix does not work".
+ */
+const ASSET_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
+
 const $ = (id) => document.getElementById(id);
 const TOKEN_KEY = 'grokrc.token';
 const RELAY_KEY = 'grokrc.relay';
@@ -143,6 +152,29 @@ function show(view) {
   el.back.hidden = !inSession;
 }
 
+/**
+ * This client is older than the daemon it is talking to.
+ *
+ * An installed PWA can keep serving a cached bundle, so a fixed daemon still
+ * looks broken. Say so, and make reloading one tap instead of a support round trip.
+ */
+function renderStaleBanner(current) {
+  if (document.querySelector('[data-stale]')) return;
+  const bar = document.createElement('div');
+  bar.dataset.stale = '1';
+  bar.className = 'stale-bar';
+  bar.textContent = `Older version running (${ASSET_VERSION} \u2192 ${current}). Tap to update.`;
+  bar.addEventListener('click', () => location.reload(true));
+  document.body.prepend(bar);
+}
+
+/** Send doubles as Stop while a turn runs. One owner for all three effects. */
+function setBusy(v) {
+  state.busy = v;
+  el.send.textContent = v ? 'Stop' : 'Send';
+  el.send.classList.toggle('stop', v);
+}
+
 function setConn(cls) {
   el.conn.className = 'dot' + (cls ? ' ' + cls : '');
 }
@@ -194,7 +226,7 @@ function connect() {
   ws.addEventListener('open', () => {
     state.backoff = 500;
     setConn('live');
-    sendMsg({ t: 'hello', token: state.token });
+    sendMsg({ t: 'hello', token: state.token, assetVersion: ASSET_VERSION });
   });
 
   // Frames arrive sealed in relay mode. Serialize decryption so events cannot
@@ -268,6 +300,7 @@ function flushOutbound() {
 function handle(msg) {
   switch (msg.t) {
     case 'ready':
+      if (msg.stale) renderStaleBanner(msg.assetVersion);
       state.leaderMode = !!msg.leaderMode;
       // On a RECONNECT the user is usually mid-session. Unconditionally showing
       // the list threw them out of the transcript they were reading — often
@@ -294,6 +327,7 @@ function handle(msg) {
       state.current = msg.session;
       el.title.textContent = msg.session.title;
       el.composer.hidden = false;
+      setBusy(msg.session.state === 'working' || msg.session.state === 'thinking');
       el.vSession.querySelector('[data-resume]')?.remove();
       break;
     case 'history':
@@ -423,6 +457,8 @@ el.back.addEventListener('click', () => {
 
 function openSession(s) {
   state.current = s;
+  // The daemon knows whether this session is mid-turn; the transcript does not.
+  setBusy(s.state === 'working' || s.state === 'thinking');
   state.toolNodes.clear();
   state.approvalNodes.clear();
   state.streaming = null;
@@ -685,10 +721,15 @@ function applyEvent(ev, replaying = false) {
     }
 
     case 'status':
-      state.busy = ev.state === 'working' || ev.state === 'thinking';
-      el.send.textContent = state.busy ? 'Stop' : 'Send';
-      el.send.classList.toggle('stop', state.busy);
-      setConn(ev.state === 'awaiting-approval' ? 'wait' : 'live');
+      // Only the LIVE stream can say whether a turn is running now. History
+      // cannot: an agent killed mid-turn — which is exactly what Take over does
+      // to the terminal's grok — leaves a `working` in the log with no terminal
+      // status after it. Replaying that pinned the composer to Stop forever, so
+      // the session could not be typed into at all.
+      if (!replaying) {
+        setBusy(ev.state === 'working' || ev.state === 'thinking');
+        setConn(ev.state === 'awaiting-approval' ? 'wait' : 'live');
+      }
       if (ev.state !== 'working' && ev.state !== 'thinking') state.streaming = null;
       break;
 

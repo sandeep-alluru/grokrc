@@ -47,6 +47,14 @@ export const GUARDS = [
     test: 'test/handback.test.ts',
   },
   {
+    id: 'busy-not-derived-from-history',
+    why: 'a turn killed mid-flight leaves a `working` status in the log; replaying it pinned the composer to Stop and no message could be sent',
+    file: 'web/app.js',
+    find: '      if (!replaying) {\n        setBusy(',
+    replace: '      if (true) {\n        setBusy(',
+    test: 'test/busy-state.test.ts',
+  },
+  {
     id: 'takeover-pid-identity',
     why: 'pids get recycled; without the argv[0] check a stale registry entry makes a phone tap kill an unrelated process',
     file: 'src/daemon/session-manager.ts',

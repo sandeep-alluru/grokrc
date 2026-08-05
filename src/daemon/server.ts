@@ -6,7 +6,8 @@
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { EventEmitter } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { AuthStore, type Device } from './auth.ts';
@@ -33,7 +34,7 @@ export interface ServerOptions {
 }
 
 type ClientMsg =
-  | { t: 'hello'; token: string }
+  | { t: 'hello'; token: string; assetVersion?: string }
   | { t: 'sessions' }
   | { t: 'open'; sessionId: string; cwd?: string }
   | { t: 'resume'; sessionId: string; cwd: string }
@@ -306,6 +307,30 @@ export class RemoteControlServer {
     await new Promise<void>((res) => this.#http.close(() => res()));
   }
 
+  #assetVersion: { mtimeMs: number; hash: string } | null = null;
+
+  /**
+   * Short content hash of the client bundle.
+   *
+   * Keyed on mtime so an edit during development is picked up without a
+   * restart, and hashing is not repeated for every request.
+   */
+  async assetVersion(): Promise<string> {
+    const file = join(resolve(this.#opts.webRoot), 'app.js');
+    try {
+      const { mtimeMs } = await stat(file);
+      if (this.#assetVersion?.mtimeMs === mtimeMs) return this.#assetVersion.hash;
+      const hash = createHash('sha256')
+        .update(await readFile(file))
+        .digest('hex')
+        .slice(0, 12);
+      this.#assetVersion = { mtimeMs, hash };
+      return hash;
+    } catch {
+      return 'unknown';
+    }
+  }
+
   /**
    * Device ids holding a live authenticated socket right now.
    *
@@ -358,6 +383,10 @@ export class RemoteControlServer {
       return this.#handleSubscribe(req, res);
     }
 
+    if (url.pathname === '/api/version') {
+      return json(res, 200, { assetVersion: await this.assetVersion() });
+    }
+
     // Static PWA. Path is normalized and confined to webRoot.
     const rel = url.pathname === '/' ? '/index.html' : url.pathname;
     const root = resolve(this.#opts.webRoot);
@@ -366,10 +395,24 @@ export class RemoteControlServer {
       return json(res, 403, { error: 'forbidden' });
     }
     try {
-      const body = await readFile(target);
+      let body: Buffer | string = await readFile(target);
+
+      // Stamp the app's URL with a hash of its contents. `cache-control:
+      // no-cache` asks a browser to revalidate, but an installed PWA can serve
+      // an old copy anyway — a phone ran yesterday's JavaScript against a fixed
+      // daemon and the bug looked unfixed. A changed hash is a different URL,
+      // so there is nothing stale to serve.
+      if (target === join(root, 'index.html')) {
+        const v = await this.assetVersion();
+        body = body.toString('utf8').replace('src="/app.js"', `src="/app.js?v=${v}"`);
+      }
+
       res.writeHead(200, {
         'content-type': MIME[extname(target)] ?? 'application/octet-stream',
-        'cache-control': 'no-cache',
+        // The stamped URL is immutable; everything else must revalidate.
+        'cache-control': url.searchParams.has('v')
+          ? 'public, max-age=31536000, immutable'
+          : 'no-cache',
       });
       res.end(body);
     } catch {
@@ -467,10 +510,20 @@ export class RemoteControlServer {
       client.device = device;
       // leaderMode tells the client whether a session another process owns can
       // be joined (shared backend) or only watched.
+      const current = await this.assetVersion();
+      if (msg.assetVersion && msg.assetVersion !== current) {
+        // Worth a line on the machine: "is this a bug or an old client?" was
+        // unanswerable, and cost a round trip to establish.
+        console.log(
+          `  stale client: device ${device.id} is running ${msg.assetVersion}, current is ${current}`
+        );
+      }
       send(client.ws, {
         t: 'ready',
         device: { id: device.id, name: device.name },
         leaderMode: this.#opts.sessions.leaderMode,
+        assetVersion: current,
+        stale: !!msg.assetVersion && msg.assetVersion !== current,
       });
       await this.#sendSessions(client);
       return;

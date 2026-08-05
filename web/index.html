@@ -171,6 +171,13 @@
   }
   .btn-ghost:disabled { opacity: .5; }
 
+  /* Loud on purpose: a stale client makes a fixed daemon look broken. */
+  .stale-bar {
+    position: sticky; top: 0; z-index: 50; padding: 10px 14px;
+    background: var(--warn); color: #1a1200; font-weight: 650; font-size: 13px;
+    text-align: center;
+  }
+
   .err-line { color: var(--err); font-size: 13px; margin-bottom: 10px; }
   .empty { color: var(--dim); text-align: center; padding: 40px 20px; font-size: 14px; }
 
