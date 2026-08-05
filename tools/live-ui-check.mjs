@@ -13,9 +13,12 @@
  *   npm run build && node tools/live-ui-check.mjs
  */
 import { join } from 'node:path';
-import { bootDaemon, pairedPage, reporter, cleanup, SHOTS } from './harness.mjs';
+import { bootDaemon, isolatedGrokHome, pairedPage, reporter, cleanup, SHOTS } from './harness.mjs';
 
 const { note, problems, finish } = reporter();
+// Own GROK_HOME: a real agent writes session history that outlives this
+// run, and it must not land in the owner's ~/.grok.
+await isolatedGrokHome({ prompting: false });
 const daemon = await bootDaemon(); // no transportFactory ⇒ REAL grok
 const ui = await pairedPage({ base: daemon.base, auth: daemon.auth });
 const { page } = ui;

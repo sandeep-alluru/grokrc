@@ -67,6 +67,24 @@ export async function isolatedGrokHome({ prompting = true } = {}) {
  * choose a fake on anyone's behalf.
  */
 export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
+  // A REAL grok writes its session history into GROK_HOME and keeps it forever.
+  // Two checks ran against the owner's real ~/.grok and left a session behind on
+  // every `npm test` — 80 of them accumulated, each pointing at a scratch dir
+  // that had since been deleted, and each one able to crash the daemon on resume.
+  //
+  // Refusing here is the only version of this rule that survives: a comment
+  // asking the next tool to remember would be forgotten exactly as these two were.
+  if (!transportFactory) {
+    const real = join(process.env.HOME ?? '', '.grok');
+    const home = process.env.GROK_HOME;
+    if (!home || resolve(home) === resolve(real)) {
+      throw new Error(
+        'bootDaemon() with a REAL grok would write sessions into your own ~/.grok ' +
+          'and leave them there. Call `await isolatedGrokHome()` before bootDaemon(), ' +
+          'or pass a transportFactory.'
+      );
+    }
+  }
   const cfgDir = await scratchDir('grokrc-cfg-');
   process.env.GROKRC_HOME = cfgDir;
 
