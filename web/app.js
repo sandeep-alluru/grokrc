@@ -564,9 +564,14 @@ function renderTranscript(events) {
   state.thinkingNode = null;
   for (const ev of events) applyEvent(ev, true);
   if (!events.length) renderPlaceholder();
-  // History replaces the transcript wholesale, so the resume affordance has to
-  // be re-added here or it vanishes the moment the log arrives.
+  // History replaces the transcript wholesale, so the bar has to be re-added
+  // here or it vanishes the moment the log arrives. BOTH bars — hand-back was
+  // missing from this list, so the only way to return a session to a terminal
+  // was destroyed milliseconds after openSession() drew it. History replays on
+  // open, on reconnect, and right after a takeover, which is exactly when it is
+  // wanted.
   if (state.current?.mode === 'observed') renderResumeBar(state.current);
+  else if (state.current) renderHandBackBar(state.current);
   scrollDown();
 }
 
