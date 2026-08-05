@@ -33,6 +33,16 @@ export interface Transport extends EventEmitter {
  * captures, and because chunk boundaries land mid-frame constantly in practice —
  * that is the bug that bites every hand-rolled NDJSON reader.
  */
+/**
+ * Ceiling on a single unterminated line.
+ *
+ * ACP frames are legitimately large — a `session/load` replay or a big tool
+ * output runs to megabytes — so this is generous. But it must exist: an agent
+ * emitting a stream with no newline would otherwise grow the buffer until the
+ * process died, and the daemon holds every other session.
+ */
+const MAX_LINE_BYTES = 8 * 1024 * 1024;
+
 export class NdjsonDecoder {
   #buf = '';
 
@@ -42,6 +52,23 @@ export class NdjsonDecoder {
     onBad?: (line: string, err: Error) => void
   ): void {
     this.#buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+
+    // No newline in sight and past the ceiling: this is not a frame we are ever
+    // going to complete. Report and drop, rather than accumulate until the
+    // process dies — the daemon holds every other session.
+    if (this.#buf.length > MAX_LINE_BYTES && this.#buf.indexOf('\n') === -1) {
+      const size = this.#buf.length;
+      const head = this.#buf.slice(0, 200);
+      this.#buf = '';
+      onBad?.(
+        head,
+        new Error(
+          `unterminated ACP line exceeded ${MAX_LINE_BYTES} bytes (${size}) — buffer dropped`
+        )
+      );
+      return;
+    }
+
     let nl: number;
     while ((nl = this.#buf.indexOf('\n')) !== -1) {
       const line = this.#buf.slice(0, nl).trim();
@@ -116,6 +143,19 @@ export class StdioTransport extends EventEmitter implements Transport {
 
     this.#child.stderr.on('data', (chunk: Buffer) => this.emit('stderr', chunk.toString('utf8')));
 
+    // stdin needs its own error handler. An unhandled 'error' on a Node stream
+    // is THROWN, so an EPIPE — the agent exited in the window between its death
+    // and `close` reaching us — would take down the whole daemon, and with it
+    // every other session it holds. Report it as a transport error instead.
+    this.#child.stdin.on('error', (err: NodeJS.ErrnoException) => {
+      this.#closed = true;
+      if (err.code === 'EPIPE') {
+        this.emit('error', new Error('agent stdin closed (EPIPE) — the process is gone'));
+      } else {
+        this.emit('error', err);
+      }
+    });
+
     this.#child.on('error', (err) => this.emit('error', err));
     this.#child.on('close', (code) => {
       this.#closed = true;
@@ -129,6 +169,12 @@ export class StdioTransport extends EventEmitter implements Transport {
 
   send(msg: JsonRpcMessage): void {
     if (this.#closed) throw new Error('transport closed');
+    // `writable` is false the moment the pipe breaks, often before the child's
+    // `close` event arrives — check it rather than discovering EPIPE the hard way.
+    if (!this.#child.stdin.writable) {
+      this.#closed = true;
+      throw new Error('transport closed: agent stdin is no longer writable');
+    }
     this.#child.stdin.write(JSON.stringify(msg) + '\n');
   }
 
