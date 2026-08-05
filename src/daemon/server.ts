@@ -531,7 +531,15 @@ export class RemoteControlServer {
         case 'takeover': {
           // Stops the terminal process that owns this session, then resumes it
           // here. Destructive, and the client is expected to have confirmed.
+          //
+          // Logged on the MACHINE, not just returned to the phone: this is the
+          // one action that kills a process, and "did my tap do anything?" was
+          // unanswerable from the daemon's own log the first time it was used.
+          console.log(
+            `  takeover requested: session ${msg.sessionId} by device ${client.device?.id ?? '?'}`
+          );
           const info = await sessions.takeOver(msg.sessionId, msg.cwd);
+          console.log(`  takeover succeeded: session ${info.id} is now owned here`);
           client.observing.delete(msg.sessionId);
           client.watching.add(info.id);
           send(client.ws, { t: 'resumed', session: info });
@@ -547,6 +555,9 @@ export class RemoteControlServer {
         case 'release': {
           // Hand the session back to a terminal. The daemon must let go first —
           // two agents on one conversation is what externallyActive prevents.
+          console.log(
+            `  release requested: session ${msg.sessionId} by device ${client.device?.id ?? '?'}`
+          );
           const info = sessions.list().find((s) => s.id === msg.sessionId);
           sessions.close(msg.sessionId);
           client.watching.delete(msg.sessionId);
@@ -601,6 +612,12 @@ export class RemoteControlServer {
           send(client.ws, { t: 'error', message: `unknown message: ${(msg as { t: string }).t}` });
       }
     } catch (err) {
+      // Client-only error reporting left destructive actions invisible in the
+      // daemon log — you could not tell a refused takeover from a tap that
+      // never arrived.
+      if (msg.t === 'takeover' || msg.t === 'release' || msg.t === 'resume') {
+        console.log(`  ${msg.t} FAILED: ${(err as Error).message}`);
+      }
       send(client.ws, { t: 'error', message: (err as Error).message });
     }
   }
