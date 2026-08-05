@@ -78,14 +78,38 @@ export interface ActiveSession {
  * leader, so that is what gets checked.
  */
 async function isLeaderProcess(pid: number): Promise<boolean> {
+  const args = await processArgs(pid);
+  return args !== null && /\bagent\s+leader\b/.test(args);
+}
+
+/** The full command line of a pid, or null if it cannot be read. */
+export async function processArgs(pid: number): Promise<string | null> {
   try {
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const { stdout } = await promisify(execFile)('ps', ['-o', 'args=', '-p', String(pid)]);
-    return /\bagent\s+leader\b/.test(stdout);
+    const line = stdout.trim();
+    return line === '' ? null : line;
   } catch {
-    return false; // unknown ⇒ treat as not joinable
+    return null; // no such process, or ps unavailable
   }
+}
+
+/**
+ * Does this command line belong to a Grok process?
+ *
+ * Guards the ONE operation in grokrc that kills something: taking over a session
+ * a terminal owns. Grok's `active_sessions.json` can name a pid that has since
+ * died and been RECYCLED by the OS onto an unrelated program — `process.kill(pid, 0)`
+ * says "alive" for any process at all. Without this check, a stale registry entry
+ * plus an unlucky pid reuse means a tap on a phone kills something arbitrary.
+ *
+ * Only argv[0] is trusted. Matching "grok" anywhere would accept `vim grok.md`.
+ */
+export function looksLikeGrok(args: string): boolean {
+  const argv0 = args.trim().split(/\s+/)[0] ?? '';
+  const base = argv0.split('/').pop() ?? '';
+  return base === 'grok' || base === 'grok.exe';
 }
 
 /** cwd becomes a path segment and a process spawn directory. */
@@ -611,6 +635,74 @@ export class SessionManager extends EventEmitter {
       }
     }
     return out.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+  }
+
+  /**
+   * Stop the terminal process that owns a session, then resume it here.
+   *
+   * The gap this closes: a session started with plain `grok` is visible on the
+   * phone but read-only, and the only way to take it over was to stop the TUI by
+   * hand — impossible when the whole point is that you are away from the machine.
+   *
+   * DESTRUCTIVE. It terminates a process the user did not start from here, so:
+   *   · only a pid Grok's own registry names as the owner of THIS session
+   *   · only if that pid still looks like a grok process (pid reuse, see looksLikeGrok)
+   *   · SIGTERM only — never SIGKILL, which risks an unflushed updates.jsonl
+   *
+   * Returns the resumed session. If no process owns it, this is just a resume.
+   */
+  async takeOver(
+    id: string,
+    cwd: string,
+    opts: { model?: string; waitMs?: number } = {}
+  ): Promise<SessionInfo> {
+    // Validate BEFORE signalling anything.
+    assertSafeSessionId(id);
+    assertSafeCwd(cwd);
+
+    const owner = (await this.activeOnDisk()).find((a) => a.sessionId === id);
+    if (!owner) return this.resume(id, cwd, opts);
+
+    if (owner.pid === process.pid) {
+      throw new Error('refusing to terminate the grokrc daemon itself');
+    }
+
+    const args = await processArgs(owner.pid);
+    if (args === null) {
+      // Died between the registry read and now — nothing to stop.
+      return this.resume(id, cwd, opts);
+    }
+    if (!looksLikeGrok(args)) {
+      throw new Error(
+        `refusing to stop pid ${owner.pid}: it is not a grok process (${args.slice(0, 60)}). ` +
+          `Grok's session registry is stale and the pid has been reused.`
+      );
+    }
+
+    try {
+      process.kill(owner.pid, 'SIGTERM');
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ESRCH') return this.resume(id, cwd, opts); // already gone
+      throw new Error(`could not stop pid ${owner.pid}: ${(err as Error).message}`, { cause: err });
+    }
+
+    // Wait for it to actually exit. Resuming while the old agent is still
+    // writing puts two agents on one conversation — the thing resume() refuses.
+    const deadline = Date.now() + (opts.waitMs ?? 8_000);
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+      try {
+        process.kill(owner.pid, 0);
+      } catch {
+        return this.resume(id, cwd, opts); // gone — safe to own it
+      }
+    }
+
+    throw new Error(
+      `pid ${owner.pid} did not exit after SIGTERM. Not escalating to SIGKILL — ` +
+        `that risks losing the last message. Stop it in the terminal and retry.`
+    );
   }
 
   /**

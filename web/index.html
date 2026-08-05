@@ -160,6 +160,17 @@
   }
   .resume-bar .btn-primary { margin-top: 8px; }
 
+  /* Armed state for a destructive action — stopping a process you cannot see. */
+  .btn-primary.danger { background: var(--err); color: #fff; }
+
+  /* Hand-back is a rare, deliberate action; it must not compete with Send. */
+  .btn-ghost {
+    width: 100%; margin-top: 4px; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: transparent;
+    color: var(--dim); font-weight: 600; font-size: 13px;
+  }
+  .btn-ghost:disabled { opacity: .5; }
+
   .err-line { color: var(--err); font-size: 13px; margin-bottom: 10px; }
   .empty { color: var(--dim); text-align: center; padding: 40px 20px; font-size: 14px; }
 

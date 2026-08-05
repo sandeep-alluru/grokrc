@@ -51,11 +51,29 @@ agent it did not spawn. To take one over, stop it in the terminal and tap **Resu
 
 ### Can I have one session live in my terminal and on my phone at once?
 
-Yes — with `grokrc term`, which connects to the grokrc daemon.
+Yes — with `grokrc term`, which connects to the grokrc daemon. Both drive the same
+session simultaneously.
 
 **Not** with Grok's own TUI. That was verified four ways: the TUI never connects to
 `leader.sock`, `use_leader` appears zero times in Grok's README, `grok inspect` surfaces
 no leader config, and `grok --help` has no `--leader`.
+
+### I started a session in the terminal and I am now away from the machine. Can I drive it?
+
+Yes. Open it on the phone and tap **Take over** — it stops the terminal's `grok` and
+resumes the session here with full history. To give it back later, either open
+`grokrc term --session <id>` (no handback needed, both work at once) or tap **⇄ Hand
+back to terminal** and run the `grok -r <id>` command it shows you.
+
+### Could Take over kill the wrong process?
+
+It is guarded against the realistic way that happens. Grok's `active_sessions.json` can
+name a pid that has died and been recycled onto an unrelated program — `process.kill(pid, 0)`
+reports "alive" for any process. So the daemon reads `argv[0]` and refuses unless it is
+literally `grok`, refuses to signal itself, and sends `SIGTERM` only.
+
+`test/takeover.test.ts` spawns real processes and asserts the bystander survives; the
+guard is verified load-bearing by disabling it and watching the bystander die.
 
 ### Why do I never see approval buttons?
 

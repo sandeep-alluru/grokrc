@@ -37,6 +37,8 @@ type ClientMsg =
   | { t: 'sessions' }
   | { t: 'open'; sessionId: string; cwd?: string }
   | { t: 'resume'; sessionId: string; cwd: string }
+  | { t: 'takeover'; sessionId: string; cwd: string }
+  | { t: 'release'; sessionId: string }
   | { t: 'create'; cwd?: string; model?: string; title?: string }
   | { t: 'prompt'; sessionId: string; text: string }
   | { t: 'approve'; sessionId: string; requestId: string; optionId: string | null }
@@ -526,6 +528,39 @@ export class RemoteControlServer {
           return;
         }
 
+        case 'takeover': {
+          // Stops the terminal process that owns this session, then resumes it
+          // here. Destructive, and the client is expected to have confirmed.
+          const info = await sessions.takeOver(msg.sessionId, msg.cwd);
+          client.observing.delete(msg.sessionId);
+          client.watching.add(info.id);
+          send(client.ws, { t: 'resumed', session: info });
+          send(client.ws, {
+            t: 'history',
+            sessionId: info.id,
+            events: sessions.history(info.id),
+          });
+          void this.#broadcastSessions();
+          return;
+        }
+
+        case 'release': {
+          // Hand the session back to a terminal. The daemon must let go first —
+          // two agents on one conversation is what externallyActive prevents.
+          const info = sessions.list().find((s) => s.id === msg.sessionId);
+          sessions.close(msg.sessionId);
+          client.watching.delete(msg.sessionId);
+          send(client.ws, {
+            t: 'released',
+            sessionId: msg.sessionId,
+            // The exact command to get it back in the TUI, so the user does not
+            // have to reconstruct it from a session id and a path.
+            command: info ? `cd ${info.cwd} && grok -r ${msg.sessionId}` : null,
+          });
+          void this.#broadcastSessions();
+          return;
+        }
+
         case 'create': {
           const info = await sessions.create(msg.cwd ?? this.#opts.defaultCwd ?? process.cwd(), {
             model: msg.model,
@@ -667,7 +702,10 @@ function validateShape(msg: Record<string, unknown>): string | null {
     case 'open':
       return str('sessionId') ?? str('cwd', false);
     case 'resume':
+    case 'takeover':
       return str('sessionId') ?? str('cwd');
+    case 'release':
+      return str('sessionId');
     case 'create':
       return str('cwd', false) ?? str('model', false) ?? str('title', false);
     case 'prompt':

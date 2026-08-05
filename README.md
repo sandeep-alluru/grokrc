@@ -9,7 +9,7 @@ phone — over the agent's own protocol, not a screen scrape.
   <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-166%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-173%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
 </p>
 
@@ -240,7 +240,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 166 tests — unit, browser (real Chromium against the real PWA), and real-stack
+- ✅ 173 tests — unit, browser (real Chromium against the real PWA), and real-stack
   checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
@@ -344,7 +344,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 166 tests: mock suite -> build -> real-stack checks
+npm test          # 173 tests: mock suite -> build -> real-stack checks
 npm run typecheck
 npm run probe     # capture real ACP frames -> docs/captures/
 node --experimental-strip-types src/cli.ts up   # run from source, no build
