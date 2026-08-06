@@ -343,7 +343,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/checkpoint/SKILL.md"
+            "path": "/home/user/.claude/skills/checkpoint/SKILL.md"
           }
         },
         {
@@ -352,7 +352,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/obsidian-second-brain/SKILL.md"
+            "path": "/home/user/.claude/skills/obsidian-second-brain/SKILL.md"
           }
         },
         {
@@ -361,7 +361,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/search-memory/SKILL.md"
+            "path": "/home/user/.claude/skills/search-memory/SKILL.md"
           }
         },
         {
@@ -370,7 +370,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/taste-skill/SKILL.md"
+            "path": "/home/user/.claude/skills/taste-skill/SKILL.md"
           }
         }
       ]
@@ -950,7 +950,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/checkpoint/SKILL.md"
+            "path": "/home/user/.claude/skills/checkpoint/SKILL.md"
           }
         },
         {
@@ -959,7 +959,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/obsidian-second-brain/SKILL.md"
+            "path": "/home/user/.claude/skills/obsidian-second-brain/SKILL.md"
           }
         },
         {
@@ -968,7 +968,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/search-memory/SKILL.md"
+            "path": "/home/user/.claude/skills/search-memory/SKILL.md"
           }
         },
         {
@@ -977,7 +977,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/taste-skill/SKILL.md"
+            "path": "/home/user/.claude/skills/taste-skill/SKILL.md"
           }
         }
       ]
@@ -1745,7 +1745,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/checkpoint/SKILL.md"
+            "path": "/home/user/.claude/skills/checkpoint/SKILL.md"
           }
         },
         {
@@ -1754,7 +1754,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/obsidian-second-brain/SKILL.md"
+            "path": "/home/user/.claude/skills/obsidian-second-brain/SKILL.md"
           }
         },
         {
@@ -1763,7 +1763,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/search-memory/SKILL.md"
+            "path": "/home/user/.claude/skills/search-memory/SKILL.md"
           }
         },
         {
@@ -1772,7 +1772,7 @@
           "input": null,
           "_meta": {
             "scope": "user",
-            "path": "/home/clawerzen1/.claude/skills/taste-skill/SKILL.md"
+            "path": "/home/user/.claude/skills/taste-skill/SKILL.md"
           }
         }
       ]

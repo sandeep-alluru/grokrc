@@ -17,7 +17,11 @@
  */
 import { chromium } from 'playwright';
 
-const ORIGIN = process.argv[2] ?? 'https://clawer-zen-z1-workstation.tail1306c8.ts.net';
+const ORIGIN = process.argv[2];
+if (!ORIGIN) {
+  console.error('usage: node tools/https-push-check.mjs https://your-daemon-url');
+  process.exit(1);
+}
 
 const problems = [];
 const note = (ok, msg) => {

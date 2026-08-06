@@ -87,11 +87,11 @@
             "defaultAuthMethodId": "cached_token",
             "x.ai/mcp/sdk": true,
             "x.ai/pluginDirs": true,
-            "currentWorkingDirectory": "/home/clawerzen1/Agenthub/grok-remote-control",
+            "currentWorkingDirectory": "/home/user/Agenthub/grok-remote-control",
             "agentVersion": "0.2.118",
             "agentId": "543ed971-3d46-560c-8df0-b0c00a1a8ce9",
             "agentInstanceId": "7b51ca6a-0cf6-4bf9-b294-b161658f4507",
-            "hostname": "clawer-zen-Z1-Workstation",
+            "hostname": "workstation",
             "modelState": {
               "currentModelId": "grok-4.5",
               "availableModels": [
@@ -196,7 +196,7 @@
         "id": 2,
         "method": "session/new",
         "params": {
-          "cwd": "/home/clawerzen1/Agenthub/grok-remote-control",
+          "cwd": "/home/user/Agenthub/grok-remote-control",
           "mcpServers": []
         }
       }
@@ -217,7 +217,7 @@
               "args": [
                 "-y",
                 "mcp-obsidian",
-                "/home/clawerzen1/ObsidianVault"
+                "/home/user/ObsidianVault"
               ]
             },
             {
@@ -660,7 +660,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/check-work/SKILL.md"
+                  "path": "/home/user/.grok/skills/check-work/SKILL.md"
                 }
               },
               {
@@ -669,7 +669,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/code-review/SKILL.md"
+                  "path": "/home/user/.grok/skills/code-review/SKILL.md"
                 }
               },
               {
@@ -678,7 +678,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/create-skill/SKILL.md"
+                  "path": "/home/user/.grok/skills/create-skill/SKILL.md"
                 }
               },
               {
@@ -687,7 +687,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/help/SKILL.md"
+                  "path": "/home/user/.grok/skills/help/SKILL.md"
                 }
               },
               {
@@ -696,7 +696,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/imagine/SKILL.md"
+                  "path": "/home/user/.grok/skills/imagine/SKILL.md"
                 }
               },
               {
@@ -705,7 +705,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/checkpoint/SKILL.md"
+                  "path": "/home/user/.claude/skills/checkpoint/SKILL.md"
                 }
               },
               {
@@ -714,7 +714,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/obsidian-second-brain/SKILL.md"
+                  "path": "/home/user/.claude/skills/obsidian-second-brain/SKILL.md"
                 }
               },
               {
@@ -723,7 +723,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/search-memory/SKILL.md"
+                  "path": "/home/user/.claude/skills/search-memory/SKILL.md"
                 }
               },
               {
@@ -732,7 +732,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/taste-skill/SKILL.md"
+                  "path": "/home/user/.claude/skills/taste-skill/SKILL.md"
                 }
               }
             ],
@@ -884,7 +884,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/check-work/SKILL.md"
+                  "path": "/home/user/.grok/skills/check-work/SKILL.md"
                 }
               },
               {
@@ -893,7 +893,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/code-review/SKILL.md"
+                  "path": "/home/user/.grok/skills/code-review/SKILL.md"
                 }
               },
               {
@@ -902,7 +902,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/create-skill/SKILL.md"
+                  "path": "/home/user/.grok/skills/create-skill/SKILL.md"
                 }
               },
               {
@@ -911,7 +911,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/help/SKILL.md"
+                  "path": "/home/user/.grok/skills/help/SKILL.md"
                 }
               },
               {
@@ -920,7 +920,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.grok/skills/imagine/SKILL.md"
+                  "path": "/home/user/.grok/skills/imagine/SKILL.md"
                 }
               },
               {
@@ -929,7 +929,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/checkpoint/SKILL.md"
+                  "path": "/home/user/.claude/skills/checkpoint/SKILL.md"
                 }
               },
               {
@@ -938,7 +938,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/obsidian-second-brain/SKILL.md"
+                  "path": "/home/user/.claude/skills/obsidian-second-brain/SKILL.md"
                 }
               },
               {
@@ -947,7 +947,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/search-memory/SKILL.md"
+                  "path": "/home/user/.claude/skills/search-memory/SKILL.md"
                 }
               },
               {
@@ -956,7 +956,7 @@
                 "input": null,
                 "_meta": {
                   "scope": "user",
-                  "path": "/home/clawerzen1/.claude/skills/taste-skill/SKILL.md"
+                  "path": "/home/user/.claude/skills/taste-skill/SKILL.md"
                 }
               }
             ],
@@ -1102,7 +1102,7 @@
             ]
           },
           "_meta": {
-            "currentWorkingDirectory": "/home/clawerzen1/Agenthub/grok-remote-control",
+            "currentWorkingDirectory": "/home/user/Agenthub/grok-remote-control",
             "codebaseIndexed": [],
             "isGitRepo": false,
             "gitRoot": null,
@@ -1142,7 +1142,7 @@
             "x.ai/sessionDetail": {
               "sessionId": "019fcbf8-22ae-78b1-a917-5213e356d4b9",
               "kind": "build",
-              "cwd": "/home/clawerzen1/Agenthub/grok-remote-control",
+              "cwd": "/home/user/Agenthub/grok-remote-control",
               "currentModelId": "grok-4.5"
             },
             "x.ai/schedulerBackgroundLoops": true
