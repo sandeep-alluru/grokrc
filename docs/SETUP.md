@@ -313,6 +313,37 @@ still be watching.
 
 ---
 
+## 9a. Taking a terminal session over from your phone
+
+A session you started with plain `grok` appears on the phone read-only. To drive it:
+
+1. Open it and tap **Take over** — twice, since it stops a process you cannot see.
+2. The terminal's `grok` is stopped; the session resumes on the phone with its history.
+
+To go back, either open it in a terminal alongside the phone:
+
+```bash
+grokrc term --session <session-id>
+```
+
+or tap **⇄ Hand back to terminal**, which closes it here and prints:
+
+```bash
+cd /path/to/project && grok -r <session-id>
+```
+
+Safety: the daemon only stops a pid that Grok's own registry names as this session's
+owner, and only if that process really is `grok` — pids get recycled. It sends
+`SIGTERM`, never `SIGKILL`.
+
+Watch it happen:
+
+```bash
+journalctl --user -u grokrc -f
+#   takeover requested: session 019fd166-… by device 84b8c52b…
+#   takeover succeeded: session 019fd166-… is now owned here
+```
+
 ## 10. Session modes
 
 | Mode         | What it is                                              | Can you type?  |

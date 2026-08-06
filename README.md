@@ -50,6 +50,8 @@ diffs, and plans arrive as typed JSON instead of characters on a screen.
 | Approving a tool                 | send keystrokes, hope          | one tap, answered by `optionId`                     |
 | Networking                       | inbound port + Tailscale       | agent dials **out** — nothing exposed               |
 | Shared session                   | separate/mirrored              | `grokrc term` — terminal + phone on **one** backend |
+| Take over a terminal session     | ✗                              | one tap — stops the TUI, keeps the history          |
+| Give it back                     | ✗                              | `grokrc term --session <id>`, or one tap            |
 | Watch a hand-started TUI session | ✗                              | ✓ read-only via `updates.jsonl`                     |
 | Platforms                        | iOS (Android "in development") | PWA — both, day one                                 |
 | Grok Build                       | unsupported                    | native                                              |
@@ -62,17 +64,33 @@ diffs, and plans arrive as typed JSON instead of characters on a screen.
 > from your phone (LAN / Tailscale / relay), run it as a service, enable push,
 > plus troubleshooting and the security model.
 
-```bash
-git clone <this repo> && cd grokrc
-npm install && npm run build
-npm link            # puts `grokrc` on your PATH
-```
-
-Requires [Grok Build](https://docs.x.ai/build/overview) on your PATH:
+**1. Grok Build** — grokrc drives it, so it has to be there first:
 
 ```bash
 curl -fsSL https://x.ai/cli/install.sh | bash
+grok login
 ```
+
+**2. grokrc:**
+
+```bash
+git clone https://github.com/sandeep-alluru/grokrc.git
+cd grokrc
+npm install && npm run build
+npm link                       # puts `grokrc` on your PATH
+```
+
+**3. Point it at your projects, and start it:**
+
+```bash
+grokrc config set defaultCwd ~/code    # required — it will not guess
+grokrc doctor                          # checks grok, ACP, and approvals
+grokrc up --lan
+```
+
+It prints a URL and a 6-character code. Open the URL on your phone, type the code.
+
+Needs Node 20+. Tested against `grok 0.2.118` on Linux and macOS.
 
 ## Use
 
@@ -247,14 +265,14 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 
 ## Limitations
 
-|                 |                                                                                                                                                                                                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                              |
-| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                  |
+|                 |                                                                                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                                                                 |
+| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                                     |
 | Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery to a desktop browser is verified; to an iOS device it is not |
-| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                       |
-| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it |
-| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                     |
+| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                                                          |
+| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it                                    |
+| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                                        |
 
 ### How the browser tests work
 
@@ -269,6 +287,30 @@ blank screen, and the header relabelled itself "Sessions" while inside a session
 the list re-render stole the title.
 
 ---
+
+## Taking over a session from your phone
+
+Start a session at your desk with plain `grok`, walk away, and it shows up on your
+phone as **live in terminal** — read-only, because the daemon did not spawn it.
+
+Tap **Take over** (twice; it stops a process on a machine you cannot see) and the
+terminal's `grok` is stopped and the session resumes on your phone with its history
+intact. Verified against real Grok: a codeword planted in the TUI and a second planted
+after the takeover were both recalled afterwards.
+
+It refuses to stop anything that is not Grok. Pids get recycled, and Grok's session
+registry can name a dead one, so the daemon reads the process's `argv[0]` and declines
+unless it is actually `grok`. `SIGTERM` only — `SIGKILL` risks losing the last message.
+
+**Giving it back** is usually unnecessary:
+
+```bash
+grokrc term --session <id>     # terminal and phone drive it together
+```
+
+For Grok's own TUI, tap **⇄ Hand back to terminal**. The daemon closes the session —
+it has to let go, or two agents end up on one conversation — and shows you the exact
+`cd <cwd> && grok -r <id>` to paste.
 
 ## Resuming past sessions
 
@@ -360,17 +402,17 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 
 ## Documentation
 
-| Document                                       | What is in it                                          |
-| ---------------------------------------------- | ------------------------------------------------------ |
-| [Setup](docs/SETUP.md)                         | Install, configure, networking, run as a service       |
-| [User Guide](docs/USER-GUIDE.md)               | Daily use — sessions, approvals, resume, notifications |
-| [Troubleshooting](docs/TROUBLESHOOTING.md)     | Symptom-first fixes                                    |
-| [FAQ](docs/FAQ.md)                             | Short answers                                          |
-| [Architecture](docs/01-architecture.md)        | How the daemon, ACP client, and observer fit together  |
-| [Research](docs/00-research.md)                | Prior art, and why screen-scraping was rejected        |
-| [Security](SECURITY.md)                        | Threat model and vulnerability reporting               |
-| [Contributing](CONTRIBUTING.md)                | Dev setup and the bar for a change                     |
-| [Changelog](CHANGELOG.md)                      | What changed                                           |
+| Document                                   | What is in it                                          |
+| ------------------------------------------ | ------------------------------------------------------ |
+| [Setup](docs/SETUP.md)                     | Install, configure, networking, run as a service       |
+| [User Guide](docs/USER-GUIDE.md)           | Daily use — sessions, approvals, resume, notifications |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Symptom-first fixes                                    |
+| [FAQ](docs/FAQ.md)                         | Short answers                                          |
+| [Architecture](docs/01-architecture.md)    | How the daemon, ACP client, and observer fit together  |
+| [Research](docs/00-research.md)            | Prior art, and why screen-scraping was rejected        |
+| [Security](SECURITY.md)                    | Threat model and vulnerability reporting               |
+| [Contributing](CONTRIBUTING.md)            | Dev setup and the bar for a change                     |
+| [Changelog](CHANGELOG.md)                  | What changed                                           |
 
 ## Contributing
 
