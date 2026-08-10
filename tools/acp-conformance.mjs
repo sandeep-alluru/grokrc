@@ -103,7 +103,10 @@ transport.on('message', (m) => {
     observed.methods.set(m.method, (observed.methods.get(m.method) ?? 0) + 1);
     const u = m.params?.update;
     if (u && typeof u.sessionUpdate === 'string') {
-      observed.updateKinds.set(u.sessionUpdate, (observed.updateKinds.get(u.sessionUpdate) ?? 0) + 1);
+      observed.updateKinds.set(
+        u.sessionUpdate,
+        (observed.updateKinds.get(u.sessionUpdate) ?? 0) + 1
+      );
       if (u.sessionUpdate.startsWith('tool_call')) {
         for (const k of Object.keys(u)) if (k !== 'sessionUpdate') observed.toolFields.add(k);
       }
@@ -121,7 +124,8 @@ client.on('error', () => {});
 // SHAPE of the request, not to exercise the approval UI, and a blocked agent
 // would stall the capture.
 client.on('permission', (req) => {
-  const allow = req.params?.options?.find((o) => o.kind === 'allow_once') ?? req.params?.options?.[0];
+  const allow =
+    req.params?.options?.find((o) => o.kind === 'allow_once') ?? req.params?.options?.[0];
   req.respond({ outcome: 'selected', optionId: allow?.optionId });
 });
 
@@ -160,10 +164,15 @@ const agentVersion = await promisify(execFile)('grok', ['--version'])
 
 console.log('\n  ─── what grok actually sent ───');
 console.log(`  agent under test     : ${agentVersion}`);
-for (const [k, n] of [...observed.updateKinds].sort()) console.log(`  update ${k.padEnd(28)} x${n}`);
+for (const [k, n] of [...observed.updateKinds].sort())
+  console.log(`  update ${k.padEnd(28)} x${n}`);
 for (const [m, n] of [...observed.methods].sort()) console.log(`  method ${m.padEnd(28)} x${n}`);
-console.log(`  tool_call fields     : ${[...observed.toolFields].sort().join(', ') || '(none seen)'}`);
-console.log(`  permission kinds     : ${[...observed.permissionKinds].sort().join(', ') || '(none seen)'}`);
+console.log(
+  `  tool_call fields     : ${[...observed.toolFields].sort().join(', ') || '(none seen)'}`
+);
+console.log(
+  `  permission kinds     : ${[...observed.permissionKinds].sort().join(', ') || '(none seen)'}`
+);
 
 /* ── 3. compare, claim by claim ───────────────────────────────────────────── */
 
@@ -189,7 +198,7 @@ if (unconfirmed.length) {
 
 // The load-bearing assertions: these hold for ANY turn from a conforming agent.
 const sawText = observed.updateKinds.has('agent_message_chunk');
-note(sawText, 'the agent still streams `agent_message_chunk` (the mock\'s core claim)');
+note(sawText, "the agent still streams `agent_message_chunk` (the mock's core claim)");
 
 const sawUpdate = observed.methods.has('session/update');
 note(sawUpdate, 'the agent still delivers updates via the `session/update` notification');
@@ -232,7 +241,9 @@ if (process.argv.includes('--pin')) {
       2
     ) + '\n'
   );
-  console.log(`\n  PINNED ${liveKinds.length} kind(s) and ${liveMethods.length} method(s) to ${SURFACE.pathname}`);
+  console.log(
+    `\n  PINNED ${liveKinds.length} kind(s) and ${liveMethods.length} method(s) to ${SURFACE.pathname}`
+  );
 } else {
   const { readFile } = await import('node:fs/promises');
   let pinned = null;
@@ -257,7 +268,8 @@ if (process.argv.includes('--pin')) {
     );
 
     const absent = pinned.updateKinds.filter((k) => !liveKinds.includes(k));
-    if (absent.length) console.log(`  · pinned but not produced by this turn: ${absent.join(', ')}`);
+    if (absent.length)
+      console.log(`  · pinned but not produced by this turn: ${absent.join(', ')}`);
 
     // A kind that USED to have real handling and now falls through to `raw`
     // means production quietly stopped understanding it.
@@ -297,7 +309,9 @@ if (observed.permissionKinds.size > 0) {
 // a measured coverage gap, printed so it cannot be mistaken for full coverage.
 const gap = [...observed.updateKinds.keys()].filter((k) => !claims.updateKinds.has(k));
 if (gap.length) {
-  console.log(`\n  COVERAGE GAP: live kinds no mock-backed test ever sees: ${gap.sort().join(', ')}`);
+  console.log(
+    `\n  COVERAGE GAP: live kinds no mock-backed test ever sees: ${gap.sort().join(', ')}`
+  );
 }
 
 try {

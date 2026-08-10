@@ -32,8 +32,12 @@ const SOCK = join(tmp, 'control.sock');
  * that, so both controls in production could be deleted and this stayed green:
  * it was measuring itself. Verified by mutation — see tools/guards.mjs.
  */
-const appliedTo: { defaultCwd?: string; historyLimit?: number; model?: string; useLeader?: boolean } =
-  {};
+const appliedTo: {
+  defaultCwd?: string;
+  historyLimit?: number;
+  model?: string;
+  useLeader?: boolean;
+} = {};
 const serverRecorder = {
   applyConfig(next: { defaultCwd?: string; historyLimit?: number }) {
     Object.assign(appliedTo, next);

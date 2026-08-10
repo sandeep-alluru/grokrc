@@ -29,7 +29,13 @@ const read = (p: string) => readFile(join(ROOT, p), 'utf8');
 /** Prose docs, excluding generated ones. docs/BACKLOG.md is generated from
  *  tools/backlog.mjs and its entries are dated records of a specific run, so a
  *  count inside one is history rather than a live claim. */
-const PROSE = ['README.md', 'docs/FAQ.md', 'docs/USER-GUIDE.md', 'docs/SETUP.md', 'CONTRIBUTING.md'];
+const PROSE = [
+  'README.md',
+  'docs/FAQ.md',
+  'docs/USER-GUIDE.md',
+  'docs/SETUP.md',
+  'CONTRIBUTING.md',
+];
 
 test('no doc hardcodes a test count', async () => {
   const offenders: string[] = [];
@@ -89,9 +95,10 @@ test('every internal doc link points at a heading that exists', async () => {
   // #why-the-notification-row-says-push-is-unavailable, a heading that never
   // existed. Prose links are never exercised by anything, so nothing noticed.
   const { readdir } = await import('node:fs/promises');
-  const files = ['README.md', ...(await readdir(join(ROOT, 'docs')))
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => `docs/${f}`)];
+  const files = [
+    'README.md',
+    ...(await readdir(join(ROOT, 'docs'))).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`),
+  ];
 
   /** GitHub's slug: lowercase, drop anything but word chars/space/hyphen, spaces to hyphens. */
   const slug = (h: string) =>

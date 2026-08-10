@@ -267,7 +267,14 @@ test('a finished tool row still names the file it wrote', async () => {
     const toolId = `call-9f1e-${i}`;
     const path = `/tmp/multi/${f}`;
     // 1. the call opens with a generic verb
-    sessions.emit('event', { k: 'tool', sessionId, toolId, name: 'write', title: 'write', status: 'running' });
+    sessions.emit('event', {
+      k: 'tool',
+      sessionId,
+      toolId,
+      name: 'write',
+      title: 'write',
+      status: 'running',
+    });
     // 2. the update names the file
     sessions.emit('event', {
       k: 'tool',
@@ -282,11 +289,9 @@ test('a finished tool row still names the file it wrote', async () => {
     sessions.emit('event', { k: 'tool', sessionId, toolId, name: 'tool', status: 'ok' });
   });
 
-  await page.waitForFunction(
-    () => document.querySelectorAll('.tool').length >= 3,
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page.waitForFunction(() => document.querySelectorAll('.tool').length >= 3, undefined, {
+    timeout: 10_000,
+  });
 
   const labels = await page.$$eval('.tool .nm', (ns) => ns.map((n) => n.textContent ?? ''));
   for (const f of files) {

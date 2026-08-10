@@ -25,7 +25,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # Windows included to MEASURE it rather than guess. The daemon has zero
+        # `process.platform` checks, and its control socket is a filesystem path
+        # handed to a Unix domain socket — which on Windows must be a
+        # \\.\pipe\ name. This matrix is what turns that from a reading of the
+        # code into a result.
+        os: [ubuntu-latest, macos-latest, windows-latest]
         # 21 included so `engines: >=20` is tested across every major it
         # admits, not just the convenient ones.
         node: ['20', '21', '22', '24']

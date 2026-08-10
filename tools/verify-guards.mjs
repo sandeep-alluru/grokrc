@@ -113,9 +113,19 @@ function runTest(testFile) {
         testFile,
       ];
   return new Promise((res) => {
-    const child = spawn(process.execPath, args, { cwd: ROOT, stdio: 'ignore' });
-    child.on('close', (code) => res(code === 0));
-    child.on('error', () => res(false));
+    // Capture output rather than discarding it: a check that SKIPS itself exits
+    // 0, which is indistinguishable from a pass unless you read what it said.
+    // That cost a real CI failure — `turn-completion-is-understood` reported
+    // "test passes without the control" on every runner, because the runner has
+    // no `grok` and the conformance check skipped. The identical trap is already
+    // recorded against `doctor-names-the-login-command` in guards.mjs, so this
+    // is mechanism debt: fix the runner once, not each guard as it bites.
+    const child = spawn(process.execPath, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout?.on('data', (d) => (out += d));
+    child.stderr?.on('data', (d) => (out += d));
+    child.on('close', (code) => res({ passed: code === 0, skipped: /─── SKIPPED:/.test(out) }));
+    child.on('error', () => res({ passed: false, skipped: false }));
   });
 }
 
@@ -145,11 +155,21 @@ try {
     // BASELINE — a test that is already failing cannot prove anything.
     if (!baseline.has(g.test)) {
       process.stdout.write(`  · baseline ${g.test} … `);
-      const passed = await runTest(g.test);
-      baseline.set(g.test, passed);
-      console.log(passed ? 'pass' : 'FAIL');
+      const r = await runTest(g.test);
+      baseline.set(g.test, r);
+      console.log(r.skipped ? 'SKIPPED here' : r.passed ? 'pass' : 'FAIL');
     }
-    if (!baseline.get(g.test)) {
+    const base = baseline.get(g.test);
+    // A check that cannot run here proves nothing either way. Say so out loud
+    // and move on — counting it as proven would be the exact lie this file
+    // exists to prevent, and counting it as failed would make CI red for a
+    // missing agent rather than a missing control.
+    if (base.skipped) {
+      console.log(`  · ${label} UNPROVABLE HERE — ${g.test} skips itself in this environment`);
+      results.push({ ...g, ok: true, skipped: true });
+      continue;
+    }
+    if (!base.passed) {
       console.log(`  ✗ ${label} BASELINE FAILS — ${g.test} does not pass unmutated`);
       results.push({ ...g, ok: false, reason: 'baseline failing' });
       continue;
@@ -160,7 +180,8 @@ try {
     await writeFile(abs, original.split(g.find).join(g.replace));
 
     process.stdout.write(`  · ${label} disabling … `);
-    const stillPasses = await runTest(g.test);
+    const mutated = await runTest(g.test);
+    const stillPasses = mutated.passed && !mutated.skipped;
 
     // RESTORE, and prove it
     await writeFile(abs, original);
@@ -187,7 +208,17 @@ try {
 /* ─── report ──────────────────────────────────────────────────────────────── */
 
 const bad = results.filter((r) => !r.ok);
-console.log(`\n  ${results.length - bad.length}/${results.length} guard(s) proven load-bearing`);
+const skipped = results.filter((r) => r.skipped);
+const proven = results.length - bad.length - skipped.length;
+
+// Report the three outcomes separately. Folding "unprovable here" into
+// "proven" is the same lie as a silent skip: the number would say the control
+// was checked on a machine that could not check it.
+console.log(`\n  ${proven}/${results.length} guard(s) proven load-bearing`);
+if (skipped.length) {
+  console.log(`  ${skipped.length} UNPROVABLE in this environment — not counted as proven:`);
+  for (const r of skipped) console.log(`    · ${r.id} (${r.test} skips itself here)`);
+}
 
 if (bad.length) {
   console.log('\n  UNPROVEN:\n');
