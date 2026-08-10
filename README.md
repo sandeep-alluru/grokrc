@@ -136,7 +136,7 @@ Node 20 or newer per `engines`, **developed and tested on Node 22** — 20 and 2
 untested. Verified against `grok 0.2.118` and `1.0.0` on Linux. macOS runs the full
 suite in CI on Node 22 and 24; Windows has the packaged CLI covered on Node
 20/21/22/24 but the suite has never run there — see the
-[Windows handover](docs/WINDOWS-HANDOVER.md). The systemd unit is Linux-only.
+[Windows support](docs/WINDOWS.md). The systemd unit is Linux-only.
 
 ## Use
 
@@ -317,7 +317,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 | Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                                                        |
 | Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery is verified on a real iPhone as of 0.1.2                                        |
 | Observed mode   | Read-only while mirroring — **Take over** stops the terminal's agent and makes it live here                                                                                                                                                            |
-| Log tail        | If the agent is killed mid-turn — which **Take over** does by design — Grok may not have flushed its last message to `updates.jsonl`, so the tail of that reply can be lost. Recovery on resume is **unverified** — see [BACKLOG #19](docs/BACKLOG.md) |
+| Log tail        | If the agent is killed mid-turn — which **Take over** does by design — Grok may not have flushed its last message to `updates.jsonl`. grokrc keeps the output it witnessed and restores the missing tail when the session resumes, so the reply you watched arrive is not lost |
 | Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                                                           |
 
 ### How the browser tests work
@@ -448,7 +448,7 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 
 ## Documentation
 
-- [Windows handover](docs/WINDOWS-HANDOVER.md) — project overview, what is verified on Windows, and the open work
+- [Windows support](docs/WINDOWS.md) — platform matrix, current limitations, and how to help finish the port
 
 | Document                                   | What is in it                                          |
 | ------------------------------------------ | ------------------------------------------------------ |

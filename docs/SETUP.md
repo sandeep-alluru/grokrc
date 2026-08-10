@@ -38,15 +38,15 @@ have what you need.
 | **OS**         | see the table below                                                                   |
 | **A phone**    | any browser. It installs as a PWA — no app store                                       |
 
-### Platform support, as measured
+### Platform support
 
-Every row below is what CI actually runs, not an expectation.
+Each row reflects the jobs run by continuous integration on every push.
 
 | Platform    | State                                                                                                  |
 | ----------- | ------------------------------------------------------------------------------------------------------ |
 | **Linux**   | Full support. Developed here, and the whole suite runs on `ubuntu-latest` (Node 22 and 24) every push     |
 | **macOS**   | Supported. The packaged CLI runs on Node 20/21/22/24 and the **full suite** runs on Node 22 and 24 in CI  |
-| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the suite has **never** run there. See [Windows handover](WINDOWS-HANDOVER.md) |
+| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the test suite has not yet run there. See [Windows support](WINDOWS.md) |
 
 The systemd unit in §7 is Linux-only. macOS and Windows have no service manager
 here yet — run `grokrc up` in a terminal, or supply your own launchd plist or

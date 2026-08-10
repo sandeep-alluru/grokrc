@@ -169,11 +169,10 @@ Not yet. Install from source — see [SETUP.md](SETUP.md).
 The app itself works anywhere with a modern browser — pairing, sessions, approvals and
 `grokrc term` handoff are all plain HTTPS and WebSocket.
 
-Notifications should be the easy case on Android: Chrome supports Web Push in an
-ordinary tab, with none of the Safari home-screen requirements iOS imposes. But that
-path has **not been tested on a physical Android device** — nobody working on this has
-one, so it is untested rather than known-good. Tracked as backlog #8. The full flow,
-and the check that would settle it, are in
+Notifications are more straightforward on Android than on iOS: Chrome supports Web
+Push in an ordinary tab, with none of the home-screen requirements Safari imposes.
+That path has **not been tested on a physical Android device**, so it is untested
+rather than known-good. The full procedure is in
 [USER-GUIDE §10](USER-GUIDE.md#on-android).
 
 The docs are iOS-heavy because iOS is where it is hardest, not because Android is

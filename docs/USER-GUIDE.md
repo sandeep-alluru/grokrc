@@ -327,13 +327,13 @@ the notification row will tell you so rather than failing silently.
 may be sleeping Chrome in the background: **Settings → Apps → Chrome → Battery →
 Unrestricted**. This is an OS-level power setting, not something the app controls.
 
-> **Honestly stated:** the Android path is implemented and follows the standard Web
-> Push flow that this daemon already serves to Firefox on desktop, but it has
-> **not been tested on a physical Android device** — nobody involved has one. Nothing
-> here is known to be broken; it is untested, which is not the same as working.
-> Tracked as backlog #8. If you run it on Android, the check that settles it is
-> `grokrc doctor`, which reports the daemon's real push counters — `sent` should
-> increase by one when a turn finishes.
+> **Support status.** The Android path uses the same standard Web Push flow this
+> daemon already serves to desktop Firefox, but it has **not been tested on a
+> physical Android device**. Nothing here is known to be broken; it is untested,
+> which is not the same as verified.
+>
+> To confirm delivery on your own device, run `grokrc doctor` — it reports the
+> daemon's push counters, and `sent` increases by one each time a turn finishes.
 
 ### On desktop
 
