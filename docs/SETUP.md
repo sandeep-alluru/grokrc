@@ -31,12 +31,26 @@ have what you need.
 
 ## 1. Requirements
 
-|                |                                                                                  |
-| -------------- | -------------------------------------------------------------------------------- |
-| **Node.js**    | 20+ per `engines`; **developed and tested on 22**. 20 and 21 are untested          |
-| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`, then `grok login` |
-| **OS**         | Verified on Linux. macOS is expected to work but untested; the systemd unit is Linux-only |
-| **A phone**    | any browser. It installs as a PWA — no app store                                   |
+|                |                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------- |
+| **Node.js**    | 20 or newer. Every version the package admits — 20, 21, 22 and 24 — is exercised in CI |
+| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`, then `grok login`   |
+| **OS**         | see the table below                                                                   |
+| **A phone**    | any browser. It installs as a PWA — no app store                                       |
+
+### Platform support, as measured
+
+Every row below is what CI actually runs, not an expectation.
+
+| Platform    | State                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------ |
+| **Linux**   | Full support. Developed here, and the whole suite runs on `ubuntu-latest` (Node 22 and 24) every push     |
+| **macOS**   | Supported. The packaged CLI runs on Node 20/21/22/24 and the **full suite** runs on Node 22 and 24 in CI  |
+| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the suite has **never** run there. See [Windows handover](WINDOWS-HANDOVER.md) |
+
+The systemd unit in §7 is Linux-only. macOS and Windows have no service manager
+here yet — run `grokrc up` in a terminal, or supply your own launchd plist or
+Scheduled Task.
 
 Check the agent works before you start — grokrc cannot do anything without it:
 
@@ -51,6 +65,29 @@ plain HTTP on your own network.
 ---
 
 ## 2. Install
+
+### First, check Node
+
+grokrc needs Node 20 or newer. Distro packages are often older than that, so
+check before installing anything else:
+
+```bash
+node --version      # must be v20.x or higher
+```
+
+If it is missing or too old, install a current Node without touching system
+packages:
+
+```bash
+# nvm — works on any distro, no root
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+exec $SHELL
+nvm install 22
+```
+
+Distro packages work too when they are new enough — `apt install nodejs npm` on
+Debian/Ubuntu, `dnf install nodejs` on Fedora, `pacman -S nodejs npm` on Arch —
+but check `node --version` afterwards rather than assuming.
 
 ### Option A — from npm (recommended)
 

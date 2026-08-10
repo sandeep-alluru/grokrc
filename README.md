@@ -133,8 +133,10 @@ grokrc doctor                          # agent, ACP handshake, approvals
 ```
 
 Node 20 or newer per `engines`, **developed and tested on Node 22** — 20 and 21 are
-untested. Verified against `grok 0.2.118` and `1.0.0` on Linux. macOS is expected to
-work but is untested here; the systemd unit is Linux-only.
+untested. Verified against `grok 0.2.118` and `1.0.0` on Linux. macOS runs the full
+suite in CI on Node 22 and 24; Windows has the packaged CLI covered on Node
+20/21/22/24 but the suite has never run there — see the
+[Windows handover](docs/WINDOWS-HANDOVER.md). The systemd unit is Linux-only.
 
 ## Use
 

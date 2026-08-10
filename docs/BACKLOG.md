@@ -103,7 +103,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Reanalyse — attacked.** Attacked "macOS is basically Linux for a Node CLI" — untested is untested, and the systemd unit is genuinely Linux-only. Ran the real suite there rather than reasoning about it. What SURVIVED: the package and the full suite both work on macOS; only the systemd unit does not, which the docs already say.
 
-**Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
+**Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. CORRECTION (2026-08-10): this entry originally claimed README no longer said "expected to work". That was false — README carried the phrase for months afterwards, and docs/SETUP.md carried it too, because the record asserted a doc edit nobody re-read. Both are fixed now, SETUP.md gained a platform table stating what CI actually runs per OS, and test/docs.test.ts fails on the banned phrasing so the claim cannot rot back.
 
 ### 9 · Multi-file diff rendering and very long tool output unverified
 

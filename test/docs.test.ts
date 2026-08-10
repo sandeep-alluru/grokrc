@@ -141,3 +141,25 @@ test('every internal doc link points at a heading that exists', async () => {
 
   assert.deepEqual(broken, [], `dead anchors:\n  ${broken.join('\n  ')}`);
 });
+
+test('no doc asserts a platform works without having measured it', async () => {
+  // Backlog #6 was closed with the result "README no longer says 'expected to
+  // work'". README line 136 still said exactly that, months later — the record
+  // asserted a doc edit that had not happened, and nothing re-read the file.
+  //
+  // These are the phrases directive 08 bans as a basis for a REPORT, not just
+  // for action. A platform either has a CI job or it does not.
+  const banned = /\b(expected to work|should work|probably works|ought to work)\b/i;
+  const offenders: string[] = [];
+  for (const f of PROSE) {
+    const src = await read(f).catch(() => '');
+    src.split('\n').forEach((line, i) => {
+      if (banned.test(line)) offenders.push(`${f}:${i + 1}: ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `state what CI measures, or say it is untested:\n  ${offenders.join('\n  ')}`
+  );
+});
