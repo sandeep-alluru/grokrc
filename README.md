@@ -446,6 +446,8 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 
 ## Documentation
 
+- [Windows handover](docs/WINDOWS-HANDOVER.md) — project overview, what is verified on Windows, and the open work
+
 | Document                                   | What is in it                                          |
 | ------------------------------------------ | ------------------------------------------------------ |
 | [Setup](docs/SETUP.md)                     | Install, configure, networking, run as a service       |

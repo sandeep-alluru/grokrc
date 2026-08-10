@@ -82,10 +82,26 @@ export interface ActiveSession {
  */
 async function isLeaderProcess(pid: number): Promise<boolean> {
   const args = await processArgs(pid);
-  return args !== null && /\bagent\s+leader\b/.test(args);
+  // 'unknown' fails this test too — an unverifiable process is not a leader.
+  return args !== null && args !== ARGS_UNKNOWN && /\bagent\s+leader\b/.test(args);
 }
 
-/** The full command line of a pid, or null if it cannot be read. */
+/**
+ * The full command line of a pid.
+ *
+ *   string      the argv, read successfully
+ *   null        the process is GONE — `ps` ran and found nothing
+ *   'unknown'   `ps` could not be run at all, so nothing was learned
+ *
+ * The third case used to collapse into `null`, and that was dangerous rather
+ * than merely imprecise: takeOver reads `null` as "died between the registry
+ * read and now — nothing to stop" and resumes WITHOUT killing the old agent. On
+ * Windows there is no `ps`, so every takeover would have skipped the safety
+ * check and put two agents on one conversation — the exact thing resume()
+ * exists to refuse. "I could not look" is not "it is dead".
+ */
+export const ARGS_UNKNOWN = 'unknown';
+
 export async function processArgs(pid: number): Promise<string | null> {
   try {
     const { execFile } = await import('node:child_process');
@@ -93,8 +109,11 @@ export async function processArgs(pid: number): Promise<string | null> {
     const { stdout } = await promisify(execFile)('ps', ['-o', 'args=', '-p', String(pid)]);
     const line = stdout.trim();
     return line === '' ? null : line;
-  } catch {
-    return null; // no such process, or ps unavailable
+  } catch (err) {
+    // ENOENT means the `ps` BINARY is missing — Windows, or a stripped
+    // container. A non-zero exit means ps ran and the pid was not there.
+    const code = (err as NodeJS.ErrnoException).code;
+    return code === 'ENOENT' ? ARGS_UNKNOWN : null;
   }
 }
 
@@ -111,7 +130,10 @@ export async function processArgs(pid: number): Promise<string | null> {
  */
 export function looksLikeGrok(args: string): boolean {
   const argv0 = args.trim().split(/\s+/)[0] ?? '';
-  const base = argv0.split('/').pop() ?? '';
+  // Split on BOTH separators. Splitting on '/' alone left a Windows argv0 —
+  // `C:\\tools\\grok.exe` — intact, so it never equalled `grok.exe` and a real
+  // agent was rejected as "not a grok process".
+  const base = argv0.split(/[/\\]/).pop() ?? '';
   return base === 'grok' || base === 'grok.exe';
 }
 
@@ -760,8 +782,18 @@ export class SessionManager extends EventEmitter {
     }
 
     const args = await processArgs(owner.pid);
+    if (args === ARGS_UNKNOWN) {
+      // Cannot verify what that pid is, so cannot safely kill it OR safely
+      // assume it is gone. Refuse loudly rather than resume alongside a live
+      // agent. Reachable on Windows, where there is no `ps`.
+      throw new Error(
+        `cannot verify pid ${owner.pid}: no \`ps\` available on this system, so grokrc ` +
+          `cannot confirm the old agent is a grok process or that it has exited. ` +
+          `Stop the session in its own terminal and try again.`
+      );
+    }
     if (args === null) {
-      // Died between the registry read and now — nothing to stop.
+      // ps ran and found nothing: it died between the registry read and now.
       return this.resume(id, cwd, opts);
     }
     if (!looksLikeGrok(args)) {
