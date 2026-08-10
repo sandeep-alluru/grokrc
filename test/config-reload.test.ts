@@ -21,15 +21,31 @@ const tmp = await mkdtemp(join(tmpdir(), 'grokrc-reload-'));
 process.env.GROKRC_HOME = tmp;
 
 const { ControlServer, controlRequest } = await import('../src/daemon/control.ts');
+const { applyReload } = await import('../src/daemon/config.ts');
+type GrokrcConfig = import('../src/daemon/config.ts').GrokrcConfig;
 const SOCK = join(tmp, 'control.sock');
 
-/** Stands in for the daemon: records what it was asked to apply. */
-const appliedTo = {
-  defaultCwd: '/original',
-  historyLimit: 10,
-  model: undefined as string | undefined,
+/**
+ * Recorders, not a reimplementation. The reload LOGIC under test is
+ * `applyReload` from src/daemon/config.ts — production code. The previous
+ * version of this file wrote its own `reload` handler and asserted against
+ * that, so both controls in production could be deleted and this stayed green:
+ * it was measuring itself. Verified by mutation — see tools/guards.mjs.
+ */
+const appliedTo: { defaultCwd?: string; historyLimit?: number; model?: string; useLeader?: boolean } =
+  {};
+const serverRecorder = {
+  applyConfig(next: { defaultCwd?: string; historyLimit?: number }) {
+    Object.assign(appliedTo, next);
+  },
 };
-const bootCfg = { defaultCwd: '/original', historyLimit: 10, port: 4319 };
+const sessionsRecorder = {
+  applyConfig(next: { model?: string; useLeader?: boolean }) {
+    Object.assign(appliedTo, next);
+  },
+};
+
+const bootCfg = { defaultCwd: '/original', historyLimit: 10, port: 4319 } as GrokrcConfig;
 
 const control = new ControlServer(
   {
@@ -42,15 +58,11 @@ const control = new ControlServer(
       const raw = await import('node:fs/promises').then((m) =>
         m.readFile(join(tmp, 'config.json'), 'utf8').catch(() => '{}')
       );
-      const next = JSON.parse(raw) as Record<string, unknown>;
-      const applied: string[] = [];
-      const needsRestart: string[] = [];
-      if (typeof next.defaultCwd === 'string' && next.defaultCwd !== bootCfg.defaultCwd) {
-        appliedTo.defaultCwd = next.defaultCwd;
-        applied.push('defaultCwd');
-      }
-      if (typeof next.port === 'number' && next.port !== bootCfg.port) needsRestart.push('port');
-      return { applied, needsRestart };
+      const next = JSON.parse(raw) as GrokrcConfig;
+      return applyReload(next, bootCfg, bootCfg.defaultCwd!, {
+        server: serverRecorder,
+        sessions: sessionsRecorder,
+      });
     },
   },
   SOCK
@@ -63,7 +75,9 @@ after(async () => {
 });
 
 test('a per-use setting is applied to the running daemon', async () => {
-  await writeFile(join(tmp, 'config.json'), JSON.stringify({ defaultCwd: '/changed' }));
+  // A complete config, because loadConfig() always returns one — a partial file
+  // would make `port: undefined` look like a change and test the wrong thing.
+  await writeFile(join(tmp, 'config.json'), JSON.stringify({ ...bootCfg, defaultCwd: '/changed' }));
   const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>(
     'reload',
     undefined,
@@ -78,7 +92,7 @@ test('a per-use setting is applied to the running daemon', async () => {
 test('a bound-socket setting is reported as needing a restart, not applied', async () => {
   // The lie this prevents: claiming success while the daemon still answers on
   // the old port.
-  await writeFile(join(tmp, 'config.json'), JSON.stringify({ port: 5555 }));
+  await writeFile(join(tmp, 'config.json'), JSON.stringify({ ...bootCfg, port: 5555 }));
   const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>(
     'reload',
     undefined,
@@ -87,4 +101,32 @@ test('a bound-socket setting is reported as needing a restart, not applied', asy
 
   assert.ok(r.needsRestart.includes('port'), 'port must be reported as needing a restart');
   assert.ok(!r.applied.includes('port'), 'port must NOT be reported as applied');
+});
+
+test('a changed historyLimit reaches the daemon, not just the config file', async () => {
+  // Test 1 only covers defaultCwd. Without this, the historyLimit branch could
+  // be deleted outright and both tests stayed green — which is exactly the hole
+  // that let the old, self-measuring version of this file pass.
+  await writeFile(join(tmp, 'config.json'), JSON.stringify({ ...bootCfg, historyLimit: 999 }));
+  const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>(
+    'reload',
+    undefined,
+    SOCK
+  );
+
+  assert.ok(r.applied.includes('historyLimit'), 'historyLimit should apply without a restart');
+  assert.equal(appliedTo.historyLimit, 999, 'the daemon did not actually take the new limit');
+});
+
+test('an unchanged setting is not reported as applied', async () => {
+  // "applied: historyLimit" on a reload that changed nothing trains the user to
+  // ignore the line.
+  await writeFile(join(tmp, 'config.json'), JSON.stringify(bootCfg));
+  const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>(
+    'reload',
+    undefined,
+    SOCK
+  );
+  assert.deepEqual(r.applied, [], `nothing changed, so nothing should be applied: ${r.applied}`);
+  assert.deepEqual(r.needsRestart, [], 'nothing changed, so nothing needs a restart');
 });

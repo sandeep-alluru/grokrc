@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**19 of 25 closed.** Generated from `tools/backlog.mjs` —
+**20 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -111,14 +111,14 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** Live events are now capped by the same trimEvent that history uses, applied once per event rather than once per client (test/live-event-size.test.ts: 200k -> capped, nested 400k -> capped, and a small event still arrives byte-for-byte so the cap cannot become a silent mangler). Tool rows now carry a RANKED label that never downgrades — naming files beats a title, which beats the generic word — so a finished row still says which file it wrote, and locations are shown when the title does not already name the path. Guards live-events-are-capped and tool-row-keeps-the-filename both proven load-bearing. Suite 222/222 with an agent, 219 pass 0 fail without one.
 
-## C · Product gaps  —  3/5 closed
+## C · Product gaps  —  4/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 10 | `grokrc doctor` spawns its own probe agent instead of asking the running daemon | `done` | VERIFIED — doctor reported "0 sent" while the daemon had delivered two; it now reports the daemon's live counters |
 | 22 | Opening a long session crashed the phone — "A problem repeatedly occurred" | `done` | VERIFIED — the owner's x.com session is 1518 events / 9.97 MB; a real browser received 4.5 MB and rendered 1.6 million characters |
 | 25 | Issuing a pairing code destroyed the one being typed | `done` | VERIFIED — auth.ts held ONE pending slot; beginPairing() overwrote it. 29 half-finished device pairings accumulated while the owner was told "invalid" |
-| 11 | `grokrc config set` requires a daemon restart to take effect | `open` | VERIFIED — src/cli.ts prints "restart to apply" |
+| 11 | `grokrc config set` requires a daemon restart to take effect | `done` | VERIFIED live against the running daemon: `config set historyLimit 250` -> "applied to the running daemon — no restart needed", while `config set lan false` -> "the daemon is already bound to its address: restart to apply". Both settings restored afterwards and the daemon stayed healthy. |
 | 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
 
 ### 10 · `grokrc doctor` spawns its own probe agent instead of asking the running daemon
@@ -138,6 +138,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** Blamed the daemon, then the network, then the owner's phone — in that order, and all three were REFUTED by measurement: a code redeemed over the tailnet URL returned HTTP 200 with a real token, one daemon was listening, and tailscale proxied straight to it. The device list then showed pairings SUCCEEDING repeatedly (21 -> 29), which killed the "pairing is broken" framing entirely. Two separate causes were hiding behind one symptom: a single pending slot, so every code I helpfully issued killed the one being typed; and the phone running a CACHED bundle I had shipped and withdrawn, which paired fine and then could not reach the session list. The daemon logs named the second one outright — "stale client: device 27d3 is running bf983bb526b4, current is c59cc9bb52f1".
 
 **Result.** Up to 8 codes can be outstanding at once, each with its own expiry, each still single use, oldest evicted first. Redemption compares against every candidate in constant time so a match does not depend on issue order. Guard pairing-codes-do-not-cancel-each-other proven load-bearing: restoring the single-slot behaviour fails test/pairing-codes.test.ts.
+
+### 11 · `grokrc config set` requires a daemon restart to take effect
+
+**Reanalyse — attacked.** The feature was already implemented, so the lazy pass was to mark it done and move on. Attacking it instead: I registered guards for its two controls and BOTH came back UNPROVEN — test/config-reload.test.ts passed with `server.applyConfig({historyLimit})` deleted AND with the entire needsRestart loop deleted. Reading it showed why: the test defined its own `reload` handler inline (lines 41-54) and asserted against that. It was a forked copy of the production logic, so it measured itself and could never fail for anything src/cli.ts did — a green test proving nothing, which is exactly what directive 03 exists to catch. Two further detector errors surfaced while fixing it: my first rewrite wrote a PARTIAL config file, so `port: undefined` looked like a change and needsRestart was non-empty for the wrong reason; and once corrected, `applied` came back as [defaultCwd, historyLimit] on a reload that only changed defaultCwd — production pushed historyLimit unconditionally while checking defaultCwd for an actual change.
+
+**Result.** The logic moved into one implementation, `applyReload` in src/daemon/config.ts, which cli.ts now calls; the test drives that exported function with recorders instead of reimplementing it. historyLimit is now reported only when it actually changed, matching how defaultCwd already behaved, so a reload no longer claims to have applied a setting the user never touched. Tests went 2 -> 4, covering the historyLimit branch and the nothing-changed case that the old file left uncovered. Guards config-reload-reaches-the-daemon and config-reload-admits-what-it-cannot-apply now both prove load-bearing, having failed to before. Suite 224/224 with an agent, 221 pass 0 fail without one.
 
 ## D · Housekeeping  —  2/3 closed
 
@@ -178,11 +184,10 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 6
+## Still open — 5
 
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
-- **#11** `grokrc config set` requires a daemon restart to take effect
 - **#12** Android home-screen / notification docs are thin
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
 - **#16** A malicious relay can serve modified JavaScript

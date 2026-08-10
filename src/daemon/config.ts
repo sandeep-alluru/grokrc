@@ -150,3 +150,55 @@ export function missingCwdNotice(): string {
     '',
   ].join('\n');
 }
+
+/**
+ * What a reload is allowed to touch. Structural on purpose: a test supplies
+ * recorders instead of a live daemon, so the LOGIC under test is this function
+ * — production code — rather than a second copy of it written in the test file.
+ *
+ * That copy is what existed before. `test/config-reload.test.ts` defined its own
+ * `reload` handler and asserted against that, so both of the controls here could
+ * be deleted outright and the test stayed green. It was measuring itself.
+ */
+export interface ReloadTargets {
+  server: { applyConfig(next: { defaultCwd?: string; historyLimit?: number }): void };
+  sessions: { applyConfig(next: { model?: string; useLeader?: boolean }): void };
+}
+
+/**
+ * Re-read settings and apply what a running daemon can actually pick up.
+ *
+ * Honest by construction: it reports which keys took effect and which still need
+ * a restart. `host`, `port` and `lan` are bound at listen() and cannot move on a
+ * live socket; reporting them as applied would be a lie that only surfaces
+ * later, when the daemon is still answering on the old port.
+ */
+export function applyReload(
+  next: GrokrcConfig,
+  boot: GrokrcConfig,
+  bootDefaultCwd: string,
+  targets: ReloadTargets
+): { applied: string[]; needsRestart: string[] } {
+  const applied: string[] = [];
+  const needsRestart: string[] = [];
+
+  if (next.defaultCwd && next.defaultCwd !== bootDefaultCwd) {
+    targets.server.applyConfig({ defaultCwd: next.defaultCwd });
+    applied.push('defaultCwd');
+  }
+  // Only report a key that actually CHANGED. Pushing historyLimit on every
+  // reload — which the first version did — makes `config set defaultCwd` claim
+  // it also applied a setting the user never touched.
+  if (typeof next.historyLimit === 'number' && next.historyLimit !== boot.historyLimit) {
+    targets.server.applyConfig({ historyLimit: next.historyLimit });
+    applied.push('historyLimit');
+  }
+  targets.sessions.applyConfig({ model: next.model, useLeader: next.leader === true });
+  if (next.model !== boot.model) applied.push('model');
+  if ((next.leader === true) !== (boot.leader === true)) applied.push('leader');
+
+  for (const k of ['host', 'port', 'lan'] as const) {
+    if (JSON.stringify(next[k]) !== JSON.stringify(boot[k])) needsRestart.push(k);
+  }
+  return { applied, needsRestart };
+}

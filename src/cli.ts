@@ -17,6 +17,7 @@ import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
 import {
   CONFIG_KEYS,
+  applyReload,
   coerceValue,
   configPath,
   isKnownKey,
@@ -268,29 +269,9 @@ async function cmdUp(flags: Flags): Promise<void> {
      * socket, and reporting them as applied would be a lie that only surfaces
      * later, when the daemon is still on the old port.
      */
-    reload: async () => {
-      const next = await loadConfig();
-      const applied: string[] = [];
-      const needsRestart: string[] = [];
-
-      if (next.defaultCwd && next.defaultCwd !== defaultCwd) {
-        server.applyConfig({ defaultCwd: next.defaultCwd });
-        applied.push('defaultCwd');
-      }
-      if (typeof next.historyLimit === 'number') {
-        server.applyConfig({ historyLimit: next.historyLimit });
-        applied.push('historyLimit');
-      }
-      sessions.applyConfig({ model: next.model, useLeader: next.leader === true });
-      if (next.model !== cfg.model) applied.push('model');
-      if ((next.leader === true) !== (cfg.leader === true)) applied.push('leader');
-
-      // Bound at listen(); a running socket cannot move.
-      for (const k of ['host', 'port', 'lan'] as const) {
-        if (JSON.stringify(next[k]) !== JSON.stringify(cfg[k])) needsRestart.push(k);
-      }
-      return { applied, needsRestart };
-    },
+    // The logic lives in applyReload so the test can drive THIS code rather than
+    // a reimplementation of it. See src/daemon/config.ts.
+    reload: async () => applyReload(await loadConfig(), cfg, defaultCwd, { server, sessions }),
 
     status: () => ({
       pid: process.pid,

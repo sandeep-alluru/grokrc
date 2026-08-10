@@ -191,6 +191,22 @@ export const GUARDS = [
     test: 'test/relay-isolation.test.ts',
   },
   {
+    id: 'config-reload-reaches-the-daemon',
+    why: 'without it `config set` writes the file and the running daemon keeps the old value, while the CLI says it applied — the worst of both, since the user has no reason to restart',
+    file: 'src/daemon/config.ts',
+    find: '    targets.server.applyConfig({ historyLimit: next.historyLimit });',
+    replace: '',
+    test: 'test/config-reload.test.ts',
+  },
+  {
+    id: 'config-reload-admits-what-it-cannot-apply',
+    why: 'host/port/lan are bound at listen(); reporting them as applied is a lie that only surfaces later, when the daemon is still on the old port',
+    file: 'src/daemon/config.ts',
+    find: '    if (JSON.stringify(next[k]) !== JSON.stringify(boot[k])) needsRestart.push(k);',
+    replace: '',
+    test: 'test/config-reload.test.ts',
+  },
+  {
     id: 'tool-row-keeps-the-filename',
     why: 'grok’s completion event carries no title and no kind, so the normalizer falls back to the literal word “tool”. Written straight over the label it erased the filename, and a three-file edit finished as three identical rows saying “tool”.',
     file: 'web/app.js',

@@ -267,9 +267,16 @@ export const ITEMS = [
     id: 11,
     section: 'C',
     effort: 'M',
-    status: 'open',
+    status: 'done',
     title: '`grokrc config set` requires a daemon restart to take effect',
-    evidence: 'VERIFIED — src/cli.ts prints "restart to apply"',
+    evidence:
+      'VERIFIED live against the running daemon: `config set historyLimit 250` -> "applied to the running daemon — no restart needed", while `config set lan false` -> "the daemon is already bound to its address: restart to apply". Both settings restored afterwards and the daemon stayed healthy.',
+    loop: {
+      attacked:
+        'The feature was already implemented, so the lazy pass was to mark it done and move on. Attacking it instead: I registered guards for its two controls and BOTH came back UNPROVEN — test/config-reload.test.ts passed with `server.applyConfig({historyLimit})` deleted AND with the entire needsRestart loop deleted. Reading it showed why: the test defined its own `reload` handler inline (lines 41-54) and asserted against that. It was a forked copy of the production logic, so it measured itself and could never fail for anything src/cli.ts did — a green test proving nothing, which is exactly what directive 03 exists to catch. Two further detector errors surfaced while fixing it: my first rewrite wrote a PARTIAL config file, so `port: undefined` looked like a change and needsRestart was non-empty for the wrong reason; and once corrected, `applied` came back as [defaultCwd, historyLimit] on a reload that only changed defaultCwd — production pushed historyLimit unconditionally while checking defaultCwd for an actual change.',
+    },
+    result:
+      'The logic moved into one implementation, `applyReload` in src/daemon/config.ts, which cli.ts now calls; the test drives that exported function with recorders instead of reimplementing it. historyLimit is now reported only when it actually changed, matching how defaultCwd already behaved, so a reload no longer claims to have applied a setting the user never touched. Tests went 2 -> 4, covering the historyLimit branch and the nothing-changed case that the old file left uncovered. Guards config-reload-reaches-the-daemon and config-reload-admits-what-it-cannot-apply now both prove load-bearing, having failed to before. Suite 224/224 with an agent, 221 pass 0 fail without one.',
   },
   {
     id: 12,
