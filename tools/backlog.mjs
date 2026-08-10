@@ -219,6 +219,21 @@ export const ITEMS = [
       'finish() now sets process.exitCode as well as returning it, so a caller who drops the value still fails the build. Proven on known-bad input per directive 03: forcing a failure in midturn-check exits 1, where it previously exited 0.',
   },
   {
+    id: 24,
+    section: 'A',
+    effort: 'S',
+    status: 'done',
+    title: 'A fix can sit on disk while the daemon keeps running the old code',
+    evidence:
+      'VERIFIED — dist/server.js was built at 12:37:32; the daemon had started at 12:31:57 and was still serving the pre-fix code when the owner was told it was live',
+    loop: {
+      attacked:
+        'The owner said the crash was not fixed. My first candidate was my own fix being wrong, and the second was their phone caching an old bundle — I had told them to reload. Both REFUTED by comparing two timestamps: the daemon started six minutes BEFORE the build it was supposed to be running. The code was correct and had simply never been loaded. This is the deployment-side twin of #21, where the test harness read a stale dist/; I fixed the test path and did not look at the deploy path.',
+    },
+    result:
+      'The watchdog now compares dist/daemon/server.js mtime against the daemon start time and restarts when the build is newer. Proven: touch dist -> run watchdog -> pid 1617626 becomes 1617847, logged as "reloaded the current build". After the reload the crash fix measured 4.5 MB -> 0.50 MB, 2000 -> 301 events, 1,624,434 -> 218,000 characters rendered.',
+  },
+  {
     id: 11,
     section: 'C',
     effort: 'M',

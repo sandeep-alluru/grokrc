@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**15 of 23 closed.** Generated from `tools/backlog.mjs` —
+**16 of 24 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,7 +12,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  6/7 closed
+## A · Automated coverage gaps  —  7/8 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
 | 21 | Real-stack checks load dist/ but nothing warned when it was stale | `done` | VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build |
 | 23 | A real-stack check reported 3 problems while `npm test` exited 0 | `done` | VERIFIED — midturn-check printed "3 PROBLEM(S)" and the suite passed; forcing a failure now exits 1 |
+| 24 | A fix can sit on disk while the daemon keeps running the old code | `done` | VERIFIED — dist/server.js was built at 12:37:32; the daemon had started at 12:31:57 and was still serving the pre-fix code when the owner was told it was live |
 
 ### 1 · `removeSessionDir()` has no test, so it cannot be registered as a guard
 
@@ -69,6 +70,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** reporter().finish() RETURNS an exit code, and three of the four tools do `const code = finish()`. The one I wrote discarded it, so that check could never fail the build — a gate certifying nothing, which is the same class of defect this sweep keeps surfacing. Attacked the narrow fix (use the return value in that one tool) as insufficient: it leaves the trap armed for the next tool, and HONOR is exactly what had just failed. Also checked the other three rather than assuming — they were correct, so this was not a widespread twin.
 
 **Result.** finish() now sets process.exitCode as well as returning it, so a caller who drops the value still fails the build. Proven on known-bad input per directive 03: forcing a failure in midturn-check exits 1, where it previously exited 0.
+
+### 24 · A fix can sit on disk while the daemon keeps running the old code
+
+**Reanalyse — attacked.** The owner said the crash was not fixed. My first candidate was my own fix being wrong, and the second was their phone caching an old bundle — I had told them to reload. Both REFUTED by comparing two timestamps: the daemon started six minutes BEFORE the build it was supposed to be running. The code was correct and had simply never been loaded. This is the deployment-side twin of #21, where the test harness read a stale dist/; I fixed the test path and did not look at the deploy path.
+
+**Result.** The watchdog now compares dist/daemon/server.js mtime against the daemon start time and restarts when the build is newer. Proven: touch dist -> run watchdog -> pid 1617626 becomes 1617847, logged as "reloaded the current build". After the reload the crash fix measured 4.5 MB -> 0.50 MB, 2000 -> 301 events, 1,624,434 -> 218,000 characters rendered.
 
 ## B · Never verified  —  2/5 closed
 

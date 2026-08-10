@@ -52,6 +52,24 @@ else
   fi
 fi
 
+# ── 1b. is the daemon running the code that is on disk? ──────────────────────
+# A build AFTER a restart leaves the fix on disk and the old code in memory.
+# That happened: dist/ was rebuilt six minutes after the daemon started, and the
+# owner was told a crash fix was live while the running process had never seen
+# it. `Restart=` cannot catch this — the process is perfectly healthy, just old.
+DIST="$REPO/dist/daemon/server.js"
+if [ -f "$DIST" ]; then
+  started=$(date -d "$(systemctl --user show grokrc -p ActiveEnterTimestamp --value)" +%s 2>/dev/null || echo 0)
+  built=$(stat -c %Y "$DIST" 2>/dev/null || echo 0)
+  if [ "$built" -gt "$started" ] && [ "$started" -gt 0 ]; then
+    log "STALE: dist/ is $((built - started))s newer than the running daemon — restarting to load it"
+    systemctl --user restart "$UNIT" 2>/dev/null
+    sleep 5
+    curl -fsS --max-time 10 "$URL" 2>/dev/null | grep -q '"ok":true' \
+      && log "reloaded the current build" || log "restart after stale build FAILED"
+  fi
+fi
+
 # ── 2. is the backlog moving? ────────────────────────────────────────────────
 if [ -d "$REPO" ]; then
   progress=$(cd "$REPO" && node tools/backlog-report.mjs 2>/dev/null | grep -oE 'processed [0-9]+ of [0-9]+')
