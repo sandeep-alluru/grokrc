@@ -98,6 +98,56 @@ export async function skipWithoutAgent(what) {
   return true;
 }
 
+/**
+ * Refuse to run against a stale build.
+ *
+ * bootDaemon loads `dist/`, not `src/`. Editing a source file and re-running a
+ * real-stack check therefore tests the PREVIOUS build, silently. That cost six
+ * consecutive false "still failing" results on backlog #19 — the fix was
+ * already correct and the harness kept reporting the old behaviour, so I kept
+ * changing working code.
+ *
+ * A comment asking the next person to remember `npm run build` would be
+ * forgotten the same way. This throws instead.
+ */
+async function assertBuildIsFresh() {
+  const { readdir, stat } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  const newestIn = async (dir) => {
+    let newest = 0;
+    const walk = async (d) => {
+      for (const entry of await readdir(d, { withFileTypes: true })) {
+        const full = join(d, entry.name);
+        if (entry.isDirectory()) await walk(full);
+        else if (/\.(ts|js)$/.test(entry.name)) {
+          const { mtimeMs } = await stat(full);
+          if (mtimeMs > newest) newest = mtimeMs;
+        }
+      }
+    };
+    try {
+      await walk(dir);
+    } catch {
+      return 0;
+    }
+    return newest;
+  };
+
+  const src = await newestIn(join(ROOT, 'src'));
+  const dist = await newestIn(join(ROOT, 'dist'));
+  if (dist === 0) {
+    throw new Error('dist/ is missing — run `npm run build` before a real-stack check.');
+  }
+  if (src > dist) {
+    const age = Math.round((src - dist) / 1000);
+    throw new Error(
+      `dist/ is ${age}s older than src/ — you are about to test the PREVIOUS build. ` +
+        'Run `npm run build` first. (This exact trap produced six false results on #19.)'
+    );
+  }
+}
+
 export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
   // A REAL grok writes its session history into GROK_HOME and keeps it forever.
   // Two checks ran against the owner's real ~/.grok and left a session behind on
@@ -117,6 +167,11 @@ export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
       );
     }
   }
+  // Only for a REAL agent. `npm test` deliberately runs the mock suite BEFORE
+  // `npm run build`, so dist/ is legitimately stale there — and a mocked daemon
+  // never exercises the code the staleness would hide. The six false results
+  // this guard exists to prevent all came from real-stack checks.
+  if (!transportFactory) await assertBuildIsFresh();
   const cfgDir = await scratchDir('grokrc-cfg-');
   process.env.GROKRC_HOME = cfgDir;
 

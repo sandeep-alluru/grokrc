@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**8 of 20 closed.** Generated from `tools/backlog.mjs` —
+**10 of 21 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,7 +12,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  2/5 closed
+## A · Automated coverage gaps  —  3/6 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
@@ -21,6 +21,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 3 | Mock debt: 13 of 32 test files reference a mock/stub/fake | `open` | VERIFIED — directive-check.mjs reports it as DEBT under 03 law 4 |
 | 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `done` | VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered |
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
+| 21 | Real-stack checks load dist/ but nothing warned when it was stale | `done` | VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build |
 
 ### 4 · Real agents spawned outside `npm test` still write into the developer’s ~/.grok
 
@@ -41,6 +42,14 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Decide.** One shared test/helpers/ws.ts with watch(), buffering from socket open and matching on content — replacing three private copies. Spawn error listeners in leader/takeover. relay.test.ts scripted so it no longer needs an agent it never tested. authHint() extracted as a pure function so its guard is provable without grok.
 
 **Result.** CI environment reproduced locally (no agent on PATH): 201 pass, 0 fail, 3 skipped, exit 0. Developer environment: 204/204, both real-stack checks ALL CLEAR. Guards 15/15 in the CI environment, where one was previously unprovable.
+
+### 21 · Real-stack checks load dist/ but nothing warned when it was stale
+
+**Reanalyse — attacked.** Directive 11: the same signature five or more times is mechanism debt, not bad luck. I had blamed the product, then my assertions, then the event shapes — three wrong diagnoses in a row — before instrumenting and finding that my code was never executing. The recurring signature was "edit src/, run a real-stack check, observe no change". Attacked the idea that a comment or a habit would prevent it: both are HONOR-tier, and HONOR is what had just failed six times running.
+
+**Reevaluate — survived.** bootDaemon() now compares the newest mtime in src/ against dist/ and THROWS rather than testing a stale build.
+
+**Result.** PRE-FIX: `touch src/daemon/session-manager.ts` then run a check -> it ran happily against the old build. POST-FIX: "dist/ is 661s older than src/ — you are about to test the PREVIOUS build." After `npm run build` it proceeds and the check is ALL CLEAR.
 
 ## B · Never verified  —  2/5 closed
 
@@ -92,18 +101,26 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** 4 groups removed (grokrc-pkgtest-DXc5, grokrc-leadertest-gkXRVV, grokrc-leadertest-Y6ANl9, grokrc-public-uNy4). Session count stable at 15 across a subsequent full run.
 
-## E · Reviewed after challenge  —  2/4 closed
+## E · Reviewed after challenge  —  3/4 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 16 | A malicious relay can serve modified JavaScript | `open` | VERIFIED — the relay serves the PWA (src/relay/server.ts). Installing the client from the daemon’s origin removes the attack |
 | 17 | A relay sees routing metadata — sizes, timing, endpoints | `accepted` | Inherent: a relay cannot route what it cannot see. Sizes could be padded; routes and timing cannot be hidden without cover traffic |
 | 18 | Observed mode is read-only while mirroring | `not-a-limitation` | Correct architecture — no ACP channel to an agent the daemon did not spawn. Take over closes it and is verified on a real TUI |
-| 19 | A turn killed mid-flight may lose its tail; recovery on resume is unverified | `open` | UNVERIFIED — no test covers it, and Take over kills the agent mid-turn BY DESIGN, so this is on the main path |
+| 19 | A turn killed mid-flight may lose its tail; recovery on resume is unverified | `done` | UNVERIFIED — no test covers it, and Take over kills the agent mid-turn BY DESIGN, so this is on the main path |
+
+### 19 · A turn killed mid-flight may lose its tail; recovery on resume is unverified
+
+**Reanalyse — attacked.** Attacked the README's own explanation first — "Grok may not have flushed its last message; resuming replays from the agent and recovers it". BOTH halves were REFUTED. The tail was lost in OUR code: streaming text is coalesced in s.stream and only reaches s.log when the stream ENDS, so closing mid-turn dropped a buffer the user had already watched fill; and resume recovered nothing because there was nothing left to recover. Then attacked my own harness four separate times, each of which had produced a confident wrong answer: it counted the USER's echoed prompt as agent output so the kill landed before the agent spoke; it filtered history on the wrong event kinds; it read history() after close and mistook the observed-log fallback for evidence; and — six consecutive false "still failing" runs — bootDaemon loads dist/ while I was editing src/, so every result described the PREVIOUS build. Only instrumenting #retainLog and #recoverLostTail exposed that: NEITHER line printed, which is impossible if the code had run at all. Finally attacked the first version of the regression test, which passed with the control disabled because a replaying mock cannot express "the agent never persisted this".
+
+**Reevaluate — survived.** Flush the coalesced stream before close() retains it; keep the witnessed log bounded (400 events x 8 sessions); on resume, put back ONLY what loadSession did not replay, since duplicating a transcript is worse than losing its tail.
+
+**Result.** Real agent, tools/midturn-check.mjs — PRE-FIX: streamed "1..22", resumed history 0 chars. POST-FIX: "recovered 2 event(s) the agent never persisted", resumed history 71 chars, last streamed line survived, ALL CLEAR. Now part of test:real. test/midturn.test.ts drives an agent whose session/load replays NOTHING, so retention is the only path by which the text can return; guard flush-before-retain is proven load-bearing.
 
 ---
 
-## Still open — 12
+## Still open — 11
 
 - **#1** `removeSessionDir()` has no test, so it cannot be registered as a guard
 - **#2** Terminal client's exit guard (`nothing to drive from here`) has no test
@@ -116,4 +133,3 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 - **#12** Android home-screen / notification docs are thin
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
 - **#16** A malicious relay can serve modified JavaScript
-- **#19** A turn killed mid-flight may lose its tail; recovery on resume is unverified

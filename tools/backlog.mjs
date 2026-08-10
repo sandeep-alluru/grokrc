@@ -90,6 +90,23 @@ export const ITEMS = [
       'CI environment reproduced locally (no agent on PATH): 201 pass, 0 fail, 3 skipped, exit 0. Developer environment: 204/204, both real-stack checks ALL CLEAR. Guards 15/15 in the CI environment, where one was previously unprovable.',
   },
   {
+    id: 21,
+    section: 'A',
+    effort: 'S',
+    status: 'done',
+    title: 'Real-stack checks load dist/ but nothing warned when it was stale',
+    evidence:
+      'VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build',
+    loop: {
+      attacked:
+        'Directive 11: the same signature five or more times is mechanism debt, not bad luck. I had blamed the product, then my assertions, then the event shapes — three wrong diagnoses in a row — before instrumenting and finding that my code was never executing. The recurring signature was "edit src/, run a real-stack check, observe no change". Attacked the idea that a comment or a habit would prevent it: both are HONOR-tier, and HONOR is what had just failed six times running.',
+      survived:
+        'bootDaemon() now compares the newest mtime in src/ against dist/ and THROWS rather than testing a stale build.',
+    },
+    result:
+      'PRE-FIX: `touch src/daemon/session-manager.ts` then run a check -> it ran happily against the old build. POST-FIX: "dist/ is 661s older than src/ — you are about to test the PREVIOUS build." After `npm run build` it proceeds and the check is ALL CLEAR.',
+  },
+  {
     id: 5,
     section: 'B',
     effort: 'S',
@@ -232,9 +249,17 @@ export const ITEMS = [
     id: 19,
     section: 'E',
     effort: 'M',
-    status: 'open',
+    status: 'done',
     title: 'A turn killed mid-flight may lose its tail; recovery on resume is unverified',
     evidence:
       'UNVERIFIED — no test covers it, and Take over kills the agent mid-turn BY DESIGN, so this is on the main path',
+    loop: {
+      attacked:
+        'Attacked the README\'s own explanation first — "Grok may not have flushed its last message; resuming replays from the agent and recovers it". BOTH halves were REFUTED. The tail was lost in OUR code: streaming text is coalesced in s.stream and only reaches s.log when the stream ENDS, so closing mid-turn dropped a buffer the user had already watched fill; and resume recovered nothing because there was nothing left to recover. Then attacked my own harness four separate times, each of which had produced a confident wrong answer: it counted the USER\'s echoed prompt as agent output so the kill landed before the agent spoke; it filtered history on the wrong event kinds; it read history() after close and mistook the observed-log fallback for evidence; and — six consecutive false "still failing" runs — bootDaemon loads dist/ while I was editing src/, so every result described the PREVIOUS build. Only instrumenting #retainLog and #recoverLostTail exposed that: NEITHER line printed, which is impossible if the code had run at all. Finally attacked the first version of the regression test, which passed with the control disabled because a replaying mock cannot express "the agent never persisted this".',
+      survived:
+        'Flush the coalesced stream before close() retains it; keep the witnessed log bounded (400 events x 8 sessions); on resume, put back ONLY what loadSession did not replay, since duplicating a transcript is worse than losing its tail.',
+    },
+    result:
+      'Real agent, tools/midturn-check.mjs — PRE-FIX: streamed "1..22", resumed history 0 chars. POST-FIX: "recovered 2 event(s) the agent never persisted", resumed history 71 chars, last streamed line survived, ALL CLEAR. Now part of test:real. test/midturn.test.ts drives an agent whose session/load replays NOTHING, so retention is the only path by which the text can return; guard flush-before-retain is proven load-bearing.',
   },
 ];

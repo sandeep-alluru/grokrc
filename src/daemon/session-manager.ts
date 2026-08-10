@@ -36,6 +36,9 @@ const MAX_LIVE_SESSIONS = 12;
 
 /** Ceiling on mirrored sessions — tailers are cheap but not free. */
 const MAX_OBSERVED_SESSIONS = 24;
+/** How much of a dead session's stream to keep for recovery, and for how many. */
+const RETAINED_EVENTS = 400;
+const RETAINED_SESSIONS = 8;
 
 /**
  * Event kinds that genuinely interrupt a streamed message and so should close
@@ -537,6 +540,17 @@ export class SessionManager extends EventEmitter {
 
     try {
       await client.loadSession(id, cwd);
+      // Grok writes a turn to updates.jsonl when the turn COMPLETES. An agent
+      // stopped mid-flight never writes its tail, so the replay above can be
+      // missing text the user already watched arrive — and Take over stops the
+      // agent mid-flight by design. Put back only what is genuinely absent;
+      // duplicating a transcript would be worse than losing its tail.
+      const lost = this.#recoverLostTail(id, session.log);
+      if (lost.length) {
+        session.log.unshift(...lost);
+        console.log(`  recovered ${lost.length} event(s) the agent never persisted (${id})`);
+      }
+      this.#retained.delete(id);
     } catch (err) {
       this.#sessions.delete(id);
       client.close();
@@ -586,12 +600,54 @@ export class SessionManager extends EventEmitter {
   close(id: string): void {
     const s = this.#sessions.get(id);
     if (!s) return;
+    // FLUSH FIRST. Streaming text is coalesced in `s.stream` and only reaches
+    // `s.log` when the stream ends — so a turn stopped mid-flight leaves the
+    // text the user watched arrive sitting in a buffer that is about to be
+    // dropped. That, not Grok's persistence, is where the tail was actually
+    // lost: `loadSession` cannot replay what the agent never finished writing,
+    // and we were discarding our own copy at the same moment.
+    this.#flush(s);
+    this.#retainLog(id, s.log);
     // Release anything the agent is blocked on, or the child never exits.
     for (const [, req] of s.approvals) req.respond({ outcome: 'cancelled' });
     s.approvals.clear();
     s.client.close();
     this.#sessions.delete(id);
     this.emit('session-list-changed');
+  }
+
+  /**
+   * Events witnessed for a session that is no longer live, kept so a resume can
+   * recover a turn the agent never persisted. Bounded: this is a short-lived
+   * safety net, not a second transcript store.
+   */
+  #retained = new Map<string, RcEvent[]>();
+
+  #retainLog(id: string, log: RcEvent[]): void {
+    if (!log.length) return;
+    this.#retained.set(id, log.slice(-RETAINED_EVENTS));
+    // Oldest out first, so a long-running daemon cannot grow without bound.
+    while (this.#retained.size > RETAINED_SESSIONS) {
+      const oldest = this.#retained.keys().next().value;
+      if (oldest === undefined) break;
+      this.#retained.delete(oldest);
+    }
+  }
+
+  /**
+   * Agent text the replay is missing but we watched arrive.
+   *
+   * Only genuinely-absent content is returned: if `loadSession` replayed the
+   * turn properly there is nothing to add, and adding it anyway would duplicate
+   * the transcript — a worse bug than the one being fixed.
+   */
+  #recoverLostTail(id: string, replayed: RcEvent[]): RcEvent[] {
+    const retained = this.#retained.get(id);
+    if (!retained?.length) return [];
+    const seen = new Set(
+      replayed.filter((e) => e.k === 'text').map((e) => (e as { text?: string }).text ?? '')
+    );
+    return retained.filter((e) => e.k === 'text' && !seen.has((e as { text?: string }).text ?? ''));
   }
 
   closeAll(): void {

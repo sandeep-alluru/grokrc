@@ -55,6 +55,14 @@ export const GUARDS = [
     test: 'test/vapid-subject.test.ts',
   },
   {
+    id: 'flush-before-retain',
+    why: 'streaming text lives in s.stream until the stream ends; without flushing at close(), a turn stopped mid-flight loses the tail the user already watched arrive — and Take over stops turns mid-flight by design',
+    file: 'src/daemon/session-manager.ts',
+    find: '    this.#flush(s);\n    this.#retainLog(id, s.log);',
+    replace: '    this.#retainLog(id, s.log);',
+    test: 'test/midturn.test.ts',
+  },
+  {
     id: 'health-reports-real-version',
     why: 'the version was hardcoded twice and reported 0.1.0 from a 0.1.1 build — the first thing anyone checks when a fix looks missing',
     file: 'src/daemon/server.ts',

@@ -6,7 +6,7 @@ REPO="$(cd "$HERE/../.." && pwd)"
 UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$UNITS"
 
-sed "s#^ExecStart=.*#ExecStart=$REPO/tools/watchdog.sh#" \
+sed "s#^ExecStart=.*#ExecStart=$REPO/tools/loop-watchdog.sh#" \
   "$HERE/grokrc-watchdog.service" > "$UNITS/grokrc-watchdog.service"
 cp "$HERE/grokrc-watchdog.timer" "$UNITS/grokrc-watchdog.timer"
 
