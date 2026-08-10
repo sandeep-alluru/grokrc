@@ -1,0 +1,111 @@
+name: Compatibility
+
+# `engines` claims Node >=20 and the README claimed macOS "expected to work".
+# Neither was ever tested: the author's machine has one Node and one OS.
+#
+# The suite itself CANNOT run on Node 20 — it uses `--experimental-strip-types`,
+# which does not exist before 22.6. Testing the source there would fail for a
+# reason that has nothing to do with the product. So the runtime claim is tested
+# where it actually lives: the compiled package, built once and executed on each
+# supported Node.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # What a user installs is dist/ — plain JS. Build it once, then prove it runs
+  # on every Node the package says it supports.
+  package-runtime:
+    name: dist on Node ${{ matrix.node }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build with a Node that can compile TypeScript...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # ...then run the built artifact on the Node under test.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: node version under test
+        run: node --version
+
+      - name: CLI starts and prints help
+        run: node dist/cli.js --help
+
+      - name: engines field is satisfiable
+        run: |
+          node -e "
+            const {engines} = require('./package.json');
+            const want = Number(engines.node.replace(/[^0-9.]/g, '').split('.')[0]);
+            const have = Number(process.versions.node.split('.')[0]);
+            if (have < want) { console.error('running below the declared floor'); process.exit(1); }
+            console.log('engines', engines.node, '· running', process.versions.node);
+          "
+
+      # With no agent installed, `doctor` must fail CLEANLY — a stack trace here
+      # would mean the runtime is broken on this Node, not that grok is absent.
+      - name: doctor fails cleanly without an agent
+        run: |
+          set +e
+          out=$(node dist/cli.js doctor 2>&1); code=$?
+          echo "$out"
+          echo "exit=$code"
+          echo "$out" | grep -qi "grok not found" || { echo "::error::doctor did not report the missing agent"; exit 1; }
+          echo "$out" | grep -qE "Cannot find module|ERR_[A-Z]+|SyntaxError|at Object\." && { echo "::error::runtime error on Node ${{ matrix.node }}"; exit 1; }
+          exit 0
+
+      - name: config reports the required setting
+        run: |
+          node dist/cli.js config | grep -qi defaultCwd \
+            || { echo "::error::config did not mention defaultCwd"; exit 1; }
+
+      - name: up refuses to start without an agent
+        run: |
+          set +e
+          out=$(node dist/cli.js up --port 4497 2>&1); code=$?
+          echo "$out"
+          [ "$code" -eq 0 ] && { echo "::error::up started with no agent installed"; exit 1; }
+          echo "$out" | grep -qi "grok not found" || { echo "::error::up did not say what was missing"; exit 1; }
+          exit 0
+
+  # The full suite needs type stripping, so it runs only where that exists.
+  # Kept separate so a Node-20 runtime failure is never confused with a test
+  # framework limitation.
+  suite:
+    name: full suite on Node ${{ matrix.node }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run build
+      # `grok` is absent on a runner; tests that need it skip themselves.
+      - run: npm test

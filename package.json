@@ -59,7 +59,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
     "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
-    "check:stranger": "bash tools/stranger-check.sh"
+    "check:stranger": "bash tools/stranger-check.sh",
+    "backlog": "node tools/backlog-report.mjs"
   },
   "dependencies": {
     "web-push": "^3.6.7",

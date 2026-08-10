@@ -1,0 +1,13 @@
+[Unit]
+Description=Check grokrc every 30 minutes
+
+[Timer]
+# Five minutes after boot, then every half hour. Persistent=true so a machine
+# that was asleep runs the check on wake rather than silently skipping it.
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
