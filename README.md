@@ -309,14 +309,14 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 
 ## Limitations
 
-|                 |                                                                                                                                                                                                                 |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                                             |
-| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                 |
-| Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery is verified on a real iPhone as of 0.1.2 |
-| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                                      |
-| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it                |
-| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                    |
+|                 |                                                                                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                                                                                    |
+| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                                                        |
+| Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery is verified on a real iPhone as of 0.1.2                                        |
+| Observed mode   | Read-only while mirroring — **Take over** stops the terminal's agent and makes it live here                                                                                                                                                            |
+| Log tail        | If the agent is killed mid-turn — which **Take over** does by design — Grok may not have flushed its last message to `updates.jsonl`, so the tail of that reply can be lost. Recovery on resume is **unverified** — see [BACKLOG #19](docs/BACKLOG.md) |
+| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                                                           |
 
 ### How the browser tests work
 
