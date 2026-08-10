@@ -58,7 +58,7 @@ if (streamed.join('').length === 0) {
   daemon.sessions.closeAll();
   await daemon.close();
   await cleanup();
-  finish();
+  process.exit(finish());
 }
 const beforeKill = streamed.join('');
 note(beforeKill.length > 0, `turn is streaming (${beforeKill.length} chars captured)`);
@@ -116,4 +116,4 @@ if (resumedOk) {
 daemon.sessions.closeAll();
 await daemon.close();
 await cleanup();
-finish();
+process.exit(finish());

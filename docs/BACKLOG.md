@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**14 of 22 closed.** Generated from `tools/backlog.mjs` —
+**15 of 23 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,7 +12,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  5/6 closed
+## A · Automated coverage gaps  —  6/7 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
@@ -22,6 +22,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `done` | VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered |
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
 | 21 | Real-stack checks load dist/ but nothing warned when it was stale | `done` | VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build |
+| 23 | A real-stack check reported 3 problems while `npm test` exited 0 | `done` | VERIFIED — midturn-check printed "3 PROBLEM(S)" and the suite passed; forcing a failure now exits 1 |
 
 ### 1 · `removeSessionDir()` has no test, so it cannot be registered as a guard
 
@@ -62,6 +63,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reevaluate — survived.** bootDaemon() now compares the newest mtime in src/ against dist/ and THROWS rather than testing a stale build.
 
 **Result.** PRE-FIX: `touch src/daemon/session-manager.ts` then run a check -> it ran happily against the old build. POST-FIX: "dist/ is 661s older than src/ — you are about to test the PREVIOUS build." After `npm run build` it proceeds and the check is ALL CLEAR.
+
+### 23 · A real-stack check reported 3 problems while `npm test` exited 0
+
+**Reanalyse — attacked.** reporter().finish() RETURNS an exit code, and three of the four tools do `const code = finish()`. The one I wrote discarded it, so that check could never fail the build — a gate certifying nothing, which is the same class of defect this sweep keeps surfacing. Attacked the narrow fix (use the return value in that one tool) as insufficient: it leaves the trap armed for the next tool, and HONOR is exactly what had just failed. Also checked the other three rather than assuming — they were correct, so this was not a widespread twin.
+
+**Result.** finish() now sets process.exitCode as well as returning it, so a caller who drops the value still fails the build. Proven on known-bad input per directive 03: forcing a failure in midturn-check exits 1, where it previously exited 0.
 
 ## B · Never verified  —  2/5 closed
 

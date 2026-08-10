@@ -204,6 +204,21 @@ export const ITEMS = [
       'Two caps in server.ts: the last 300 events, with a marker naming how many were dropped, and a 4000-character ceiling on any string anywhere in an event. Measured on the real transcript: 9.97 MB -> 2.16 MB -> 1.65 MB, a 6x reduction; in a real browser 4.5 MB -> 0.7 MB, DOM nodes 1446 -> 242.',
   },
   {
+    id: 23,
+    section: 'A',
+    effort: 'S',
+    status: 'done',
+    title: 'A real-stack check reported 3 problems while `npm test` exited 0',
+    evidence:
+      'VERIFIED — midturn-check printed "3 PROBLEM(S)" and the suite passed; forcing a failure now exits 1',
+    loop: {
+      attacked:
+        'reporter().finish() RETURNS an exit code, and three of the four tools do `const code = finish()`. The one I wrote discarded it, so that check could never fail the build — a gate certifying nothing, which is the same class of defect this sweep keeps surfacing. Attacked the narrow fix (use the return value in that one tool) as insufficient: it leaves the trap armed for the next tool, and HONOR is exactly what had just failed. Also checked the other three rather than assuming — they were correct, so this was not a widespread twin.',
+    },
+    result:
+      'finish() now sets process.exitCode as well as returning it, so a caller who drops the value still fails the build. Proven on known-bad input per directive 03: forcing a failure in midturn-check exits 1, where it previously exited 0.',
+  },
+  {
     id: 11,
     section: 'C',
     effort: 'M',

@@ -274,7 +274,13 @@ export function reporter() {
         `\n─── ${problems.length ? `${problems.length} PROBLEM(S)` : 'ALL CLEAR'} ${label}───`
       );
       for (const p of problems) console.log(`  · ${p}`);
-      return problems.length ? 1 : 0;
+      // Set it here as well as returning it. A caller that writes `finish()`
+      // and drops the value produces a check that CANNOT FAIL — which is
+      // exactly what happened: midturn-check printed three problems while
+      // `npm test` exited 0. Returning a code only works if someone uses it.
+      const code = problems.length ? 1 : 0;
+      if (code) process.exitCode = code;
+      return code;
     },
   };
 }
