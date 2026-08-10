@@ -15,6 +15,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+defaults:
+  run:
+    # Windows runners default to PowerShell, where `out=$(cmd)` is not a command
+    # and `set +e` means nothing. Every multi-line step here is bash, so say so
+    # once rather than per step — the first Windows run failed on this, not on
+    # anything the product did.
+    shell: bash
+
 jobs:
   # What a user installs is dist/ — plain JS. Build it once, then prove it runs
   # on every Node the package says it supports.

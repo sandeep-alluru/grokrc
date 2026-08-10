@@ -16,7 +16,31 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const SHOTS = join(ROOT, 'docs/screenshots');
+
+/**
+ * Where screenshots go — and by default, NOT into the repo.
+ *
+ * The browser test and three real-stack checks all call `page.screenshot()`.
+ * Every one of them wrote straight into `docs/screenshots/`, which is tracked,
+ * so merely RUNNING the suite left modified binaries in the working tree.
+ * Measured: a clean tree plus one `test/browser.test.ts` run produced
+ * ` M docs/screenshots/approval.png`. On CI that turned into a hard failure —
+ * the guards job ends in `git diff --exit-code`, and the screenshots the guard
+ * run had just rewritten made it exit 1.
+ *
+ * Tests must not mutate tracked files as a side effect of running. Writes go to
+ * a scratch directory unless regeneration is asked for explicitly:
+ *
+ *   npm run shots        # regenerate docs/screenshots on purpose
+ *
+ * There were also THREE separate `SHOTS = join(ROOT, 'docs/screenshots')`
+ * constants — harness, https-e2e-check and browser.test — which is the same
+ * duplication rule the rest of this repo is held to. This is now the only one.
+ */
+export const WRITES_TRACKED_SHOTS = process.env.GROKRC_SHOTS === '1';
+export const SHOTS = WRITES_TRACKED_SHOTS
+  ? join(ROOT, 'docs/screenshots')
+  : join(tmpdir(), 'grokrc-screenshots');
 
 /** Temp dirs created through this module, removed by `cleanup()`. */
 const scratch = [];

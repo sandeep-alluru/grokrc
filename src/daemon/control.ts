@@ -19,11 +19,30 @@
  *   <- {"id":1,"ok":true,"result":{"code":"7K44NP","expiresAt":1785...}}
  */
 import { chmod, mkdir, stat, unlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { CONFIG_DIR } from './auth.ts';
 
-export const CONTROL_SOCKET_PATH = join(CONFIG_DIR, 'control.sock');
+/**
+ * Windows has no Unix domain sockets, and `net` will not bind a filesystem path
+ * there — an IPC endpoint must be a named pipe, `\\.\pipe\<name>`.
+ *
+ * The name is derived from CONFIG_DIR, which contains the user profile path, so
+ * two accounts on one machine get different pipes instead of fighting over one.
+ *
+ * SECURITY, stated plainly because it differs by platform: on Unix the socket is
+ * a file in the user's own directory, chmod 0600 — access is filesystem
+ * permissions, and anyone who can open it already has the user's shell. Windows
+ * named pipes are machine-global and Node exposes no way to set an ACL on them,
+ * so the name is unguessable rather than protected. That is weaker. It is
+ * recorded in SECURITY.md rather than papered over.
+ */
+export const IS_WINDOWS = process.platform === 'win32';
+
+export const CONTROL_SOCKET_PATH = IS_WINDOWS
+  ? `\\\\.\\pipe\\grokrc-${createHash('sha256').update(CONFIG_DIR).digest('hex').slice(0, 16)}`
+  : join(CONFIG_DIR, 'control.sock');
 
 /** How long a CLI call waits before giving up on the daemon. */
 const CLIENT_TIMEOUT_MS = 5_000;
@@ -90,7 +109,9 @@ export class ControlServer {
 
   async listen(): Promise<void> {
     await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
-    await this.#clearStaleSocket();
+    // A named pipe is not a file: it has no stale remnant to clear, and it
+    // disappears with the process that created it.
+    if (!IS_WINDOWS) await this.#clearStaleSocket();
 
     const server = createServer((sock) => this.#onConnection(sock));
     this.#server = server;
@@ -105,7 +126,8 @@ export class ControlServer {
 
     // Owner-only. Do this before announcing readiness — between listen() and
     // chmod the socket carries the process umask, which may be world-writable.
-    await chmod(this.#path, 0o600);
+    // There is no path to chmod on Windows; see the note on CONTROL_SOCKET_PATH.
+    if (!IS_WINDOWS) await chmod(this.#path, 0o600);
 
     // A dead socket file makes the next daemon think one is already running.
     server.on('error', () => {

@@ -16,9 +16,10 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { SHOTS } from './harness.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SHOTS = join(ROOT, 'docs/screenshots');
+
 const ORIGIN = process.argv[2];
 const CODE = process.argv[3];
 

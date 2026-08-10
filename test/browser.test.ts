@@ -46,7 +46,11 @@ const server = new RemoteControlServer({
 const { port } = await server.listen();
 const base = `http://127.0.0.1:${port}`;
 
-const SHOTS = resolve(import.meta.dirname, '../docs/screenshots');
+// ONE definition, in tools/harness.mjs. Screenshots go to a scratch dir unless
+// GROKRC_SHOTS=1, because merely running this file used to leave modified
+// binaries in docs/screenshots/ — which failed CI's `git diff --exit-code`.
+// @ts-expect-error — harness.mjs is plain JS and outside the typecheck scope
+const { SHOTS } = await import('../tools/harness.mjs');
 
 let browser: Browser;
 let page: Page;
