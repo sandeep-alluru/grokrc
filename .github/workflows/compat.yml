@@ -26,7 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node: ['20', '22', '24']
+        # 21 included so `engines: >=20` is tested across every major it
+        # admits, not just the convenient ones.
+        node: ['20', '21', '22', '24']
     steps:
       - uses: actions/checkout@v4
 
