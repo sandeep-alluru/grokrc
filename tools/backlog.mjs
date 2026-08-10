@@ -177,9 +177,16 @@ export const ITEMS = [
     id: 10,
     section: 'C',
     effort: 'M',
-    status: 'open',
+    status: 'done',
     title: '`grokrc doctor` spawns its own probe agent instead of asking the running daemon',
-    evidence: 'VERIFIED — src/cli.ts builds its own StdioTransport',
+    evidence:
+      'VERIFIED — doctor reported "0 sent" while the daemon had delivered two; it now reports the daemon\'s live counters',
+    loop: {
+      attacked:
+        'Attacked the item as written — "doctor spawns its own probe" — and REFUTED it as the thing that matters. Removing the self-probe would break the most common case: a new user runs `grokrc doctor` BEFORE `grokrc up`, with no daemon to ask. What survived was a sharper defect underneath: doctor loads its own PushService from disk, and delivery counters (sent/failed/expired) live only in the daemon\'s memory. Measured it rather than reasoned about it — the daemon had delivered two pushes and doctor printed "0 sent, 0 failed, 0 expired". Then attacked my own first fix twice: it printed the push line TWICE (live and disk), and it sat AFTER the missing-agent early return, so a box without grok never saw the daemon report at all — which also made it untestable on CI, where the test initially failed for exactly that reason.',
+    },
+    result:
+      'doctor now asks the control socket FIRST, before even the agent check, and reports pid, address, live sessions, connected/paired devices and real delivery counters. The disk fallback runs only when no daemon answers and says so explicitly. test/doctor-daemon.test.ts drives the real CLI against a control socket reporting 41 sent — a number no disk-reading process could invent — and asserts the disk fallback did NOT run. Guard doctor-asks-the-running-daemon proven load-bearing.',
   },
   {
     id: 11,

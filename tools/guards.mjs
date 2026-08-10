@@ -55,6 +55,14 @@ export const GUARDS = [
     test: 'test/vapid-subject.test.ts',
   },
   {
+    id: 'doctor-asks-the-running-daemon',
+    why: 'push delivery counters live in the daemon and are never written to disk, so doctor reading the store reports "0 sent" no matter what was delivered — the answer a user gets when asking whether push works',
+    file: 'src/cli.ts',
+    find: '  const daemonAnswered = await reportDaemon();',
+    replace: '  const daemonAnswered = false;',
+    test: 'test/doctor-daemon.test.ts',
+  },
+  {
     id: 'term-exits-when-no-session-opened',
     why: 'an error before any session leaves the terminal client with no prompt, no way to type and no way to quit but ctrl-C — originally observed as exit 124, killed by timeout',
     file: 'src/term/client.ts',

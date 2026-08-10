@@ -268,6 +268,11 @@ async function cmdUp(flags: Flags): Promise<void> {
       connected: server.connectedDeviceIds().size,
       sessions: sessions.list().length,
       push: push.subscriberCount,
+      // Delivery counters live in memory and are never written to disk, so a
+      // second process reading push-subscriptions.json sees 0 sent forever.
+      // `doctor` reported exactly that while this daemon had delivered two.
+      pushStats: push.stats,
+      pushLastError: push.lastError,
     }),
   });
 
@@ -494,8 +499,62 @@ export function authHint(message: string): string | null {
   return '      you are not signed in to Grok — run:  grok login';
 }
 
+interface DaemonStatus {
+  pid: number;
+  host: string;
+  port: number;
+  devices: number;
+  connected: number;
+  sessions: number;
+  push: number;
+  pushStats?: { sent: number; failed: number; expired: number };
+  pushLastError?: { message: string; endpoint?: string } | null;
+}
+
+/**
+ * Report the RUNNING daemon, when there is one.
+ *
+ * `doctor` used to answer every question by itself: spawn an agent, load a
+ * PushService off disk, read the config. That is right for someone who has not
+ * started anything yet, and wrong for everyone else — delivery counters live in
+ * the daemon's memory, so a second process reads 0 sent no matter how many
+ * pushes went out. It reported "0 sent" while the daemon had delivered two.
+ */
+async function reportDaemon(): Promise<boolean> {
+  let s: DaemonStatus;
+  try {
+    s = await controlRequest<DaemonStatus>('status');
+  } catch {
+    return false; // no daemon — the caller falls back to probing directly
+  }
+  console.log(`  ✓ daemon running (pid ${s.pid}) on ${s.host}:${s.port}`);
+  console.log(
+    `    ${s.sessions} live session(s) · ${s.connected}/${s.devices} device(s) connected`
+  );
+  const st = s.pushStats;
+  console.log(
+    `  · push: ${s.push} subscriber(s)` +
+      (st ? `, ${st.sent} sent, ${st.failed} failed, ${st.expired} expired` : '')
+  );
+  if (s.pushLastError) {
+    console.log(`    last failure: ${s.pushLastError.message}`);
+    if (s.pushLastError.endpoint) console.log(`    endpoint: ${s.pushLastError.endpoint}`);
+  }
+  if (s.push === 0) {
+    console.log('    no devices subscribed — open the app and tap the notification row');
+  }
+  return true;
+}
+
 async function cmdDoctor(): Promise<void> {
   console.log('');
+  // Before anything else, and before the missing-agent early return: a daemon
+  // may be running regardless — started when the agent was installed, or on a
+  // box where PATH differs — and "is my daemon up?" is a fair question with no
+  // agent present. It is also the only part of doctor that can run on a machine
+  // without one, which is where this was previously untestable.
+  const daemonAnswered = await reportDaemon();
+
   const grokVersion = await findGrok();
   if (!grokVersion) {
     console.log(GROK_MISSING);
@@ -527,19 +586,18 @@ async function cmdDoctor(): Promise<void> {
     // Push is the feature most likely to be quietly broken — it depends on
     // HTTPS, a service worker, and a third-party push service, none of which
     // report back on their own.
-    const pushSvc = new PushService();
-    await pushSvc.load();
-    const st = pushSvc.stats;
-    console.log(
-      `  · push: ${pushSvc.subscriberCount} subscriber(s), ` +
-        `${st.sent} sent, ${st.failed} failed, ${st.expired} expired`
-    );
-    if (pushSvc.lastError) {
-      console.log(`    last failure: ${pushSvc.lastError.message}`);
-      console.log(`    endpoint: ${pushSvc.lastError.endpoint}`);
-    }
-    if (pushSvc.subscriberCount === 0) {
-      console.log('    (no devices subscribed — open the app over HTTPS and allow notifications)');
+    //
+    // Only reached when NO daemon is running: with one, reportDaemon() has
+    // already printed its live counters. Reading the store here would show
+    // 0 sent regardless of what was delivered, because delivery counters are
+    // never written to disk.
+    if (!daemonAnswered) {
+      const pushSvc = new PushService();
+      await pushSvc.load();
+      console.log(
+        `  · push: ${pushSvc.subscriberCount} subscriber(s) on disk ` +
+          '(delivery counts live in the daemon — start it and re-run for those)'
+      );
     }
 
     const posture = await checkPermissionPosture();

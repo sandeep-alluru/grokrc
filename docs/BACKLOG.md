@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**12 of 21 closed.** Generated from `tools/backlog.mjs` —
+**13 of 21 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -85,13 +85,19 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
 
-## C · Product gaps  —  0/3 closed
+## C · Product gaps  —  1/3 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| 10 | `grokrc doctor` spawns its own probe agent instead of asking the running daemon | `open` | VERIFIED — src/cli.ts builds its own StdioTransport |
+| 10 | `grokrc doctor` spawns its own probe agent instead of asking the running daemon | `done` | VERIFIED — doctor reported "0 sent" while the daemon had delivered two; it now reports the daemon's live counters |
 | 11 | `grokrc config set` requires a daemon restart to take effect | `open` | VERIFIED — src/cli.ts prints "restart to apply" |
 | 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
+
+### 10 · `grokrc doctor` spawns its own probe agent instead of asking the running daemon
+
+**Reanalyse — attacked.** Attacked the item as written — "doctor spawns its own probe" — and REFUTED it as the thing that matters. Removing the self-probe would break the most common case: a new user runs `grokrc doctor` BEFORE `grokrc up`, with no daemon to ask. What survived was a sharper defect underneath: doctor loads its own PushService from disk, and delivery counters (sent/failed/expired) live only in the daemon's memory. Measured it rather than reasoned about it — the daemon had delivered two pushes and doctor printed "0 sent, 0 failed, 0 expired". Then attacked my own first fix twice: it printed the push line TWICE (live and disk), and it sat AFTER the missing-agent early return, so a box without grok never saw the daemon report at all — which also made it untestable on CI, where the test initially failed for exactly that reason.
+
+**Result.** doctor now asks the control socket FIRST, before even the agent check, and reports pid, address, live sessions, connected/paired devices and real delivery counters. The disk fallback runs only when no daemon answers and says so explicitly. test/doctor-daemon.test.ts drives the real CLI against a control socket reporting 41 sent — a number no disk-reading process could invent — and asserts the disk fallback did NOT run. Guard doctor-asks-the-running-daemon proven load-bearing.
 
 ## D · Housekeeping  —  2/3 closed
 
@@ -132,13 +138,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 9
+## Still open — 8
 
 - **#3** Mock debt: 13 of 32 test files reference a mock/stub/fake
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
 - **#9** Multi-file diff rendering and very long tool output unverified
-- **#10** `grokrc doctor` spawns its own probe agent instead of asking the running daemon
 - **#11** `grokrc config set` requires a daemon restart to take effect
 - **#12** Android home-screen / notification docs are thin
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
