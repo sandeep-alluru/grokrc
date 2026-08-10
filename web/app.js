@@ -15,6 +15,15 @@
  */
 const ASSET_VERSION = new URL(import.meta.url).searchParams.get('v') ?? 'dev';
 
+/** Tell the daemon where we got to, so a crash leaves a trail. */
+function trace(step, detail) {
+  try {
+    sendMsg({ t: 'trace', step, detail: detail === undefined ? undefined : String(detail) });
+  } catch {
+    /* never let instrumentation break the app */
+  }
+}
+
 const $ = (id) => document.getElementById(id);
 const TOKEN_KEY = 'grokrc.token';
 const RELAY_KEY = 'grokrc.relay';
@@ -227,6 +236,7 @@ function connect() {
     state.backoff = 500;
     setConn('live');
     sendMsg({ t: 'hello', token: state.token, assetVersion: ASSET_VERSION });
+    trace('socket-open', `${navigator.userAgent.slice(0, 40)} | url=${location.search || '/'}`);
   });
 
   // Frames arrive sealed in relay mode. Serialize decryption so events cannot
@@ -331,7 +341,9 @@ function handle(msg) {
       el.vSession.querySelector('[data-resume]')?.remove();
       break;
     case 'history':
+      trace('history-received', `${msg.events?.length ?? 0} events`);
       renderTranscript(msg.events);
+      trace('history-rendered', `${document.querySelectorAll('#v-session *').length} nodes`);
       break;
     case 'event':
       if (!state.current || msg.event.sessionId !== state.current.id) {
@@ -456,6 +468,7 @@ el.back.addEventListener('click', () => {
 });
 
 function openSession(s) {
+  trace('open-session', `${s.id.slice(0, 13)} mode=${s.mode}`);
   state.current = s;
   // The daemon knows whether this session is mid-turn; the transcript does not.
   setBusy(s.state === 'working' || s.state === 'thinking');

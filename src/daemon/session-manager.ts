@@ -186,6 +186,8 @@ interface LiveSession {
 interface ObservedSession {
   info: SessionInfo;
   observer: SessionObserver;
+  /** True until the observer has replayed the existing file. */
+  catchingUp: boolean;
   log: RcEvent[];
   /** Chunk run being accumulated — mirrors LiveSession.stream. */
   stream: { kind: 'text' | 'thinking'; text: string } | null;
@@ -293,6 +295,9 @@ export class SessionManager extends EventEmitter {
     }
     const now = Date.now();
     const obs: ObservedSession = {
+      // Replayed history must not be broadcast as if it were live — see the
+      // emit guard below. Cleared when the observer reaches the file's tail.
+      catchingUp: true,
       info: {
         id,
         cwd,
@@ -360,7 +365,10 @@ export class SessionManager extends EventEmitter {
 
     // Reaching the end of the log flushes whatever was still streaming —
     // otherwise a log ending mid-message loses that message entirely.
-    obs.observer.on('idle', flushObserved);
+    obs.observer.on('idle', () => {
+      obs.catchingUp = false; // caught up: events are real-time now
+      flushObserved();
+    });
 
     obs.observer.on('error', (err) => {
       this.#pushObserved(obs, { k: 'error', sessionId: id, message: err.message, fatal: false });
@@ -387,7 +395,14 @@ export class SessionManager extends EventEmitter {
     if (obs.log.length > EVENT_LOG_LIMIT) obs.log.splice(0, obs.log.length - EVENT_LOG_LIMIT);
     if (ev.k === 'status') obs.info.state = ev.state;
     obs.info.updatedAt = Date.now();
-    this.emit('event', ev);
+    // Do NOT broadcast the initial catch-up. Starting an observer replays
+    // the whole of updates.jsonl; emitting each replayed line as a live
+    // event pushed ~1518 frames (~10 MB) at a phone BEFORE the trimmed
+    // history frame was sent, and killed the page. The breadcrumbs stop
+    // between `open-session` and `history-received` — exactly this window.
+    // Nothing is lost: replayed events are already in obs.log, and the
+    // history frame carries the trimmed tail.
+    if (!obs.catchingUp) this.emit('event', ev);
   }
 
   /* ─── lifecycle ───────────────────────────────────────────────────────── */

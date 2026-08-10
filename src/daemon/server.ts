@@ -41,6 +41,7 @@ type ClientMsg =
   | { t: 'resume'; sessionId: string; cwd: string }
   | { t: 'takeover'; sessionId: string; cwd: string }
   | { t: 'release'; sessionId: string }
+  | { t: 'trace'; step: string; detail?: string }
   | { t: 'create'; cwd?: string; model?: string; title?: string }
   | { t: 'prompt'; sessionId: string; text: string }
   | { t: 'approve'; sessionId: string; requestId: string; optionId: string | null }
@@ -720,6 +721,18 @@ export class RemoteControlServer {
           return;
         }
 
+        // A crashing phone cannot report its own stack. These breadcrumbs land
+        // in the daemon's journal BEFORE the step that might kill the page, so
+        // the last one logged names what it died doing. The alternative is
+        // guessing from payload sizes, which is how a fix got shipped for a
+        // cause that was never observed.
+        case 'trace':
+          console.log(
+            `  [client ${client.device?.id?.slice(0, 8) ?? '?'}] ${msg.step}` +
+              (msg.detail ? ` — ${msg.detail}` : '')
+          );
+          return;
+
         case 'create': {
           const info = await sessions.create(msg.cwd ?? this.#opts.defaultCwd ?? process.cwd(), {
             model: msg.model,
@@ -884,6 +897,8 @@ function validateShape(msg: Record<string, unknown>): string | null {
       }
       return null;
     }
+    case 'trace':
+      return str('step') ?? str('detail', false);
     case 'cancel':
     case 'close':
       return str('sessionId');

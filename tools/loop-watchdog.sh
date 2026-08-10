@@ -62,11 +62,12 @@ if [ -f "$DIST" ]; then
   started=$(date -d "$(systemctl --user show grokrc -p ActiveEnterTimestamp --value)" +%s 2>/dev/null || echo 0)
   built=$(stat -c %Y "$DIST" 2>/dev/null || echo 0)
   if [ "$built" -gt "$started" ] && [ "$started" -gt 0 ]; then
-    log "STALE: dist/ is $((built - started))s newer than the running daemon — restarting to load it"
-    systemctl --user restart "$UNIT" 2>/dev/null
-    sleep 5
-    curl -fsS --max-time 10 "$URL" 2>/dev/null | grep -q '"ok":true' \
-      && log "reloaded the current build" || log "restart after stale build FAILED"
+    # REPORT, do not restart. An unprompted restart drops live sessions and
+    # WIPES the pending pairing code, which lives only in memory — the owner hit
+    # exactly that: a code issued, the watchdog restarted the daemon seconds
+    # later, and the phone was told "expired". A watchdog that interrupts the
+    # work it is guarding is worse than one that stays quiet.
+    log "STALE: dist/ is $((built - started))s newer than the running daemon — restart when convenient"
   fi
 fi
 
