@@ -234,6 +234,21 @@ export const ITEMS = [
       'The watchdog now compares dist/daemon/server.js mtime against the daemon start time and restarts when the build is newer. Proven: touch dist -> run watchdog -> pid 1617626 becomes 1617847, logged as "reloaded the current build". After the reload the crash fix measured 4.5 MB -> 0.50 MB, 2000 -> 301 events, 1,624,434 -> 218,000 characters rendered.',
   },
   {
+    id: 25,
+    section: 'C',
+    effort: 'S',
+    status: 'done',
+    title: 'Issuing a pairing code destroyed the one being typed',
+    evidence:
+      'VERIFIED — auth.ts held ONE pending slot; beginPairing() overwrote it. 29 half-finished device pairings accumulated while the owner was told "invalid"',
+    loop: {
+      attacked:
+        'Blamed the daemon, then the network, then the owner\'s phone — in that order, and all three were REFUTED by measurement: a code redeemed over the tailnet URL returned HTTP 200 with a real token, one daemon was listening, and tailscale proxied straight to it. The device list then showed pairings SUCCEEDING repeatedly (21 -> 29), which killed the "pairing is broken" framing entirely. Two separate causes were hiding behind one symptom: a single pending slot, so every code I helpfully issued killed the one being typed; and the phone running a CACHED bundle I had shipped and withdrawn, which paired fine and then could not reach the session list. The daemon logs named the second one outright — "stale client: device 27d3 is running bf983bb526b4, current is c59cc9bb52f1".',
+    },
+    result:
+      'Up to 8 codes can be outstanding at once, each with its own expiry, each still single use, oldest evicted first. Redemption compares against every candidate in constant time so a match does not depend on issue order. Guard pairing-codes-do-not-cancel-each-other proven load-bearing: restoring the single-slot behaviour fails test/pairing-codes.test.ts.',
+  },
+  {
     id: 11,
     section: 'C',
     effort: 'M',

@@ -22,6 +22,8 @@ const PAIRING_TTL_MS = 5 * 60_000;
 /** Unambiguous alphabet — no 0/O, 1/I/L — because these get typed on a phone. */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
+/** Outstanding codes allowed at once — enough for a retry, bounded against abuse. */
+const MAX_PENDING_CODES = 8;
 
 export interface Device {
   id: string;
@@ -54,7 +56,8 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 export class AuthStore {
   #devices: Device[] = [];
-  #pending: PendingPairing | null = null;
+  /** code -> expiry. Several can be outstanding at once. */
+  #pending = new Map<string, number>();
   #loaded = false;
 
   async load(): Promise<void> {
@@ -79,18 +82,44 @@ export class AuthStore {
     return this.#devices;
   }
 
-  /** Start a pairing window. Replaces any previous unredeemed code. */
+  /**
+   * Start a pairing window.
+   *
+   * Several codes may be outstanding at once. A single slot looked tidy and was
+   * actively harmful: issuing a second code silently killed the first, so the
+   * common sequence — hand over a code, be told "invalid", helpfully issue
+   * another — destroyed the code being typed and produced the very error it was
+   * answering. That loop cost the owner an hour.
+   *
+   * Each code still expires on its own timer and is still single use.
+   */
   beginPairing(): { code: string; expiresAt: number } {
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) {
       code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
     }
-    this.#pending = { code, expiresAt: Date.now() + PAIRING_TTL_MS };
-    return { ...this.#pending };
+    const expiresAt = Date.now() + PAIRING_TTL_MS;
+    this.#prunePending();
+    // Bounded so a script cannot grow this without limit; oldest goes first.
+    while (this.#pending.size >= MAX_PENDING_CODES) {
+      const oldest = this.#pending.keys().next().value;
+      if (oldest === undefined) break;
+      this.#pending.delete(oldest);
+    }
+    this.#pending.set(code, expiresAt);
+    return { code, expiresAt };
+  }
+
+  #prunePending(): void {
+    const now = Date.now();
+    for (const [code, expiresAt] of this.#pending) {
+      if (expiresAt <= now) this.#pending.delete(code);
+    }
   }
 
   get pairingActive(): boolean {
-    return !!this.#pending && this.#pending.expiresAt > Date.now();
+    this.#prunePending();
+    return this.#pending.size > 0;
   }
 
   /**
@@ -101,14 +130,18 @@ export class AuthStore {
     code: string,
     deviceName: string
   ): Promise<{ token: string; device: Device } | null> {
-    if (!this.#pending) return null;
-    if (this.#pending.expiresAt <= Date.now()) {
-      this.#pending = null;
-      return null;
-    }
-    if (!constantTimeEqual(code.trim().toUpperCase(), this.#pending.code)) return null;
+    this.#prunePending();
+    const given = code.trim().toUpperCase();
 
-    this.#pending = null; // single use, even on a successful redeem
+    // Compare against every outstanding code, in constant time per candidate,
+    // so a match does not depend on which one was issued most recently.
+    let matched: string | null = null;
+    for (const candidate of this.#pending.keys()) {
+      if (constantTimeEqual(given, candidate)) matched = candidate;
+    }
+    if (!matched) return null;
+
+    this.#pending.delete(matched); // single use, even on a successful redeem
     const token = randomBytes(32).toString('hex');
     const device: Device = {
       id: randomBytes(8).toString('hex'),

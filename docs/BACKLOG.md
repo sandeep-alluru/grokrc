@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**16 of 24 closed.** Generated from `tools/backlog.mjs` —
+**17 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -99,12 +99,13 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
 
-## C · Product gaps  —  2/4 closed
+## C · Product gaps  —  3/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 10 | `grokrc doctor` spawns its own probe agent instead of asking the running daemon | `done` | VERIFIED — doctor reported "0 sent" while the daemon had delivered two; it now reports the daemon's live counters |
 | 22 | Opening a long session crashed the phone — "A problem repeatedly occurred" | `done` | VERIFIED — the owner's x.com session is 1518 events / 9.97 MB; a real browser received 4.5 MB and rendered 1.6 million characters |
+| 25 | Issuing a pairing code destroyed the one being typed | `done` | VERIFIED — auth.ts held ONE pending slot; beginPairing() overwrote it. 29 half-finished device pairings accumulated while the owner was told "invalid" |
 | 11 | `grokrc config set` requires a daemon restart to take effect | `open` | VERIFIED — src/cli.ts prints "restart to apply" |
 | 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
 
@@ -119,6 +120,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** The reported symptom was "clicking a notification crashes the page", so the notification path was the obvious suspect. Measured instead of assumed: the screenshot URL was /?session=..., the COLD-LAUNCH openWindow path — and grep shows app.js never reads that query param, so the deep link is dead code and could not be the crash. What survived was size: historyLimit caps how many SESSIONS are listed and NOTHING capped the events sent for one. Then attacked my own first fix — a per-event cap on `.text` — which changed the measured payload by EXACTLY NOTHING, because the bulk lives in tool_call_update at content[].newText, rawOutput and _meta.details. Only walking the whole event moved the number.
 
 **Result.** Two caps in server.ts: the last 300 events, with a marker naming how many were dropped, and a 4000-character ceiling on any string anywhere in an event. Measured on the real transcript: 9.97 MB -> 2.16 MB -> 1.65 MB, a 6x reduction; in a real browser 4.5 MB -> 0.7 MB, DOM nodes 1446 -> 242.
+
+### 25 · Issuing a pairing code destroyed the one being typed
+
+**Reanalyse — attacked.** Blamed the daemon, then the network, then the owner's phone — in that order, and all three were REFUTED by measurement: a code redeemed over the tailnet URL returned HTTP 200 with a real token, one daemon was listening, and tailscale proxied straight to it. The device list then showed pairings SUCCEEDING repeatedly (21 -> 29), which killed the "pairing is broken" framing entirely. Two separate causes were hiding behind one symptom: a single pending slot, so every code I helpfully issued killed the one being typed; and the phone running a CACHED bundle I had shipped and withdrawn, which paired fine and then could not reach the session list. The daemon logs named the second one outright — "stale client: device 27d3 is running bf983bb526b4, current is c59cc9bb52f1".
+
+**Result.** Up to 8 codes can be outstanding at once, each with its own expiry, each still single use, oldest evicted first. Redemption compares against every candidate in constant time so a match does not depend on issue order. Guard pairing-codes-do-not-cancel-each-other proven load-bearing: restoring the single-slot behaviour fails test/pairing-codes.test.ts.
 
 ## D · Housekeeping  —  2/3 closed
 

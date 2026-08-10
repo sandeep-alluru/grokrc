@@ -55,6 +55,14 @@ export const GUARDS = [
     test: 'test/vapid-subject.test.ts',
   },
   {
+    id: 'pairing-codes-do-not-cancel-each-other',
+    why: 'a single pending slot meant issuing a code destroyed the one being typed — hand over a code, hear "invalid", issue another, and the next attempt fails for that reason. It cost the owner an hour and 29 half-finished pairings',
+    file: 'src/daemon/auth.ts',
+    find: '    this.#pending.set(code, expiresAt);',
+    replace: '    this.#pending.clear();\n    this.#pending.set(code, expiresAt);',
+    test: 'test/pairing-codes.test.ts',
+  },
+  {
     id: 'doctor-asks-the-running-daemon',
     why: 'push delivery counters live in the daemon and are never written to disk, so doctor reading the store reports "0 sent" no matter what was delivered — the answer a user gets when asking whether push works',
     file: 'src/cli.ts',
