@@ -332,10 +332,16 @@ export const ITEMS = [
     id: 16,
     section: 'E',
     effort: 'M',
-    status: 'open',
+    status: 'done',
     title: 'A malicious relay can serve modified JavaScript',
     evidence:
-      'VERIFIED — the relay serves the PWA (src/relay/server.ts). Installing the client from the daemon’s origin removes the attack',
+      'VERIFIED — src/relay/server.ts served the PWA from its own root, so the operator supplied the very code that decrypts. End-to-end encryption does not touch this: the key is in the URL fragment and never reaches the relay, but the page’s JavaScript is what uses it.',
+    loop: {
+      attacked:
+        'The item proposed "install the client from the daemon’s origin" as the fix, and I attacked that before building it. It cannot be the default: relay mode exists precisely for the case where NOTHING of the daemon is reachable, so telling the phone to load from the daemon origin breaks the scenario the relay is for. I also considered Subresource Integrity and rejected it on evidence — the same relay serves index.html, so it can drop the integrity attribute, and more fundamentally attacker-supplied code cannot verify itself; any in-page check is written by the attacker. What SURVIVED is narrower and actually implementable: a relay must be able to refuse to be the source of code at all. The remaining question was whether refusing breaks the transport, so that is the last and most load-bearing test in the file — if turning it on cost you the relay, nobody would turn it on.',
+    },
+    result:
+      '`grokrc relay --no-client` runs a relay as pure transport: it moves frames it cannot read and serves no JavaScript, refusing with a message that names the fix rather than a bare 404 that reads as a broken relay. Default behaviour is unchanged, and startup now states plainly which mode it is in. test/relay-transport-only.test.ts covers four cases including that /health and the agent socket still work with the client refused; guard relay-can-refuse-to-serve-the-client proven load-bearing. SECURITY.md now spells the limit out instead of burying it, says explicitly that using someone else’s relay means trusting their JavaScript, and records the install-from-daemon-origin path as UNTESTED — it should follow from service-worker caching and WebSocket cross-origin rules, but nobody has run it and reasoning is not measurement. Suite 232/232 with an agent, 229 pass 0 fail without one.',
   },
   {
     id: 17,

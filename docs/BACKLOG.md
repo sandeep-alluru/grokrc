@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**21 of 25 closed.** Generated from `tools/backlog.mjs` —
+**22 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -171,14 +171,20 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** 4 groups removed (grokrc-pkgtest-DXc5, grokrc-leadertest-gkXRVV, grokrc-leadertest-Y6ANl9, grokrc-public-uNy4). Session count stable at 15 across a subsequent full run.
 
-## E · Reviewed after challenge  —  3/4 closed
+## E · Reviewed after challenge  —  4/4 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| 16 | A malicious relay can serve modified JavaScript | `open` | VERIFIED — the relay serves the PWA (src/relay/server.ts). Installing the client from the daemon’s origin removes the attack |
+| 16 | A malicious relay can serve modified JavaScript | `done` | VERIFIED — src/relay/server.ts served the PWA from its own root, so the operator supplied the very code that decrypts. End-to-end encryption does not touch this: the key is in the URL fragment and never reaches the relay, but the page’s JavaScript is what uses it. |
 | 17 | A relay sees routing metadata — sizes, timing, endpoints | `accepted` | Inherent: a relay cannot route what it cannot see. Sizes could be padded; routes and timing cannot be hidden without cover traffic |
 | 18 | Observed mode is read-only while mirroring | `not-a-limitation` | Correct architecture — no ACP channel to an agent the daemon did not spawn. Take over closes it and is verified on a real TUI |
 | 19 | A turn killed mid-flight may lose its tail; recovery on resume is unverified | `done` | UNVERIFIED — no test covers it, and Take over kills the agent mid-turn BY DESIGN, so this is on the main path |
+
+### 16 · A malicious relay can serve modified JavaScript
+
+**Reanalyse — attacked.** The item proposed "install the client from the daemon’s origin" as the fix, and I attacked that before building it. It cannot be the default: relay mode exists precisely for the case where NOTHING of the daemon is reachable, so telling the phone to load from the daemon origin breaks the scenario the relay is for. I also considered Subresource Integrity and rejected it on evidence — the same relay serves index.html, so it can drop the integrity attribute, and more fundamentally attacker-supplied code cannot verify itself; any in-page check is written by the attacker. What SURVIVED is narrower and actually implementable: a relay must be able to refuse to be the source of code at all. The remaining question was whether refusing breaks the transport, so that is the last and most load-bearing test in the file — if turning it on cost you the relay, nobody would turn it on.
+
+**Result.** `grokrc relay --no-client` runs a relay as pure transport: it moves frames it cannot read and serves no JavaScript, refusing with a message that names the fix rather than a bare 404 that reads as a broken relay. Default behaviour is unchanged, and startup now states plainly which mode it is in. test/relay-transport-only.test.ts covers four cases including that /health and the agent socket still work with the client refused; guard relay-can-refuse-to-serve-the-client proven load-bearing. SECURITY.md now spells the limit out instead of burying it, says explicitly that using someone else’s relay means trusting their JavaScript, and records the install-from-daemon-origin path as UNTESTED — it should follow from service-worker caching and WebSocket cross-origin rules, but nobody has run it and reasoning is not measurement. Suite 232/232 with an agent, 229 pass 0 fail without one.
 
 ### 19 · A turn killed mid-flight may lose its tail; recovery on resume is unverified
 
@@ -190,9 +196,8 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 4
+## Still open — 3
 
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
-- **#16** A malicious relay can serve modified JavaScript

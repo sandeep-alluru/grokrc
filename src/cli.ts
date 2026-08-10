@@ -679,10 +679,19 @@ async function main(): Promise<void> {
       return cmdDoctor();
     case 'relay': {
       const { RelayServer } = await import('./relay/server.ts');
-      const relay = new RelayServer();
+      // A relay that serves the client can replace it. Anyone running a relay
+      // for other people should pass --no-client; see docs/SECURITY.
+      const serveClient = flags['no-client'] !== true;
+      const relay = new RelayServer({ serveClient });
       const p = await relay.listen(Number(flags.port ?? 8080));
       console.log(`\n  grokrc relay listening on :${p}`);
-      console.log('  point a daemon at it with: grokrc up --relay ws://<host>:' + p + '\n');
+      console.log('  point a daemon at it with: grokrc up --relay ws://<host>:' + p);
+      console.log(
+        serveClient
+          ? '  serving the PWA — anyone trusting this relay is trusting its JavaScript.\n' +
+              '  running it for someone else? use --no-client\n'
+          : '  transport only — no client served. Install the app from the daemon’s own URL.\n'
+      );
       return;
     }
     default:

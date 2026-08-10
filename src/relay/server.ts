@@ -102,8 +102,27 @@ export class RelayServer {
   #wss = new WebSocketServer({ noServer: true });
   #nextClientId = 1;
 
-  constructor(opts: { webRoot?: string; onFrame?: (raw: string) => void } = {}) {
+  /**
+   * Serve the PWA, or refuse to.
+   *
+   * A relay that ships the client owns the session, whatever the transport does
+   * about it: the page's JavaScript is what decrypts, so an operator who serves
+   * modified code reads everything before encryption ever applies. No in-page
+   * integrity check can help — code supplied by the attacker cannot verify
+   * itself, and the relay serves index.html too, so it can simply drop an SRI
+   * attribute.
+   *
+   * The only real answer is not to take your code from the party you do not
+   * trust. `serveClient: false` makes a relay pure transport: it moves frames it
+   * cannot read and hands out no JavaScript at all.
+   */
+  #serveClient: boolean;
+
+  constructor(
+    opts: { webRoot?: string; serveClient?: boolean; onFrame?: (raw: string) => void } = {}
+  ) {
     this.#webRoot = opts.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web');
+    this.#serveClient = opts.serveClient ?? true;
     // Observation hook: sees exactly what the relay sees. Used by the
     // end-to-end encryption test to prove the relay never handles plaintext —
     // a claim that has to be mechanically checked, not asserted in prose.
@@ -150,6 +169,15 @@ export class RelayServer {
     // Tunnel /api/* to the daemon so pairing and push work through the relay.
     if (url.pathname.startsWith('/api/')) {
       return this.#proxyApi(req, res, url);
+    }
+
+    if (!this.#serveClient) {
+      // Say WHY, and name the fix. A bare 404 here looks like a broken relay and
+      // sends the user hunting for the wrong problem.
+      return json(res, 404, {
+        error: 'this relay is transport-only and does not serve the client',
+        install: 'open the daemon’s own URL once (Tailscale or LAN) and install the app from there',
+      });
     }
 
     const rel = url.pathname === '/' || url.pathname === '/client' ? '/index.html' : url.pathname;

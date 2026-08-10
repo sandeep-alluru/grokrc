@@ -219,6 +219,14 @@ export const GUARDS = [
     test: 'test/browser.test.ts',
   },
   {
+    id: 'relay-can-refuse-to-serve-the-client',
+    why: 'a relay that serves the PWA owns the session — the page’s JavaScript is what decrypts, so a modified client reads everything before encryption applies. No in-page integrity check helps: attacker-supplied code cannot verify itself, and the relay serves index.html too.',
+    file: 'src/relay/server.ts',
+    find: '    if (!this.#serveClient) {',
+    replace: '    if (false) {',
+    test: 'test/relay-transport-only.test.ts',
+  },
+  {
     id: 'live-events-are-capped',
     why: 'trimEvent was wired into history only. A live tool_call_update carrying a whole file went to the phone whole — the crash the owner hit happened while READING a session, not opening one.',
     file: 'src/daemon/server.ts',

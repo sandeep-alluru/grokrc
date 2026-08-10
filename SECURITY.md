@@ -66,6 +66,31 @@ Pre-1.0. Only the current `main` receives fixes. There are no backports.
   phone, run `grokrc revoke <id>` — or `grokrc revoke --all`.
 - **A malicious relay denying service.** A relay cannot read or forge your traffic, but
   it can drop it. Run your own if that matters.
+- **A relay that also serves you the client.** This is the sharpest limit here, so it is
+  spelled out rather than buried. End-to-end encryption protects the payload — the key
+  lives in the URL fragment, which browsers never transmit — but *the page's JavaScript
+  is what decrypts*. A relay that serves the PWA can serve a modified one and read
+  everything before encryption is ever applied.
+
+  Subresource Integrity does not save you: the same relay serves `index.html`, so it can
+  drop the `integrity` attribute, and code supplied by an attacker cannot meaningfully
+  verify itself. **The only sound answer is to not take your code from a party you do
+  not trust.**
+
+  - Running a relay **for other people**: start it with `grokrc relay --no-client`. It
+    becomes pure transport — it moves frames it cannot read and serves no JavaScript at
+    all. Verified by `test/relay-transport-only.test.ts`, including that the transport
+    keeps working when the client is refused.
+  - Using **someone else's** relay: you are trusting their JavaScript. Treat that as
+    equivalent to trusting them with the session.
+  - Using **your own** relay on a host you control: this risk is yours to hold, and
+    serving the client from it is reasonable.
+
+  A path that would remove the risk entirely — install the PWA once from the daemon's
+  own origin over Tailscale, then let the installed app talk to the relay — is
+  **untested**. It should follow from how service workers cache and from WebSocket's
+  cross-origin rules, but nobody here has run it, and reasoning is not measurement.
+  Tracked as backlog #16.
 - **Prompt injection into the agent.** If Grok reads a hostile file and decides to run
   something, grokrc faithfully relays the approval request. **Approvals are your
   control** — see below.
