@@ -25,6 +25,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const CLI = resolve(import.meta.dirname, '../src/cli.ts');
+const { authHint } = await import('../src/cli.ts');
 
 /** A PATH with no `grok` on it, and a HOME with no credentials. */
 async function runBare(
@@ -108,4 +109,27 @@ test('`config` surfaces the one setting with no default', async () => {
   // an agent that can modify files. That has to be visible, not silent.
   const { out } = await runBare(['config']);
   assert.match(out, /defaultCwd/i, `config must mention the required setting:\n${out}`);
+});
+
+test('an auth failure is turned into a command, on any machine', () => {
+  // Pure, so it runs where no agent is installed — the environment in which the
+  // previous test silently skipped and let the guard pass without its control.
+  for (const raw of [
+    'session/new: Authentication required (-32000)',
+    'Unauthorized',
+    'not logged in',
+    'AUTH failed',
+  ]) {
+    const hint = authHint(raw);
+    assert.ok(hint, `no hint for: ${raw}`);
+    assert.match(hint!, /grok login/, 'the hint must name the command that fixes it');
+  }
+});
+
+test('unrelated errors get no login hint', () => {
+  // Over-correcting would tell a user to log in when the real problem is a
+  // missing directory, which is worse than saying nothing.
+  for (const raw of ['working directory no longer exists: /tmp/x', 'spawn grok ENOENT']) {
+    assert.equal(authHint(raw), null, `unexpected hint for: ${raw}`);
+  }
 });

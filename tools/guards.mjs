@@ -76,8 +76,12 @@ export const GUARDS = [
     id: 'doctor-names-the-login-command',
     why: "a logged-out user got the agent's raw 'Authentication required (-32000)', which names no command",
     file: 'src/cli.ts',
-    find: '    if (/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) {',
-    replace: '    if (false) {',
+    // Anchored on the PURE function, so the guard is provable on a machine with
+    // no agent. The previous anchor sat in cmdDoctor, whose only test skipped
+    // itself without grok — and a skipped test counts as a pass, so the guard
+    // reported "passes without the control" on every CI run.
+    find: '  if (!/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) return null;',
+    replace: '  if (true) return null;',
     test: 'test/onboarding.test.ts',
   },
   {

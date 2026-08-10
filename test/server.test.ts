@@ -5,6 +5,7 @@
  * `grokrc doctor` and tools/acp-probe.mjs against the real binary.
  */
 import { strict as assert } from 'node:assert';
+import { watch } from './helpers/ws.ts';
 import { test, after } from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -42,16 +43,6 @@ function ws(): Promise<InstanceType<typeof WebSocket>> {
   return new Promise((res, rej) => {
     sock.once('open', () => res(sock));
     sock.once('error', rej);
-  });
-}
-
-function next(sock: InstanceType<typeof WebSocket>, timeoutMs = 5000): Promise<any> {
-  return new Promise((res, rej) => {
-    const timer = setTimeout(() => rej(new Error('timed out waiting for message')), timeoutMs);
-    sock.once('message', (d) => {
-      clearTimeout(timer);
-      res(JSON.parse(d.toString()));
-    });
   });
 }
 
@@ -120,8 +111,9 @@ test('plaintext tokens are never persisted', async () => {
 
 test('socket rejects an invalid token and closes 4401', async () => {
   const sock = await ws();
+  const frames = watch<any>(sock);
   sock.send(JSON.stringify({ t: 'hello', token: 'deadbeef' }));
-  const msg = await next(sock);
+  const msg = await frames.waitFor(() => true);
   assert.equal(msg.t, 'error');
   const code = await new Promise<number>((res) => sock.once('close', (c) => res(c)));
   assert.equal(code, 4401);
@@ -129,8 +121,9 @@ test('socket rejects an invalid token and closes 4401', async () => {
 
 test('commands before hello are refused', async () => {
   const sock = await ws();
+  const frames = watch<any>(sock);
   sock.send(JSON.stringify({ t: 'sessions' }));
-  const msg = await next(sock);
+  const msg = await frames.waitFor(() => true);
   assert.equal(msg.t, 'error');
   assert.match(msg.message, /unauthorized/);
   sock.close();
@@ -148,13 +141,12 @@ test('prompting a session that does not exist reports an error', async () => {
   const { token } = await res.json();
 
   const sock = await ws();
+  const frames = watch<any>(sock);
   sock.send(JSON.stringify({ t: 'hello', token }));
-  await next(sock); // ready
-  await next(sock); // sessions
+  await frames.forType('ready');
 
   sock.send(JSON.stringify({ t: 'prompt', sessionId: 'does-not-exist', text: 'hi' }));
-  const msg = await next(sock);
-  assert.equal(msg.t, 'error');
+  const msg = await frames.forType('error');
   assert.match(msg.message, /no such session/);
   sock.close();
 });
@@ -169,14 +161,16 @@ test('a paired device gets ready then the session list', async () => {
   const { token } = await res.json();
 
   const sock = await ws();
+  const frames = watch<any>(sock);
   sock.send(JSON.stringify({ t: 'hello', token }));
 
-  const ready = await next(sock);
-  assert.equal(ready.t, 'ready');
+  const ready = await frames.forType('ready');
   assert.equal(ready.device.name, 'e2e');
 
-  const list = await next(sock);
-  assert.equal(list.t, 'sessions');
+  // `sessions` is also BROADCAST on any list change, so it may already have
+  // arrived, or may follow. Match on it rather than assuming it is next.
+  const list = await frames.forType('sessions');
+  assert.ok(Array.isArray(list.sessions));
   assert.ok(Array.isArray(list.sessions));
   sock.close();
 });

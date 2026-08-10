@@ -6,6 +6,7 @@
  * more than direct ones — arriving via the relay must not bypass token auth.
  */
 import { strict as assert } from 'node:assert';
+import { watch } from './helpers/ws.ts';
 import { test, after } from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,7 @@ process.env.GROKRC_HOME = tmp;
 
 const { AuthStore } = await import('../src/daemon/auth.ts');
 const { SessionManager } = await import('../src/daemon/session-manager.ts');
+const { MockTransport } = await import('../src/acp/mock-transport.ts');
 const { RemoteControlServer } = await import('../src/daemon/server.ts');
 const { RelayServer } = await import('../src/relay/server.ts');
 const { WebSocket } = await import('ws');
@@ -25,7 +27,14 @@ const relayPort = await relay.listen(0, '127.0.0.1');
 
 const auth = new AuthStore();
 await auth.load();
-const sessions = new SessionManager();
+// The subject here is the RELAY — routing, isolation, tunnelled HTTP. The agent
+// is a dependency, not the thing under test, so it is scripted: that makes these
+// runnable on a machine with no grok installed, which is where they were timing
+// out on every CI run.
+let relayMock = 0;
+const sessions = new SessionManager({
+  transportFactory: () => new MockTransport({ sessionId: `relay-${++relayMock}` }),
+});
 const daemon = new RemoteControlServer({
   host: '127.0.0.1',
   port: 0,
@@ -49,22 +58,21 @@ function clientUrl(key = KEY) {
   return `ws://127.0.0.1:${relayPort}/client?room=${ROOM}&key=${key}`;
 }
 
-function connect(url: string): Promise<InstanceType<typeof WebSocket>> {
+/**
+ * Open a relayed socket and start buffering its frames in the same breath.
+ *
+ * The watcher has to exist before anything is sent: a reply that arrives first
+ * is dropped by the EventEmitter, not queued, which is how these timed out with
+ * `frames seen: []` on a machine with no agent installed.
+ */
+function connect(
+  url: string
+): Promise<{ sock: InstanceType<typeof WebSocket>; frames: ReturnType<typeof watch<any>> }> {
   const sock = new WebSocket(url);
   return new Promise((res, rej) => {
-    sock.once('open', () => res(sock));
+    sock.once('open', () => res({ sock, frames: watch<any>(sock) }));
     sock.once('error', rej);
     sock.once('close', (c: number) => rej(new Error('closed ' + c)));
-  });
-}
-
-function next(sock: InstanceType<typeof WebSocket>, timeoutMs = 5000): Promise<any> {
-  return new Promise((res, rej) => {
-    const timer = setTimeout(() => rej(new Error('timed out')), timeoutMs);
-    sock.once('message', (d) => {
-      clearTimeout(timer);
-      res(JSON.parse(d.toString()));
-    });
   });
 }
 
@@ -89,9 +97,9 @@ test('a wrong room key is refused at the relay', async () => {
 
 test('a relayed client still needs a valid token', async () => {
   // The relay must not be a trust boundary — auth happens at the daemon.
-  const sock = await connect(clientUrl());
+  const { sock, frames } = await connect(clientUrl());
   sock.send(JSON.stringify({ t: 'hello', token: 'not-a-real-token' }));
-  const msg = await next(sock);
+  const msg = await frames.waitFor(() => true);
   assert.equal(msg.t, 'error');
   assert.match(msg.message, /unauthorized/);
   sock.close();
@@ -107,14 +115,14 @@ test('a paired device completes a full exchange through the relay', async () => 
   });
   const { token } = await res.json();
 
-  const sock = await connect(clientUrl());
+  const { sock, frames } = await connect(clientUrl());
   sock.send(JSON.stringify({ t: 'hello', token }));
 
-  const ready = await next(sock);
+  const ready = await frames.forType('ready');
   assert.equal(ready.t, 'ready');
   assert.equal(ready.device.name, 'relay-phone');
 
-  const list = await next(sock);
+  const list = await frames.forType('sessions');
   assert.equal(list.t, 'sessions');
   assert.ok(Array.isArray(list.sessions));
   sock.close();
@@ -129,15 +137,15 @@ test('two relayed clients are isolated from each other', async () => {
   });
   const { token } = await res.json();
 
-  const a = await connect(clientUrl());
-  const b = await connect(clientUrl());
+  const { sock: a } = await connect(clientUrl());
+  const { sock: b, frames: bFrames } = await connect(clientUrl());
 
   // Only b authenticates; a must not receive b's frames.
   const aSaw: unknown[] = [];
   a.on('message', (d) => aSaw.push(JSON.parse(d.toString())));
 
   b.send(JSON.stringify({ t: 'hello', token }));
-  const ready = await next(b);
+  const ready = await bFrames.forType('ready');
   assert.equal(ready.t, 'ready');
 
   await new Promise((r) => setTimeout(r, 200));

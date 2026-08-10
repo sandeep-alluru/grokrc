@@ -46,6 +46,15 @@ before(async () => {
       ['agent', 'leader', '--no-exit-on-disconnect', '--leader-socket', sock, '--no-auto-update'],
       { cwd: workDir, stdio: ['ignore', 'ignore', 'ignore'] }
     );
+    // spawn() does NOT throw for a missing binary — it emits 'error'
+    // asynchronously, and with no listener Node throws it as an
+    // uncaughtException AFTER this hook returns. That is exactly how CI
+    // failed on every run: `Error: spawn grok ENOENT` escaping a try/catch
+    // that could never have caught it. Same unhandled-'error' defect already
+    // fixed in AcpClient; this is its twin in a test.
+    leader.on('error', () => {
+      available = false;
+    });
     available = await waitForSocket(sock, 30_000);
   } catch {
     available = false;

@@ -61,6 +61,29 @@ export const ITEMS = [
       'VERIFIED — 3 dead-cwd groups reappeared: grokrc-pkgtest-*, grokrc-leadertest-*, grokrc-public-*',
   },
   {
+    id: 20,
+    section: 'A',
+    effort: 'M',
+    status: 'done',
+    title: 'CI had been failing on EVERY run since 2026-08-06 and nobody looked',
+    evidence:
+      'VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases',
+    loop: {
+      analyse:
+        'gh run list: every run back to 2026-08-06 red. Two distinct causes — test/leader.test.ts crashing the runner with `spawn grok ENOENT`, and four protocol-hardening tests timing out.',
+      evaluate:
+        'Candidates: (a) CI-only infrastructure flake, (b) tests genuinely need a real agent, (c) a defect in the tests themselves. The claim in CONTRIBUTING and ci.yml — "tests that need grok skip themselves, so CI stays green" — was itself a candidate, and it was FALSE.',
+      attacked:
+        'Attacked "CI-only flake" by reproducing the CI environment locally: PATH stripped of grok, full suite. It reproduced immediately — 3 failures — so flakiness was REFUTED and the failures were real. Then attacked my own fixes the same way after every change, which caught three regressions I introduced (a missed call site, an out-of-scope watcher, and a regex whose [^)]* could not span connect(clientUrl())). Also attacked the assumption that a passing test proves coverage: test/onboarding silently RETURNED without an agent, and a skipped test counts as a pass, which is why the doctor-login guard reported "passes without the control" on CI while passing locally.',
+      survived:
+        'Three real defects: spawn() emits ENOENT asynchronously so a try/catch could never catch it (the twin of the AcpClient unhandled-error bug); tests COUNTED websocket frames when the daemon broadcasts `sessions` on any list change; and watchers were attached AFTER send(), so a fast reply was dropped rather than queued.',
+      decide:
+        'One shared test/helpers/ws.ts with watch(), buffering from socket open and matching on content — replacing three private copies. Spawn error listeners in leader/takeover. relay.test.ts scripted so it no longer needs an agent it never tested. authHint() extracted as a pure function so its guard is provable without grok.',
+    },
+    result:
+      'CI environment reproduced locally (no agent on PATH): 201 pass, 0 fail, 3 skipped, exit 0. Developer environment: 204/204, both real-stack checks ALL CLEAR. Guards 15/15 in the CI environment, where one was previously unprovable.',
+  },
+  {
     id: 5,
     section: 'B',
     effort: 'S',

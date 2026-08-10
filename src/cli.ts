@@ -478,6 +478,22 @@ async function removeSessionDir(sessionId: string, cwd: string): Promise<void> {
   }
 }
 
+/**
+ * Turn an agent error into an instruction, or null when there is nothing to add.
+ *
+ * The agent says "Authentication required (-32000)". True, and useless to
+ * someone who has just installed this: it names no command.
+ *
+ * Exported and pure so it can be tested on a machine with no agent — the guard
+ * for this control was UNPROVABLE on CI, because the only test that exercised
+ * it needed a real `grok` on PATH and silently skipped itself. A skipped test
+ * counts as a pass, so the guard reported "passes without the control".
+ */
+export function authHint(message: string): string | null {
+  if (!/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) return null;
+  return '      you are not signed in to Grok — run:  grok login';
+}
+
 async function cmdDoctor(): Promise<void> {
   console.log('');
   const grokVersion = await findGrok();
@@ -538,11 +554,8 @@ async function cmdDoctor(): Promise<void> {
   } catch (err) {
     const message = (err as Error).message;
     console.log(`  ✗ ACP failed: ${message}`);
-    // The agent says "Authentication required (-32000)". That is true and
-    // useless to someone who has just installed this: it names no command.
-    if (/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) {
-      console.log('      you are not signed in to Grok — run:  grok login');
-    }
+    const hint = authHint(message);
+    if (hint) console.log(hint);
     process.exitCode = 1;
   } finally {
     client.close();

@@ -30,6 +30,10 @@ const spawned: ChildProcess[] = [];
 /** A live process whose argv[0] is exactly `name`. Real, not a stub. */
 function spawnAs(name: string): ChildProcess {
   const p = spawn('bash', ['-c', `exec -a ${name} sleep 300`], { stdio: 'ignore' });
+  // An unhandled 'error' on a ChildProcess is thrown by Node. Even when the
+  // binary is certain to exist, a missing listener turns any spawn failure
+  // into a dead test runner instead of a failed test.
+  p.on('error', () => {});
   spawned.push(p);
   return p;
 }

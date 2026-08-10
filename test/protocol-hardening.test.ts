@@ -12,6 +12,7 @@
  *   - field types were trusted throughout
  */
 import { strict as assert } from 'node:assert';
+import { watch } from './helpers/ws.ts';
 import { test, after } from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -51,7 +52,11 @@ after(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-async function connected(): Promise<InstanceType<typeof WebSocket>> {
+/** A paired, authenticated socket AND the watcher buffering its frames. */
+async function connected(): Promise<{
+  sock: InstanceType<typeof WebSocket>;
+  frames: ReturnType<typeof watch<any>>;
+}> {
   const { code } = auth.beginPairing();
   const res = await fetch(`${base}/api/pair`, {
     method: 'POST',
@@ -62,20 +67,11 @@ async function connected(): Promise<InstanceType<typeof WebSocket>> {
 
   const sock = new WebSocket(`ws://127.0.0.1:${port}`);
   await new Promise((r) => sock.once('open', r));
+  // Buffer from here: the reply can beat a listener attached after send().
+  const frames = watch<any>(sock);
   sock.send(JSON.stringify({ t: 'hello', token }));
-  await next(sock); // ready
-  await next(sock); // sessions
-  return sock;
-}
-
-function next(sock: InstanceType<typeof WebSocket>, timeoutMs = 5000): Promise<any> {
-  return new Promise((res, rej) => {
-    const timer = setTimeout(() => rej(new Error('timed out')), timeoutMs);
-    sock.once('message', (d) => {
-      clearTimeout(timer);
-      res(JSON.parse(d.toString()));
-    });
-  });
+  await frames.forType('ready');
+  return { sock, frames };
 }
 
 /* ─── shape validation ────────────────────────────────────────────────────── */
@@ -96,18 +92,18 @@ const MALFORMED: [string, unknown][] = [
 
 for (const [label, payload] of MALFORMED) {
   test(`rejects ${label}`, async () => {
-    const sock = await connected();
+    const { sock, frames } = await connected();
     sock.send(JSON.stringify(payload));
-    const msg = await next(sock);
+    const msg = await frames.forType('error');
     assert.equal(msg.t, 'error', `expected an error for ${label}, got ${JSON.stringify(msg)}`);
     sock.close();
   });
 }
 
 test('accepts a null optionId — that legitimately cancels an approval', async () => {
-  const sock = await connected();
+  const { sock, frames } = await connected();
   sock.send(JSON.stringify({ t: 'approve', sessionId: 'x', requestId: 'y', optionId: null }));
-  const msg = await next(sock);
+  const msg = await frames.forType('error');
   // Rejected for being unknown, NOT for its shape.
   assert.equal(msg.t, 'error');
   assert.doesNotMatch(msg.message, /must be a string/);
