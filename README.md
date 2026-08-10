@@ -457,6 +457,7 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 | [Security](SECURITY.md)                    | Threat model and vulnerability reporting               |
 | [Contributing](CONTRIBUTING.md)            | Dev setup and the bar for a change                     |
 | [Changelog](CHANGELOG.md)                  | What changed                                           |
+| [Backlog](docs/BACKLOG.md)                 | Every known open item, with its evidence class         |
 
 ## Contributing
 
