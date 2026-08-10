@@ -94,6 +94,62 @@ async function version(): Promise<string> {
   return (PKG_VERSION = 'unknown');
 }
 
+/**
+ * How much of a transcript to send a client.
+ *
+ * `historyLimit` caps how many SESSIONS are listed; nothing capped the EVENTS
+ * sent for one of them. A long-running session reached 2000 events / 4.5 MB,
+ * which the phone then rendered into 1.6 million characters of DOM. iOS Safari
+ * answers that with "A problem repeatedly occurred" and gives up.
+ *
+ * The tail is what anyone actually reads on a phone. Older events stay on the
+ * daemon and in Grok's own log; they are not lost, just not shipped.
+ */
+const HISTORY_EVENT_LIMIT = 300;
+
+/**
+ * No single event should be able to bury a phone on its own.
+ *
+ * The median event in a real session is 1.6 KB; the largest measured is 117 KB.
+ * A handful of those is most of the payload, and none of it is readable on a
+ * 390px screen — it is tool output, pasted files, and encoded images.
+ */
+const EVENT_TEXT_LIMIT = 4000;
+
+function trimEvent(ev: RcEvent): RcEvent {
+  // Walk the whole event, not just `.text`. The bulk of a large transcript is
+  // in tool_call_update payloads — content[].newText, rawOutput, _meta.details —
+  // and an earlier version of this trimmed only the top-level text field, which
+  // changed the measured payload by exactly nothing.
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') {
+      if (v.length <= EVENT_TEXT_LIMIT) return v;
+      const cut = v.length - EVENT_TEXT_LIMIT;
+      return `${v.slice(0, EVENT_TEXT_LIMIT)}\n\n… ${cut.toLocaleString()} more characters not shown …`;
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, walk(val)]));
+    }
+    return v;
+  };
+  return walk(ev) as RcEvent;
+}
+
+/** The tail of a transcript, plus a marker when anything was left behind. */
+function trimHistory(events: RcEvent[]): RcEvent[] {
+  if (events.length <= HISTORY_EVENT_LIMIT) return events.map(trimEvent);
+  const dropped = events.length - HISTORY_EVENT_LIMIT;
+  const head: RcEvent = {
+    k: 'text',
+    sessionId: events[0]?.sessionId ?? '',
+    role: 'agent',
+    text: `— ${dropped} earlier event(s) not shown —`,
+    final: true,
+  };
+  return [head, ...events.slice(-HISTORY_EVENT_LIMIT).map(trimEvent)];
+}
+
 export class RemoteControlServer {
   #http: Server;
   #wss: WebSocketServer;
@@ -360,6 +416,17 @@ export class RemoteControlServer {
   }
 
   /**
+   * Settings the server consults per request, so they can change while it runs.
+   *
+   * host/port are NOT here: the socket is already bound, and pretending
+   * otherwise would report success for a change that did not happen.
+   */
+  applyConfig(next: { defaultCwd?: string; historyLimit?: number }): void {
+    if (typeof next.defaultCwd === 'string') this.#opts.defaultCwd = next.defaultCwd;
+    if (typeof next.historyLimit === 'number') this.#opts.historyLimit = next.historyLimit;
+  }
+
+  /**
    * Device ids holding a live authenticated socket right now.
    *
    * This is the one thing `grokrc devices` cannot learn by reading auth.json —
@@ -590,7 +657,7 @@ export class RemoteControlServer {
           send(client.ws, {
             t: 'history',
             sessionId: msg.sessionId,
-            events: sessions.history(msg.sessionId),
+            events: trimHistory(sessions.history(msg.sessionId)),
           });
           return;
         }
@@ -604,7 +671,7 @@ export class RemoteControlServer {
           send(client.ws, {
             t: 'history',
             sessionId: info.id,
-            events: sessions.history(info.id),
+            events: trimHistory(sessions.history(info.id)),
           });
           return;
         }
@@ -627,7 +694,7 @@ export class RemoteControlServer {
           send(client.ws, {
             t: 'history',
             sessionId: info.id,
-            events: sessions.history(info.id),
+            events: trimHistory(sessions.history(info.id)),
           });
           void this.#broadcastSessions();
           return;

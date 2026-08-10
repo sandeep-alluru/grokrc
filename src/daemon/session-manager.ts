@@ -783,6 +783,19 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
+   * Apply settings that are read per-use rather than baked in at construction.
+   *
+   * `model` and `useLeader` are consulted when a session is CREATED, so a
+   * running daemon can honour a change without a restart. Sessions already
+   * open keep the transport they were started with — changing an agent's model
+   * underneath a live conversation is not something a config edit should do.
+   */
+  applyConfig(next: { model?: string; useLeader?: boolean }): void {
+    if ('model' in next) this.#opts.model = next.model;
+    if (typeof next.useLeader === 'boolean') this.#opts.useLeader = next.useLeader;
+  }
+
+  /**
    * Sessions with a live process right now, per Grok's own registry.
    *
    * The registry can go stale if a process dies without cleaning up, so each

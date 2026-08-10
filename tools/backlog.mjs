@@ -189,6 +189,21 @@ export const ITEMS = [
       'doctor now asks the control socket FIRST, before even the agent check, and reports pid, address, live sessions, connected/paired devices and real delivery counters. The disk fallback runs only when no daemon answers and says so explicitly. test/doctor-daemon.test.ts drives the real CLI against a control socket reporting 41 sent — a number no disk-reading process could invent — and asserts the disk fallback did NOT run. Guard doctor-asks-the-running-daemon proven load-bearing.',
   },
   {
+    id: 22,
+    section: 'C',
+    effort: 'M',
+    status: 'done',
+    title: 'Opening a long session crashed the phone — "A problem repeatedly occurred"',
+    evidence:
+      "VERIFIED — the owner's x.com session is 1518 events / 9.97 MB; a real browser received 4.5 MB and rendered 1.6 million characters",
+    loop: {
+      attacked:
+        'The reported symptom was "clicking a notification crashes the page", so the notification path was the obvious suspect. Measured instead of assumed: the screenshot URL was /?session=..., the COLD-LAUNCH openWindow path — and grep shows app.js never reads that query param, so the deep link is dead code and could not be the crash. What survived was size: historyLimit caps how many SESSIONS are listed and NOTHING capped the events sent for one. Then attacked my own first fix — a per-event cap on `.text` — which changed the measured payload by EXACTLY NOTHING, because the bulk lives in tool_call_update at content[].newText, rawOutput and _meta.details. Only walking the whole event moved the number.',
+    },
+    result:
+      'Two caps in server.ts: the last 300 events, with a marker naming how many were dropped, and a 4000-character ceiling on any string anywhere in an event. Measured on the real transcript: 9.97 MB -> 2.16 MB -> 1.65 MB, a 6x reduction; in a real browser 4.5 MB -> 0.7 MB, DOM nodes 1446 -> 242.',
+  },
+  {
     id: 11,
     section: 'C',
     effort: 'M',

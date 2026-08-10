@@ -260,6 +260,38 @@ async function cmdUp(flags: Flags): Promise<void> {
       for (const id of ids) server.disconnectDevice(id);
       return ids.length;
     },
+    /**
+     * Re-read the settings file and apply what can be applied.
+     *
+     * Honest by construction: it returns which keys actually took effect and
+     * which still need a restart. host/port/lan cannot change on a bound
+     * socket, and reporting them as applied would be a lie that only surfaces
+     * later, when the daemon is still on the old port.
+     */
+    reload: async () => {
+      const next = await loadConfig();
+      const applied: string[] = [];
+      const needsRestart: string[] = [];
+
+      if (next.defaultCwd && next.defaultCwd !== defaultCwd) {
+        server.applyConfig({ defaultCwd: next.defaultCwd });
+        applied.push('defaultCwd');
+      }
+      if (typeof next.historyLimit === 'number') {
+        server.applyConfig({ historyLimit: next.historyLimit });
+        applied.push('historyLimit');
+      }
+      sessions.applyConfig({ model: next.model, useLeader: next.leader === true });
+      if (next.model !== cfg.model) applied.push('model');
+      if ((next.leader === true) !== (cfg.leader === true)) applied.push('leader');
+
+      // Bound at listen(); a running socket cannot move.
+      for (const k of ['host', 'port', 'lan'] as const) {
+        if (JSON.stringify(next[k]) !== JSON.stringify(cfg[k])) needsRestart.push(k);
+      }
+      return { applied, needsRestart };
+    },
+
     status: () => ({
       pid: process.pid,
       host: shown,
@@ -441,7 +473,24 @@ async function cmdConfig(rest: string[]): Promise<void> {
     await saveConfig(next);
     console.log(`\n  ${key} = ${JSON.stringify(value)}`);
     console.log(`  saved to ${configPath()}`);
-    console.log('  restart to apply:  systemctl --user restart grokrc\n');
+
+    // Tell the running daemon, rather than telling the user to restart it.
+    // "restart to apply" was printed unconditionally, including for settings
+    // that a running daemon reads per-use and could have picked up instantly.
+    try {
+      const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>('reload');
+      if (r.applied.includes(key)) {
+        console.log('  applied to the running daemon — no restart needed\n');
+      } else if (r.needsRestart.includes(key)) {
+        console.log('  the daemon is already bound to its address:');
+        console.log('  restart to apply:  systemctl --user restart grokrc\n');
+      } else {
+        console.log('  the running daemon has re-read its settings\n');
+      }
+    } catch {
+      // No daemon: nothing to apply, and nothing to restart either.
+      console.log('  no daemon running — it will be picked up on start\n');
+    }
     return;
   }
 

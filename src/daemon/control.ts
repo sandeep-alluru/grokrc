@@ -57,6 +57,7 @@ export interface ControlHandlers {
   revoke(deviceId: string): Promise<boolean>;
   revokeAll(): Promise<number>;
   status(): Record<string, unknown>;
+  reload(): Promise<{ applied: string[]; needsRestart: string[] }>;
 }
 
 /**
@@ -215,6 +216,9 @@ export class ControlServer {
 
       case 'status':
         return this.#handlers.status();
+
+      case 'reload':
+        return this.#handlers.reload();
 
       default:
         throw new Error(`unknown command: ${req.cmd}`);

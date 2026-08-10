@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**13 of 21 closed.** Generated from `tools/backlog.mjs` —
+**14 of 22 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -85,11 +85,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
 
-## C · Product gaps  —  1/3 closed
+## C · Product gaps  —  2/4 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 10 | `grokrc doctor` spawns its own probe agent instead of asking the running daemon | `done` | VERIFIED — doctor reported "0 sent" while the daemon had delivered two; it now reports the daemon's live counters |
+| 22 | Opening a long session crashed the phone — "A problem repeatedly occurred" | `done` | VERIFIED — the owner's x.com session is 1518 events / 9.97 MB; a real browser received 4.5 MB and rendered 1.6 million characters |
 | 11 | `grokrc config set` requires a daemon restart to take effect | `open` | VERIFIED — src/cli.ts prints "restart to apply" |
 | 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
 
@@ -98,6 +99,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** Attacked the item as written — "doctor spawns its own probe" — and REFUTED it as the thing that matters. Removing the self-probe would break the most common case: a new user runs `grokrc doctor` BEFORE `grokrc up`, with no daemon to ask. What survived was a sharper defect underneath: doctor loads its own PushService from disk, and delivery counters (sent/failed/expired) live only in the daemon's memory. Measured it rather than reasoned about it — the daemon had delivered two pushes and doctor printed "0 sent, 0 failed, 0 expired". Then attacked my own first fix twice: it printed the push line TWICE (live and disk), and it sat AFTER the missing-agent early return, so a box without grok never saw the daemon report at all — which also made it untestable on CI, where the test initially failed for exactly that reason.
 
 **Result.** doctor now asks the control socket FIRST, before even the agent check, and reports pid, address, live sessions, connected/paired devices and real delivery counters. The disk fallback runs only when no daemon answers and says so explicitly. test/doctor-daemon.test.ts drives the real CLI against a control socket reporting 41 sent — a number no disk-reading process could invent — and asserts the disk fallback did NOT run. Guard doctor-asks-the-running-daemon proven load-bearing.
+
+### 22 · Opening a long session crashed the phone — "A problem repeatedly occurred"
+
+**Reanalyse — attacked.** The reported symptom was "clicking a notification crashes the page", so the notification path was the obvious suspect. Measured instead of assumed: the screenshot URL was /?session=..., the COLD-LAUNCH openWindow path — and grep shows app.js never reads that query param, so the deep link is dead code and could not be the crash. What survived was size: historyLimit caps how many SESSIONS are listed and NOTHING capped the events sent for one. Then attacked my own first fix — a per-event cap on `.text` — which changed the measured payload by EXACTLY NOTHING, because the bulk lives in tool_call_update at content[].newText, rawOutput and _meta.details. Only walking the whole event moved the number.
+
+**Result.** Two caps in server.ts: the last 300 events, with a marker naming how many were dropped, and a 4000-character ceiling on any string anywhere in an event. Measured on the real transcript: 9.97 MB -> 2.16 MB -> 1.65 MB, a 6x reduction; in a real browser 4.5 MB -> 0.7 MB, DOM nodes 1446 -> 242.
 
 ## D · Housekeeping  —  2/3 closed
 

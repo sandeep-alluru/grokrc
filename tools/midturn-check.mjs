@@ -44,8 +44,7 @@ daemon.sessions.on('event', (ev) => {
 
 // A long, strictly-ordered answer: the numbers make it obvious how far the
 // turn got, and how much of it survived.
-const PROMPT =
-  'Count from 1 to 120, one number per line, nothing else. Start immediately.';
+const PROMPT = 'Count from 1 to 120, one number per line, nothing else. Start immediately.';
 void daemon.sessions.prompt(info.id, PROMPT).catch(() => {});
 
 // Wait until the turn is genuinely in flight — killing before any output would

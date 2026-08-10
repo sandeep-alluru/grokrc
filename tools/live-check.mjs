@@ -151,6 +151,25 @@ try {
   );
   note(/ok, stop there/.test(echoed), 'a prompt can still be sent after cancelling');
 
+  // ─── settings apply without a restart ───────────────────────────────────
+  // The REAL cli.ts reload handler, against the REAL running daemon. The unit
+  // test for this uses a stand-in handler and therefore cannot prove the
+  // production path — so the production claim is made here or not at all.
+  try {
+    const r = await controlRequest('reload');
+    note(
+      Array.isArray(r.applied) && Array.isArray(r.needsRestart),
+      'the daemon can re-read its settings on request',
+      `applied=[${r.applied}] needsRestart=[${r.needsRestart}]`
+    );
+    note(
+      !r.applied.includes('port') && !r.applied.includes('host'),
+      'a bound socket is never reported as re-addressed'
+    );
+  } catch (err) {
+    note(false, 'reload over the control socket', err.message);
+  }
+
   // ─── back out ───────────────────────────────────────────────────────────
   await page.click('#back');
   await page.waitForSelector('#v-list.on', { timeout: 20_000 });
