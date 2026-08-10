@@ -31,17 +31,31 @@ export const ITEMS = [
     id: 1,
     section: 'A',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: '`removeSessionDir()` has no test, so it cannot be registered as a guard',
-    evidence: 'VERIFIED — src/cli.ts defines it; grep over test/ returns nothing',
+    evidence:
+      'VERIFIED — test/session-cleanup.test.ts, and the containment check is a proven guard',
+    loop: {
+      attacked:
+        "The obvious test — 'it deletes the directory' — would have passed with the safety check removed, so it measures the wrong half. The interesting behaviour is the REFUSAL: removeSessionDir builds a delete path from a session id supplied from outside, then rm -rf's it. Attacked it with traversing ids ('..', '../../..', '../../../auth.json') and asserted a canary OUTSIDE the session store survives. Verified load-bearing: disabling the containment line makes the test fail.",
+    },
+    result:
+      'Exported removeSessionDir and covered three behaviours: it removes the throwaway session doctor creates, it REFUSES ids that escape the store (canary survives), and a missing session is a no-op rather than a throw — doctor calls it best-effort and tidying up must never fail the diagnostic. Guard session-cleanup-stays-in-the-store proven.',
   },
   {
     id: 2,
     section: 'A',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: "Terminal client's exit guard (`nothing to drive from here`) has no test",
-    evidence: 'VERIFIED — src/term/client.ts has it, no test references it',
+    evidence:
+      'VERIFIED — test/term-exit.test.ts drives the real CLI against a real daemon over a real socket',
+    loop: {
+      attacked:
+        "My first test hung, and my SECOND detector was also wrong — twice on one item. (1) `assert.equal(e.killed, false || undefined)` evaluates to `=== undefined`, so a clean non-zero exit, where killed is false, reported a hang that never happened. (2) Once fixed it exited 1 but printed 'no session matching does-not-exist' — a CLIENT-SIDE pre-check, not the guard. The guard fires on a daemon ERROR frame arriving before any session exists. A valid token can never reach it, so the test now uses a token the daemon REJECTS. Without that, the file would have gone green while the control stayed untested.",
+    },
+    result:
+      'The client exits non-zero and prints "no session opened — nothing to drive from here" instead of sitting with no prompt and no way to quit but ctrl-C (originally exit 124, killed by timeout). Guard term-exits-when-no-session-opened proven load-bearing.',
   },
   {
     id: 3,

@@ -55,6 +55,22 @@ export const GUARDS = [
     test: 'test/vapid-subject.test.ts',
   },
   {
+    id: 'term-exits-when-no-session-opened',
+    why: 'an error before any session leaves the terminal client with no prompt, no way to type and no way to quit but ctrl-C — originally observed as exit 124, killed by timeout',
+    file: 'src/term/client.ts',
+    find: '        if (!this.#current) {',
+    replace: '        if (false) {',
+    test: 'test/term-exit.test.ts',
+  },
+  {
+    id: 'session-cleanup-stays-in-the-store',
+    why: 'removeSessionDir builds a delete path from a session id supplied from outside; without the containment check a diagnostic command becomes an arbitrary recursive delete',
+    file: 'src/cli.ts',
+    find: "    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;",
+    replace: '    // containment check disabled',
+    test: 'test/session-cleanup.test.ts',
+  },
+  {
     id: 'flush-before-retain',
     why: 'streaming text lives in s.stream until the stream ends; without flushing at close(), a turn stopped mid-flight loses the tail the user already watched arrive — and Take over stops turns mid-flight by design',
     file: 'src/daemon/session-manager.ts',

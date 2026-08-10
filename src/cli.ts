@@ -464,7 +464,7 @@ async function cmdConfig(rest: string[]): Promise<void> {
  * same way the session manager builds it. Best-effort: a diagnostic failing to
  * tidy up must not fail the diagnostic.
  */
-async function removeSessionDir(sessionId: string, cwd: string): Promise<void> {
+export async function removeSessionDir(sessionId: string, cwd: string): Promise<void> {
   try {
     const { rm } = await import('node:fs/promises');
     const { homedir } = await import('node:os');

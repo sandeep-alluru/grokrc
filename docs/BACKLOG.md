@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**10 of 21 closed.** Generated from `tools/backlog.mjs` —
+**12 of 21 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,16 +12,28 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  3/6 closed
+## A · Automated coverage gaps  —  5/6 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | `removeSessionDir()` has no test, so it cannot be registered as a guard | `open` | VERIFIED — src/cli.ts defines it; grep over test/ returns nothing |
-| 2 | Terminal client's exit guard (`nothing to drive from here`) has no test | `open` | VERIFIED — src/term/client.ts has it, no test references it |
+| 1 | `removeSessionDir()` has no test, so it cannot be registered as a guard | `done` | VERIFIED — test/session-cleanup.test.ts, and the containment check is a proven guard |
+| 2 | Terminal client's exit guard (`nothing to drive from here`) has no test | `done` | VERIFIED — test/term-exit.test.ts drives the real CLI against a real daemon over a real socket |
 | 3 | Mock debt: 13 of 32 test files reference a mock/stub/fake | `open` | VERIFIED — directive-check.mjs reports it as DEBT under 03 law 4 |
 | 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `done` | VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered |
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
 | 21 | Real-stack checks load dist/ but nothing warned when it was stale | `done` | VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build |
+
+### 1 · `removeSessionDir()` has no test, so it cannot be registered as a guard
+
+**Reanalyse — attacked.** The obvious test — 'it deletes the directory' — would have passed with the safety check removed, so it measures the wrong half. The interesting behaviour is the REFUSAL: removeSessionDir builds a delete path from a session id supplied from outside, then rm -rf's it. Attacked it with traversing ids ('..', '../../..', '../../../auth.json') and asserted a canary OUTSIDE the session store survives. Verified load-bearing: disabling the containment line makes the test fail.
+
+**Result.** Exported removeSessionDir and covered three behaviours: it removes the throwaway session doctor creates, it REFUSES ids that escape the store (canary survives), and a missing session is a no-op rather than a throw — doctor calls it best-effort and tidying up must never fail the diagnostic. Guard session-cleanup-stays-in-the-store proven.
+
+### 2 · Terminal client's exit guard (`nothing to drive from here`) has no test
+
+**Reanalyse — attacked.** My first test hung, and my SECOND detector was also wrong — twice on one item. (1) `assert.equal(e.killed, false || undefined)` evaluates to `=== undefined`, so a clean non-zero exit, where killed is false, reported a hang that never happened. (2) Once fixed it exited 1 but printed 'no session matching does-not-exist' — a CLIENT-SIDE pre-check, not the guard. The guard fires on a daemon ERROR frame arriving before any session exists. A valid token can never reach it, so the test now uses a token the daemon REJECTS. Without that, the file would have gone green while the control stayed untested.
+
+**Result.** The client exits non-zero and prints "no session opened — nothing to drive from here" instead of sitting with no prompt and no way to quit but ctrl-C (originally exit 124, killed by timeout). Guard term-exits-when-no-session-opened proven load-bearing.
 
 ### 4 · Real agents spawned outside `npm test` still write into the developer’s ~/.grok
 
@@ -120,10 +132,8 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 11
+## Still open — 9
 
-- **#1** `removeSessionDir()` has no test, so it cannot be registered as a guard
-- **#2** Terminal client's exit guard (`nothing to drive from here`) has no test
 - **#3** Mock debt: 13 of 32 test files reference a mock/stub/fake
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
