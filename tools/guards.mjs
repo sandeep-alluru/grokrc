@@ -219,6 +219,14 @@ export const GUARDS = [
     test: 'test/browser.test.ts',
   },
   {
+    id: 'request-bodies-decode-once',
+    why: 'accumulating a body with `raw += chunk` decodes each Buffer separately, so a multi-byte UTF-8 character split across a TCP boundary becomes U+FFFD. Measured: pairing "Sandeep’s iPhone" stored "Sandeep???s iPhone". TCP picks the boundary, so nothing the caller does prevents it.',
+    file: 'src/http-body.ts',
+    find: "  return Buffer.concat(chunks).toString('utf8');",
+    replace: "  return chunks.map((c) => c.toString()).join('');",
+    test: 'test/body-encoding.test.ts',
+  },
+  {
     id: 'relay-can-refuse-to-serve-the-client',
     why: 'a relay that serves the PWA owns the session — the page’s JavaScript is what decrypts, so a modified client reads everything before encryption applies. No in-page integrity check helps: attacker-supplied code cannot verify itself, and the relay serves index.html too.',
     file: 'src/relay/server.ts',

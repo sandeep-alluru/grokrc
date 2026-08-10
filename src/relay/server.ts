@@ -24,6 +24,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { readBody } from '../http-body.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -208,14 +209,8 @@ export class RelayServer {
     const room = roomId ? this.#rooms.get(roomId) : null;
     if (!room?.daemon) return json(res, 503, { error: 'no daemon for room' });
 
-    let body = '';
-    for await (const chunk of req) {
-      body += chunk;
-      if (body.length > 16384) {
-        req.destroy();
-        return json(res, 413, { error: 'too large' });
-      }
-    }
+    const body = await readBody(req, 16384);
+    if (body === null) return json(res, 413, { error: 'too large' });
 
     // Unguessable id AND a recorded owner. The id alone is not the control —
     // ownership is — but a random id removes the guessing game entirely.

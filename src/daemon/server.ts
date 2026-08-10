@@ -15,6 +15,7 @@ import { AuthStore, type Device } from './auth.ts';
 import type { RcEvent } from './events.ts';
 import type { PushService } from './push.ts';
 import { SessionManager } from './session-manager.ts';
+import { readBody } from '../http-body.ts';
 
 export interface ServerOptions {
   host?: string;
@@ -552,14 +553,8 @@ export class RemoteControlServer {
   }
 
   async #handlePair(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    let raw = '';
-    for await (const chunk of req) {
-      raw += chunk;
-      if (raw.length > 4096) {
-        req.destroy();
-        return json(res, 413, { error: 'too large' });
-      }
-    }
+    const raw = await readBody(req, 4096);
+    if (raw === null) return json(res, 413, { error: 'too large' });
     let body: { code?: string; deviceName?: string };
     try {
       body = JSON.parse(raw || '{}');
@@ -917,18 +912,6 @@ function validateShape(msg: Record<string, unknown>): string | null {
     default:
       return `unknown message: ${String(msg.t).slice(0, 40)}`;
   }
-}
-
-async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
-  let raw = '';
-  for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > limit) {
-      req.destroy();
-      return null;
-    }
-  }
-  return raw;
 }
 
 function send(ws: WebSocket, payload: unknown): void {
