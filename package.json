@@ -44,6 +44,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "dev": "tsx src/cli.ts",
     "test": "npm run test:mock && npm run build && npm run test:real",
     "test:unit": "node --test --experimental-strip-types test/events.test.ts test/observer.test.ts test/preflight.test.ts test/push.test.ts test/relay.test.ts test/server.test.ts",
@@ -51,13 +52,14 @@
     "test:real": "node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs",
     "verify:guards": "node tools/verify-guards.mjs",
     "guards": "node tools/verify-guards.mjs --list",
+    "check:live": "node --experimental-strip-types tools/live-check.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "probe": "node tools/acp-probe.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
     "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
-    "check:live": "node --experimental-strip-types tools/live-check.mjs"
+    "check:stranger": "bash tools/stranger-check.sh"
   },
   "dependencies": {
     "web-push": "^3.6.7",

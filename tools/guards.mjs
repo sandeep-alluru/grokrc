@@ -47,6 +47,24 @@ export const GUARDS = [
     test: 'test/handback.test.ts',
   },
   {
+    id: 'up-refuses-without-agent',
+    why: 'grokrc up used to start with no agent installed, so a new user paired a phone to a daemon that could not open a session',
+    file: 'src/cli.ts',
+    // Anchored on the trailing context, because cmdDoctor has an identical
+    // `if (!grokVersion)` shape — the drift check caught that ambiguity.
+    find: '    process.exitCode = 1;\n    return;\n  }\n\n  // Settings are the durable answer',
+    replace: '  }\n\n  // Settings are the durable answer',
+    test: 'test/onboarding.test.ts',
+  },
+  {
+    id: 'doctor-names-the-login-command',
+    why: "a logged-out user got the agent's raw 'Authentication required (-32000)', which names no command",
+    file: 'src/cli.ts',
+    find: '    if (/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) {',
+    replace: '    if (false) {',
+    test: 'test/onboarding.test.ts',
+  },
+  {
     id: 'busy-not-derived-from-history',
     why: 'a turn killed mid-flight leaves a `working` status in the log; replaying it pinned the composer to Stop and no message could be sent',
     file: 'web/app.js',

@@ -97,7 +97,40 @@ grokrc — remote control for Grok Build
   grokrc doctor      Check that grok is installed and ACP responds
 `;
 
+/**
+ * The agent binary, or null when it is not installed.
+ *
+ * Shared by `doctor` and `up`: a daemon that cannot spawn an agent is not a
+ * degraded daemon, it is a useless one. `up` used to start anyway, print a
+ * config warning, and listen — so a new user paired a phone and only discovered
+ * the problem when every session failed.
+ */
+async function findGrok(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('grok', ['--version']);
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+const GROK_MISSING =
+  '  \u2717 grok not found on PATH \u2014 install: curl -fsSL https://x.ai/cli/install.sh | bash';
+
 async function cmdUp(flags: Flags): Promise<void> {
+  // Before anything else. Starting without an agent means pairing a phone to a
+  // daemon that cannot open a single session.
+  const grokVersion = await findGrok();
+  if (!grokVersion) {
+    console.log('');
+    console.log(GROK_MISSING);
+    console.log('    grokrc drives Grok Build — it cannot start a session without it.');
+    console.log('    After installing, sign in with:  grok login');
+    console.log('');
+    process.exitCode = 1;
+    return;
+  }
+
   // Settings are the durable answer; flags override for this invocation only.
   const cfg = await loadConfig();
   const issues = validateConfig(cfg);
@@ -447,16 +480,14 @@ async function removeSessionDir(sessionId: string, cwd: string): Promise<void> {
 
 async function cmdDoctor(): Promise<void> {
   console.log('');
-  try {
-    const { stdout } = await execFileAsync('grok', ['--version']);
-    console.log(`  ✓ grok found: ${stdout.trim()}`);
-  } catch {
-    console.log(
-      '  ✗ grok not found on PATH — install: curl -fsSL https://x.ai/cli/install.sh | bash'
-    );
+  const grokVersion = await findGrok();
+  if (!grokVersion) {
+    console.log(GROK_MISSING);
+    console.log('    after installing, sign in with:  grok login');
     process.exitCode = 1;
     return;
   }
+  console.log(`  ✓ grok found: ${grokVersion}`);
 
   const { StdioTransport } = await import('./acp/transport.ts');
   const { AcpClient } = await import('./acp/client.ts');
@@ -505,7 +536,13 @@ async function cmdDoctor(): Promise<void> {
       process.exitCode = 1;
     }
   } catch (err) {
-    console.log(`  ✗ ACP failed: ${(err as Error).message}`);
+    const message = (err as Error).message;
+    console.log(`  ✗ ACP failed: ${message}`);
+    // The agent says "Authentication required (-32000)". That is true and
+    // useless to someone who has just installed this: it names no command.
+    if (/auth|unauthori[sz]ed|not logged in|-32000/i.test(message)) {
+      console.log('      you are not signed in to Grok — run:  grok login');
+    }
     process.exitCode = 1;
   } finally {
     client.close();

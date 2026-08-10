@@ -240,7 +240,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 
 ## Status
 
-- ✅ ACP client — handshake, sessions, prompts, cancel, fs bridge (verified against `grok 0.2.118`)
+- ✅ ACP client — handshake, sessions, prompts, cancel, fs bridge (verified against `grok 0.2.118` and `1.0.0`)
 - ✅ Event normalizer with unknown-kind passthrough
 - ✅ Session manager — owned, shared, and **observed** modes; replayable history; held approvals
 - ✅ Pairing, device tokens, authenticated WebSocket

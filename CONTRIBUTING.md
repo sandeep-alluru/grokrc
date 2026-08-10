@@ -25,7 +25,7 @@ is for a change, and the few conventions that are non-negotiable.
 - **Node 20+** (developed on 22.x). `--experimental-strip-types` is used to run
   TypeScript tests directly, so older Node will not work.
 - **[Grok Build](https://github.com/xai-org/grok-build)** on your `PATH` — developed
-  against `0.2.118`. Needed only for the real-stack tests; unit and browser tests run
+  against `0.2.118` and `1.0.0`. Needed only for the real-stack tests; unit and browser tests run
   without it.
 - **Chromium**, installed via Playwright.
 
