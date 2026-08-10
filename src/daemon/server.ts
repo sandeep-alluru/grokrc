@@ -171,10 +171,22 @@ export class RemoteControlServer {
     // Fan out every session event to the clients watching that session.
     this.#opts.sessions.on('event', (ev: RcEvent) => {
       const sid = 'sessionId' in ev ? ev.sessionId : undefined;
+
+      // Cap the LIVE event, not just replayed history. `trimEvent` was wired
+      // into trimHistory when a long session crashed the owner's phone, which
+      // fixed opening a session and left the worse case untouched: the crash
+      // happened while READING one, and a tool_call_update carrying a whole
+      // file arrives on the live path. Trimming once here — not once per
+      // client — also covers `grokrc term` and every relay-attached phone,
+      // because this loop is the only fan-out in the daemon.
+      //
+      // `trimEvent` returns a new object and never mutates, so the session's
+      // stored history keeps the full text; only what crosses the wire is cut.
+      const payload = trimEvent(ev);
       for (const c of this.#clients) {
         if (!c.device) continue;
         if (sid && !c.watching.has(sid)) continue;
-        send(c.ws, { t: 'event', event: ev });
+        send(c.ws, { t: 'event', event: payload });
       }
 
       // Push regardless of connected sockets: a live socket means the app is

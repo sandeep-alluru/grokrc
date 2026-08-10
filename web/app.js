@@ -768,7 +768,10 @@ function upsertTool(ev) {
     el.vSession.append(node);
   }
   node.className = 'tool ' + ev.status;
-  node.querySelector('.nm').textContent = ev.title || ev.name;
+  const label = toolLabel(ev, node.dataset.label, Number(node.dataset.rank ?? 0));
+  node.dataset.label = label.text;
+  node.dataset.rank = String(label.rank);
+  node.querySelector('.nm').textContent = label.text;
   node.querySelector('.st').textContent = ev.status;
 
   const body = ev.output ?? ev.input;
@@ -780,6 +783,47 @@ function upsertTool(ev) {
     }
     pre.textContent = readableToolBody(body);
   }
+}
+
+/**
+ * What a tool row should be called, given everything seen for it so far.
+ *
+ * A single file write arrives as THREE events under one toolCallId, captured
+ * verbatim from grok 1.0.0:
+ *
+ *   tool_call         title "write"
+ *   tool_call_update  title "Write `/tmp/x/alpha.txt`"  locations [alpha.txt]
+ *   tool_call_update  title undefined, kind undefined, status completed
+ *
+ * The last one is the problem. With no title and no kind the normalizer falls
+ * back to the literal string `tool`, and the old code wrote it straight over the
+ * label — so every finished row ended up called "tool" and the filename the user
+ * had just watched appear was gone. On a three-file edit that left three
+ * identical rows saying "tool", which is the whole of BACKLOG #9.
+ *
+ * So labels are RANKED and a row never downgrades: naming files beats a real
+ * title, which beats the generic word.
+ */
+function toolLabel(ev, prevText, prevRank) {
+  const paths = (ev.locations ?? []).map((l) => l?.path).filter((p) => typeof p === 'string');
+  const title = typeof ev.title === 'string' && ev.title.trim() ? ev.title.trim() : '';
+  const name = typeof ev.name === 'string' && ev.name && ev.name !== 'tool' ? ev.name : '';
+
+  let text = title || name;
+  let rank = paths.length ? 3 : text ? 2 : 1;
+
+  if (paths.length) {
+    // Show the file, not the whole path — a phone is 390px wide. If the title
+    // already carries the path, it is not repeated.
+    const files = paths.map((p) => p.split('/').pop()).join(', ');
+    const already = paths.some((p) => text.includes(p)) || text.includes(files);
+    text = text ? (already ? text : `${text} · ${files}`) : files;
+  }
+  if (!text) text = 'tool';
+
+  // A later, vaguer event must not erase a better label.
+  if (prevText && rank < prevRank) return { text: prevText, rank: prevRank };
+  return { text, rank };
 }
 
 /**

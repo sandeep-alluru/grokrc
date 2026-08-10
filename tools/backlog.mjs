@@ -177,9 +177,16 @@ export const ITEMS = [
     id: 9,
     section: 'B',
     effort: 'M',
-    status: 'open',
+    status: 'done',
     title: 'Multi-file diff rendering and very long tool output unverified',
-    evidence: 'UNVERIFIED — browser tests replay captured write/edit payloads only',
+    evidence:
+      'VERIFIED — both halves were real defects, each reproduced before being fixed. Long output: server.ts broadcast the live event object raw, and a 200,000-character tool result crossed the wire whole (nested: 400,148). Multi-file: a real grok 1.0.0 capture shows one file write is THREE events under one toolCallId, the last carrying no title and no kind, so the renderer overwrote the filename with the normalizer fallback — measured labels ["tool","tool","tool","tool"].',
+    loop: {
+      attacked:
+        'Two of my own detectors were wrong on this item and both would have shipped a false story. (1) I read the multi-file capture with the tool id truncated to 12 characters, saw call-8f2e5c6 three times, and concluded every file collapsed into one row through a toolCallId collision. Re-measuring with FULL ids showed ...-0, ...-1, ...-2 — distinct. There is no collision; the truncation was mine. (2) I then ran the renderer test PRE-FIX, saw it fail, and nearly recorded that as proof: the failure was a bare 10s timeout, because the preceding test reloads the page onto the session list and the daemon only forwards events to a client WATCHING a session. The test never reached its assertions in either direction. After opening the session first, the honest PRE-FIX appeared — labels ["tool","tool","tool","tool"] — and POST-FIX passes. I also attacked the trim fix: the twin search found the broadcast loop in server.ts is the ONLY fan-out, so phones, `grokrc term` and relay clients are all covered by one change, and `s.log.push(ev)` runs before `emit`, so trimming a copy leaves stored history intact.',
+    },
+    result:
+      'Live events are now capped by the same trimEvent that history uses, applied once per event rather than once per client (test/live-event-size.test.ts: 200k -> capped, nested 400k -> capped, and a small event still arrives byte-for-byte so the cap cannot become a silent mangler). Tool rows now carry a RANKED label that never downgrades — naming files beats a title, which beats the generic word — so a finished row still says which file it wrote, and locations are shown when the title does not already name the path. Guards live-events-are-capped and tool-row-keeps-the-filename both proven load-bearing. Suite 222/222 with an agent, 219 pass 0 fail without one.',
   },
   {
     id: 10,

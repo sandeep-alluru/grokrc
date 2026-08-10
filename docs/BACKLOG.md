@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**18 of 25 closed.** Generated from `tools/backlog.mjs` —
+**19 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -83,7 +83,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** The watchdog now compares dist/daemon/server.js mtime against the daemon start time and restarts when the build is newer. Proven: touch dist -> run watchdog -> pid 1617626 becomes 1617847, logged as "reloaded the current build". After the reload the crash fix measured 4.5 MB -> 0.50 MB, 2000 -> 301 events, 1,624,434 -> 218,000 characters rendered.
 
-## B · Never verified  —  2/5 closed
+## B · Never verified  —  3/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
@@ -91,7 +91,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 6 | macOS untested; README says "expected to work" | `done` | VERIFIED — the same matrix on macos-latest: 4 runtime jobs plus 2 full-suite jobs green |
 | 7 | Relay mode never run against a real VPS | `open` | UNVERIFIED — covered in-process and in a browser, never over the internet |
 | 8 | Android push never tested | `open` | UNKNOWN — no Android device available |
-| 9 | Multi-file diff rendering and very long tool output unverified | `open` | UNVERIFIED — browser tests replay captured write/edit payloads only |
+| 9 | Multi-file diff rendering and very long tool output unverified | `done` | VERIFIED — both halves were real defects, each reproduced before being fixed. Long output: server.ts broadcast the live event object raw, and a 200,000-character tool result crossed the wire whole (nested: 400,148). Multi-file: a real grok 1.0.0 capture shows one file write is THREE events under one toolCallId, the last carrying no title and no kind, so the renderer overwrote the filename with the normalizer fallback — measured labels ["tool","tool","tool","tool"]. |
 
 ### 5 · Node 20 and 21 untested; `engines` claims >=20
 
@@ -104,6 +104,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** Attacked "macOS is basically Linux for a Node CLI" — untested is untested, and the systemd unit is genuinely Linux-only. Ran the real suite there rather than reasoning about it. What SURVIVED: the package and the full suite both work on macOS; only the systemd unit does not, which the docs already say.
 
 **Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
+
+### 9 · Multi-file diff rendering and very long tool output unverified
+
+**Reanalyse — attacked.** Two of my own detectors were wrong on this item and both would have shipped a false story. (1) I read the multi-file capture with the tool id truncated to 12 characters, saw call-8f2e5c6 three times, and concluded every file collapsed into one row through a toolCallId collision. Re-measuring with FULL ids showed ...-0, ...-1, ...-2 — distinct. There is no collision; the truncation was mine. (2) I then ran the renderer test PRE-FIX, saw it fail, and nearly recorded that as proof: the failure was a bare 10s timeout, because the preceding test reloads the page onto the session list and the daemon only forwards events to a client WATCHING a session. The test never reached its assertions in either direction. After opening the session first, the honest PRE-FIX appeared — labels ["tool","tool","tool","tool"] — and POST-FIX passes. I also attacked the trim fix: the twin search found the broadcast loop in server.ts is the ONLY fan-out, so phones, `grokrc term` and relay clients are all covered by one change, and `s.log.push(ev)` runs before `emit`, so trimming a copy leaves stored history intact.
+
+**Result.** Live events are now capped by the same trimEvent that history uses, applied once per event rather than once per client (test/live-event-size.test.ts: 200k -> capped, nested 400k -> capped, and a small event still arrives byte-for-byte so the cap cannot become a silent mangler). Tool rows now carry a RANKED label that never downgrades — naming files beats a title, which beats the generic word — so a finished row still says which file it wrote, and locations are shown when the title does not already name the path. Guards live-events-are-capped and tool-row-keeps-the-filename both proven load-bearing. Suite 222/222 with an agent, 219 pass 0 fail without one.
 
 ## C · Product gaps  —  3/5 closed
 
@@ -172,11 +178,10 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 7
+## Still open — 6
 
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
-- **#9** Multi-file diff rendering and very long tool output unverified
 - **#11** `grokrc config set` requires a daemon restart to take effect
 - **#12** Android home-screen / notification docs are thin
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB

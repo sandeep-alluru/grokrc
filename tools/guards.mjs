@@ -191,6 +191,26 @@ export const GUARDS = [
     test: 'test/relay-isolation.test.ts',
   },
   {
+    id: 'tool-row-keeps-the-filename',
+    why: 'grok’s completion event carries no title and no kind, so the normalizer falls back to the literal word “tool”. Written straight over the label it erased the filename, and a three-file edit finished as three identical rows saying “tool”.',
+    file: 'web/app.js',
+    find:
+      '  const label = toolLabel(ev, node.dataset.label, Number(node.dataset.rank ?? 0));\n' +
+      '  node.dataset.label = label.text;\n' +
+      '  node.dataset.rank = String(label.rank);\n' +
+      "  node.querySelector('.nm').textContent = label.text;",
+    replace: "  node.querySelector('.nm').textContent = ev.title || ev.name;",
+    test: 'test/browser.test.ts',
+  },
+  {
+    id: 'live-events-are-capped',
+    why: 'trimEvent was wired into history only. A live tool_call_update carrying a whole file went to the phone whole — the crash the owner hit happened while READING a session, not opening one.',
+    file: 'src/daemon/server.ts',
+    find: '      const payload = trimEvent(ev);',
+    replace: '      const payload = ev;',
+    test: 'test/live-event-size.test.ts',
+  },
+  {
     id: 'turn-completion-is-understood',
     why: 'lose this case and every session sits on “working” forever — the phone never shows a finished turn. Thirteen test files drive a mock that always sends `turn_completed`, so they would stay green while the real agent’s completion signal fell through to an opaque `raw` passthrough.',
     file: 'src/daemon/events.ts',

@@ -241,3 +241,62 @@ test('reloading replays history rather than losing the transcript', async () => 
   // Token persisted, so it goes straight to the list — not back to pairing.
   assert.equal(await page.isVisible('#v-pair'), false);
 });
+
+test('a finished tool row still names the file it wrote', async () => {
+  // BACKLOG #9, from a VERBATIM grok 1.0.0 capture (tools/../scratchpad probe):
+  // one file write is three events under one toolCallId, and the last carries
+  // no title and no kind. The old renderer wrote the normalizer's fallback —
+  // the literal word "tool" — straight over the label, so a three-file edit
+  // finished as three identical rows saying "tool".
+  //
+  // Real daemon, real websocket, real page: only the agent is scripted, and
+  // these payloads are transcribed from a live one.
+  // The previous test reloads, which lands on the session list. The daemon only
+  // forwards events to a client WATCHING that session, so the page has to be
+  // inside one — without this the rows never arrive and the failure is a bare
+  // timeout that says nothing about the label.
+  await page.click('.session');
+  await page.waitForSelector('#v-session.on', { timeout: 10_000 });
+
+  const open = sessions.list()[0];
+  assert.ok(open, 'a session must be open for this test to mean anything');
+  const sessionId = open.id;
+
+  const files = ['alpha.txt', 'beta.txt', 'gamma.txt'];
+  files.forEach((f, i) => {
+    const toolId = `call-9f1e-${i}`;
+    const path = `/tmp/multi/${f}`;
+    // 1. the call opens with a generic verb
+    sessions.emit('event', { k: 'tool', sessionId, toolId, name: 'write', title: 'write', status: 'running' });
+    // 2. the update names the file
+    sessions.emit('event', {
+      k: 'tool',
+      sessionId,
+      toolId,
+      name: 'edit',
+      title: `Write \`${path}\``,
+      status: 'running',
+      locations: [{ path }],
+    });
+    // 3. completion arrives with NOTHING but a status
+    sessions.emit('event', { k: 'tool', sessionId, toolId, name: 'tool', status: 'ok' });
+  });
+
+  await page.waitForFunction(
+    () => document.querySelectorAll('.tool').length >= 3,
+    undefined,
+    { timeout: 10_000 }
+  );
+
+  const labels = await page.$$eval('.tool .nm', (ns) => ns.map((n) => n.textContent ?? ''));
+  for (const f of files) {
+    assert.ok(
+      labels.some((l) => l.includes(f)),
+      `no tool row mentions ${f} — labels were ${JSON.stringify(labels)}`
+    );
+  }
+  assert.ok(
+    !labels.some((l) => l.trim() === 'tool'),
+    `a row was downgraded to the generic word "tool": ${JSON.stringify(labels)}`
+  );
+});
