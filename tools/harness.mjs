@@ -66,6 +66,38 @@ export async function isolatedGrokHome({ prompting = true } = {}) {
  * supply one to replay captures. The caller decides — this module does not
  * choose a fake on anyone's behalf.
  */
+/**
+ * Is a real Grok Build installed?
+ *
+ * The real-stack checks drive an actual agent. On a machine without one — every
+ * CI runner — they cannot pass, and failing there says nothing about the
+ * product. CONTRIBUTING and ci.yml both claimed these "skip themselves"; they
+ * did not, and CI was red on every run for a week because of it.
+ *
+ * Skipping is only honest if it is LOUD: a silent skip is indistinguishable
+ * from a pass, which is exactly how a guard elsewhere in this repo certified a
+ * control that did not exist.
+ */
+export async function hasAgent() {
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    await promisify(execFile)('grok', ['--version']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Exit 0 with a visible notice when there is no agent to drive. */
+export async function skipWithoutAgent(what) {
+  if (await hasAgent()) return false;
+  console.log(`\n  ─── SKIPPED: ${what} ───`);
+  console.log('  No `grok` on PATH, so there is no real agent to drive.');
+  console.log('  This check proves nothing here and is not counted as a pass.\n');
+  return true;
+}
+
 export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
   // A REAL grok writes its session history into GROK_HOME and keeps it forever.
   // Two checks ran against the owner's real ~/.grok and left a session behind on

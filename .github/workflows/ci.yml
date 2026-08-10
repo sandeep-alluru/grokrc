@@ -39,7 +39,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # `grok` is not available on a CI runner. Tests that need it skip
-      # themselves rather than fail, so this stays green without the binary.
+      # themselves LOUDLY (see tools/harness.mjs skipWithoutAgent), so this
+      # stays green without the binary and says which checks did not run.
+      # This claim was false until 2026-08-10 and CI was red for a week.
       - name: Test
         run: npm test
 

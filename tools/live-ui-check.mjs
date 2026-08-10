@@ -13,9 +13,19 @@
  *   npm run build && node tools/live-ui-check.mjs
  */
 import { join } from 'node:path';
-import { bootDaemon, isolatedGrokHome, pairedPage, reporter, cleanup, SHOTS } from './harness.mjs';
+import {
+  bootDaemon,
+  isolatedGrokHome,
+  pairedPage,
+  reporter,
+  cleanup,
+  skipWithoutAgent,
+  SHOTS,
+} from './harness.mjs';
 
 const { note, problems, finish } = reporter();
+if (await skipWithoutAgent('live UI check')) process.exit(0);
+
 // Own GROK_HOME: a real agent writes session history that outlives this
 // run, and it must not land in the owner's ~/.grok.
 await isolatedGrokHome({ prompting: false });

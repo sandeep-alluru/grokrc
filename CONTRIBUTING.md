@@ -74,8 +74,10 @@ counted before and after; if the suite writes there, the run fails and names wha
 leaked. If a test genuinely needs to read your real history, read it explicitly —
 `test/observer.test.ts` does — and never write to it.
 
-Tests that need the `grok` binary **skip themselves** when it is absent, so CI stays
-green without it. If you are changing ACP behaviour, run the real-stack checks locally —
+Tests that need the `grok` binary **skip themselves, loudly**, when it is absent — they
+print which check did not run rather than passing quietly. A silent skip is
+indistinguishable from a pass, which is how a guard here once certified a control that
+did not exist. If you are changing ACP behaviour, run the real-stack checks locally —
 CI cannot cover you there.
 
 ### Test layout
