@@ -9,7 +9,7 @@ phone — over the agent's own protocol, not a screen scrape.
   <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-195%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-200%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
 </p>
 
@@ -24,6 +24,36 @@ phone — over the agent's own protocol, not a screen scrape.
   <img src="docs/screenshots/approval.png" alt="One-tap approval" width="30%">
 </p>
 <p align="center"><em>Session list · a live turn · a real permission request, answered with one tap</em></p>
+
+---
+
+## Quickstart
+
+```bash
+# 1. the agent grokrc drives
+curl -fsSL https://x.ai/cli/install.sh | bash
+grok login
+
+# 2. grokrc itself
+npm install -g grokrc
+
+# 3. where new sessions should open, then go
+grokrc config set defaultCwd ~/code
+grokrc up --lan
+```
+
+It prints a URL and a 6-character code. Open the URL on your phone, type the code.
+
+```
+  grokrc listening on http://192.168.1.24:4319
+
+  No paired devices. Open the URL above on your device and enter:
+
+      Y8M8GF
+```
+
+Stuck? `grokrc doctor` checks the agent, the protocol, and whether approvals will
+actually fire. Full walkthrough in **[docs/SETUP.md](docs/SETUP.md)**.
 
 ---
 
@@ -64,14 +94,21 @@ diffs, and plans arrive as typed JSON instead of characters on a screen.
 > from your phone (LAN / Tailscale / relay), run it as a service, enable push,
 > plus troubleshooting and the security model.
 
-**1. Grok Build** — grokrc drives it, so it has to be there first:
+**From npm** — the normal way:
 
 ```bash
-curl -fsSL https://x.ai/cli/install.sh | bash
-grok login
+npm install -g grokrc
 ```
 
-**2. grokrc:**
+No global write access? Install without root:
+
+```bash
+npm config set prefix ~/.local          # once
+npm install -g grokrc
+export PATH="$HOME/.local/bin:$PATH"    # add this to your shell rc
+```
+
+**From source** — for contributors, or to run unreleased changes:
 
 ```bash
 git clone https://github.com/sandeep-alluru/grokrc.git
@@ -80,17 +117,24 @@ npm install && npm run build
 npm link                       # puts `grokrc` on your PATH
 ```
 
-**3. Point it at your projects, and start it:**
+**Either way**, grokrc drives [Grok Build](https://docs.x.ai/build/overview), so that
+has to exist first — `grokrc up` refuses to start without it:
 
 ```bash
-grokrc config set defaultCwd ~/code    # required — it will not guess
-grokrc doctor                          # checks grok, ACP, and approvals
-grokrc up --lan
+curl -fsSL https://x.ai/cli/install.sh | bash
+grok login
 ```
 
-It prints a URL and a 6-character code. Open the URL on your phone, type the code.
+Then set the one setting that has no default, and check the install:
 
-Needs Node 20+. Tested against `grok 0.2.118` on Linux and macOS.
+```bash
+grokrc config set defaultCwd ~/code    # required — grokrc will not guess
+grokrc doctor                          # agent, ACP handshake, approvals
+```
+
+Node 20 or newer per `engines`, **developed and tested on Node 22** — 20 and 21 are
+untested. Verified against `grok 0.2.118` and `1.0.0` on Linux. macOS is expected to
+work but is untested here; the systemd unit is Linux-only.
 
 ## Use
 
@@ -258,7 +302,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 195 tests — unit, browser (real Chromium against the real PWA), and real-stack
+- ✅ 200 tests — unit, browser (real Chromium against the real PWA), and real-stack
   checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
@@ -386,7 +430,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 195 tests: mock suite -> build -> real-stack checks
+npm test          # 200 tests: mock suite -> build -> real-stack checks
 npm run verify:guards  # disable each load-bearing control; its test must FAIL
 npm run check:live     # drive the RUNNING daemon in a real browser
 npm run typecheck

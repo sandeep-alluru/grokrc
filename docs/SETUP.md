@@ -20,6 +20,7 @@ have what you need.
 7. [Run it as a service](#7-run-it-as-a-service)
 8. [Push notifications](#8-push-notifications)
 9. [The terminal client](#9-the-terminal-client)
+9a. [Taking a terminal session over from your phone](#9a-taking-a-terminal-session-over-from-your-phone)
 10. [Session modes](#10-session-modes)
 11. [Command reference](#11-command-reference)
 12. [Troubleshooting](#12-troubleshooting)
@@ -30,31 +31,53 @@ have what you need.
 
 ## 1. Requirements
 
-|                |                                                                             |
-| -------------- | --------------------------------------------------------------------------- |
-| **Node.js**    | 22 or newer (`node --version`)                                              |
-| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`           |
-| **OS**         | Linux or macOS. The systemd unit is Linux-only; everything else is portable |
-| **A phone**    | any browser. It installs as a PWA — no app store                            |
+|                |                                                                                  |
+| -------------- | -------------------------------------------------------------------------------- |
+| **Node.js**    | 20+ per `engines`; **developed and tested on 22**. 20 and 21 are untested          |
+| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`, then `grok login` |
+| **OS**         | Verified on Linux. macOS is expected to work but untested; the systemd unit is Linux-only |
+| **A phone**    | any browser. It installs as a PWA — no app store                                   |
 
-Check Grok is working before you start:
+Check the agent works before you start — grokrc cannot do anything without it:
 
 ```bash
-grok --version          # e.g. grok 0.2.118 (stable)
+grok --version          # e.g. grok 1.0.0 (stable)
+grok login              # required; grokrc surfaces this if you skip it
 ```
+
+Notifications additionally need **HTTPS** (§6 and §8). Everything else works over
+plain HTTP on your own network.
 
 ---
 
 ## 2. Install
 
+### Option A — from npm (recommended)
+
 ```bash
-git clone <your-fork-or-this-repo> grokrc
+npm install -g grokrc
+```
+
+If that fails with `EACCES`, do not use `sudo`. Point npm at your own directory:
+
+```bash
+npm config set prefix ~/.local
+npm install -g grokrc
+export PATH="$HOME/.local/bin:$PATH"      # add to ~/.bashrc or ~/.zshrc
+```
+
+### Option B — from source
+
+For contributing, or to run changes that are not released yet:
+
+```bash
+git clone https://github.com/sandeep-alluru/grokrc.git
 cd grokrc
 npm install
 npm run build
 ```
 
-Put `grokrc` on your PATH. Either:
+Then put it on your PATH, either:
 
 ```bash
 npm link                                   # needs write access to the global prefix
@@ -69,14 +92,27 @@ chmod +x dist/cli.js
 # ensure ~/.local/bin is on your PATH
 ```
 
-Verify:
+### Verify
 
 ```bash
 grokrc doctor
 ```
 
 `doctor` checks that Grok is installed, completes a real ACP handshake, creates and
-then **removes** a throwaway session, and reports whether approvals will actually fire.
+then **removes** a throwaway session, and reports whether approvals will actually
+fire. It is the fastest way to tell a configuration problem from a grokrc problem.
+
+Expected on a healthy install:
+
+```
+  ✓ grok found: grok 1.0.0 (stable)
+  ✓ ACP handshake ok (protocolVersion 1)
+  ✓ session/new ok (019f…)
+```
+
+If it says `grok not found`, install the agent (§1). If it says
+`Authentication required`, run `grok login`. If it says the agent **will not
+prompt**, read §4 — that one matters more than it looks.
 
 ---
 
@@ -445,9 +481,17 @@ What this does **not** protect against: someone with write access to `~/.grokrc`
 
 ```bash
 packaging/systemd/uninstall.sh     # remove the service, keep pairings
+npm uninstall -g grokrc            # if installed from npm
+#   or, from source:  npm unlink   (run in the clone)
 rm -rf ~/.grokrc                   # device tokens, push keys, settings
-rm ~/.local/bin/grokrc             # or: npm unlink
 tailscale serve --https=443 off    # if you used Tailscale
+```
+
+To revoke phones without uninstalling anything:
+
+```bash
+grokrc devices
+grokrc revoke --all
 ```
 
 Grok's own sessions in `~/.grok/sessions` are untouched — grokrc never owned them.

@@ -52,6 +52,35 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
   card to turn green, then asserted on the agent's closing message — two different
   events. It now waits for the text it asserts on. Verified across five consecutive runs.
 
+## [0.1.1] — 2026-08-10
+
+Onboarding fixes, found by installing 0.1.0 into a fresh HOME with no agent and
+no credentials — a state the author's machine can never be in.
+
+### Fixed
+
+- **`grokrc up` started with no agent installed.** It printed a config warning
+  and began listening, so a new user could pair a phone to a daemon that could
+  not open a single session. It now refuses, names the install command, and does
+  not announce itself as ready.
+- **`grokrc doctor` relayed the agent's raw auth error** — `Authentication
+  required (-32000)` — which is accurate and names no command. It now adds
+  `run: grok login`.
+
+### Added
+
+- `npm run check:stranger` — installs the package into a fresh HOME with a
+  system-only PATH and asserts the first-run experience. Two of its own
+  assertions were false-passing on the first run and were tightened.
+- `npm run check:live` — drives the running daemon in a real browser.
+- `npm run verify:guards` — disables each load-bearing control and requires its
+  test to fail.
+
+### Verified
+
+Compatible with **Grok Build 1.0.0** as well as 0.2.118: ACP handshake,
+`loadSession`, `session/new`, full suite 199/199, both real-stack checks clear.
+
 ## [0.1.0] — 2026-08-04
 
 First working release. Private.
@@ -84,5 +113,6 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.0

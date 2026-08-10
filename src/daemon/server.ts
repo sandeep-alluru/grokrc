@@ -8,7 +8,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { AuthStore, type Device } from './auth.ts';
 import type { RcEvent } from './events.ts';
@@ -65,6 +66,33 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
 };
+
+/**
+ * The real package version.
+ *
+ * Was hardcoded in two places and drifted the moment the version was bumped —
+ * `/api/health` reported 0.1.0 from a 0.1.1 build. Read it from package.json,
+ * which is the only copy that ships.
+ */
+let PKG_VERSION: string | null = null;
+async function version(): Promise<string> {
+  if (PKG_VERSION) return PKG_VERSION;
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    for (const rel of ['../../package.json', '../../../package.json']) {
+      try {
+        const raw = await readFile(resolve(here, rel), 'utf8');
+        const v = JSON.parse(raw) as { name?: string; version?: string };
+        if (v.name === 'grokrc' && v.version) return (PKG_VERSION = v.version);
+      } catch {
+        /* try the next candidate */
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return (PKG_VERSION = 'unknown');
+}
 
 export class RemoteControlServer {
   #http: Server;
@@ -256,7 +284,7 @@ export class RemoteControlServer {
     const send = (status: number, payload: unknown) => reply(status, JSON.stringify(payload));
 
     try {
-      if (req.path === '/api/health') return send(200, { ok: true, version: '0.1.0' });
+      if (req.path === '/api/health') return send(200, { ok: true, version: await version() });
 
       if (req.path === '/api/push/key') {
         return send(200, { publicKey: this.#opts.push?.publicKey ?? null });
@@ -372,7 +400,7 @@ export class RemoteControlServer {
     }
 
     if (url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, version: '0.1.0' });
+      return json(res, 200, { ok: true, version: await version() });
     }
 
     if (url.pathname === '/api/push/key') {

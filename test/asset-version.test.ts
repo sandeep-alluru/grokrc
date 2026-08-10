@@ -148,3 +148,25 @@ test('a client that reports no version is not treated as stale', async () => {
   const ready = await helloWith(undefined);
   assert.equal(ready.stale, false);
 });
+
+test('/api/health reports the version that actually shipped', async () => {
+  // It was hardcoded in two places and reported 0.1.0 from a 0.1.1 build.
+  // A version endpoint that lies is worse than none: it is the first thing
+  // anyone checks when a fix appears not to have landed.
+  const { readFile } = await import('node:fs/promises');
+  const pkg = JSON.parse(
+    await readFile(resolve(import.meta.dirname, '../package.json'), 'utf8')
+  ) as { version: string };
+
+  const health = (await (await fetch(`${base}/api/health`)).json()) as {
+    ok: boolean;
+    version: string;
+  };
+  assert.equal(health.ok, true);
+  assert.equal(
+    health.version,
+    pkg.version,
+    `/api/health says ${health.version}, package.json says ${pkg.version}`
+  );
+  assert.notEqual(health.version, 'unknown', 'the daemon could not find its own package.json');
+});

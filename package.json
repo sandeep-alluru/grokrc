@@ -1,6 +1,6 @@
 {
   "name": "grokrc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Remote control for xAI's Grok Build CLI \u2014 drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
   "type": "module",
   "license": "MIT",

@@ -47,6 +47,14 @@ export const GUARDS = [
     test: 'test/handback.test.ts',
   },
   {
+    id: 'health-reports-real-version',
+    why: 'the version was hardcoded twice and reported 0.1.0 from a 0.1.1 build — the first thing anyone checks when a fix looks missing',
+    file: 'src/daemon/server.ts',
+    find: "        if (v.name === 'grokrc' && v.version) return (PKG_VERSION = v.version);",
+    replace: "        if (v.name === 'grokrc' && v.version) return (PKG_VERSION = '0.1.0');",
+    test: 'test/asset-version.test.ts',
+  },
+  {
     id: 'up-refuses-without-agent',
     why: 'grokrc up used to start with no agent installed, so a new user paired a phone to a daemon that could not open a session',
     file: 'src/cli.ts',
