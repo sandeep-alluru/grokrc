@@ -302,7 +302,7 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 204 tests — unit, browser (real Chromium against the real PWA), and real-stack
+- ✅ Unit, browser (real Chromium against the real PWA) and real-stack tests —
   checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
@@ -430,7 +430,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 204 tests: mock suite -> build -> real-stack checks
+npm test          # mock suite -> build -> real-stack checks
 npm run verify:guards  # disable each load-bearing control; its test must FAIL
 npm run check:live     # drive the RUNNING daemon in a real browser
 npm run typecheck

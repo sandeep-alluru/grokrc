@@ -166,13 +166,24 @@ Not yet. Install from source — see [SETUP.md](SETUP.md).
 
 ### Can I use it on Android?
 
-Yes, and push is straightforward there — Chrome supports Web Push without the
-home-screen dance. The docs are iOS-heavy only because iOS is where it is hardest.
+The app itself works anywhere with a modern browser — pairing, sessions, approvals and
+`grokrc term` handoff are all plain HTTPS and WebSocket.
+
+Notifications should be the easy case on Android: Chrome supports Web Push in an
+ordinary tab, with none of the Safari home-screen requirements iOS imposes. But that
+path has **not been tested on a physical Android device** — nobody working on this has
+one, so it is untested rather than known-good. Tracked as backlog #8. The full flow,
+and the check that would settle it, are in
+[USER-GUIDE §10](USER-GUIDE.md#on-android).
+
+The docs are iOS-heavy because iOS is where it is hardest, not because Android is
+better supported.
 
 ### Is it production-ready?
 
-It is pre-1.0 software that one person uses daily. 153 tests, including browser tests
-against the real PWA and real-stack checks that drive an actual `grok` process. There
+It is pre-1.0 software that one person uses daily. The suite includes browser tests
+against the real PWA and real-stack checks that drive an actual `grok` process — run
+`npm test` for the current count rather than trusting a number written here. There
 has been no third-party security audit. Read [SECURITY.md](../SECURITY.md) and decide
 for yourself.
 

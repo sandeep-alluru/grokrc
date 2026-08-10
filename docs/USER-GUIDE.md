@@ -300,10 +300,47 @@ This is the answer to "how do I hand off between laptop and phone" — start it 
 Notifications tell you when a turn finishes or the agent is blocked on an approval. They
 are optional; everything else works without them.
 
-### On Android and desktop
+### On Android
 
-Open the app, tap **🔔 Enable notifications** at the top of the session list, allow the
-prompt. Done.
+Android is the easy case: Chrome supports Web Push in an ordinary tab, with no
+home-screen requirement and no browser restriction.
+
+1. Open the URL in **Chrome** (Firefox and Edge also support Web Push; Samsung
+   Internet does too).
+2. Tap **🔔 Enable notifications** at the top of the session list.
+3. Accept Chrome's permission prompt.
+
+That is the whole flow. If the row does not appear, it will say why — see
+[Notifications never arrive](TROUBLESHOOTING.md#notifications-never-arrive)
+below.
+
+**Install it to the home screen (optional, recommended).** Chrome menu **⋮ → Add to
+Home screen** (newer builds say **Install app**). This gives a standalone window with
+no address bar, and Android keeps the service worker registered more reliably. Unlike
+iOS, notifications work either way.
+
+**HTTPS is still required.** Web Push and service workers need a secure context.
+Tailscale or a relay gives you one; a plain `http://` LAN address will not work, and
+the notification row will tell you so rather than failing silently.
+
+**Battery optimisation.** If notifications arrive late or stop after a while, Android
+may be sleeping Chrome in the background: **Settings → Apps → Chrome → Battery →
+Unrestricted**. This is an OS-level power setting, not something the app controls.
+
+> **Honestly stated:** the Android path is implemented and follows the standard Web
+> Push flow that this daemon already serves to Firefox on desktop, but it has
+> **not been tested on a physical Android device** — nobody involved has one. Nothing
+> here is known to be broken; it is untested, which is not the same as working.
+> Tracked as backlog #8. If you run it on Android, the check that settles it is
+> `grokrc doctor`, which reports the daemon's real push counters — `sent` should
+> increase by one when a turn finishes.
+
+### On desktop
+
+Chrome, Firefox and Edge all support Web Push in a normal tab. Same flow: open the
+app, tap **🔔 Enable notifications**, accept the prompt. Safari on macOS requires the
+site to be added to the Dock (**File → Add to Dock**), the desktop equivalent of the
+iPhone dance below.
 
 ### On iPhone — read this, it is genuinely awkward
 

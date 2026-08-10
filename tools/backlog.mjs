@@ -282,9 +282,16 @@ export const ITEMS = [
     id: 12,
     section: 'C',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: 'Android home-screen / notification docs are thin',
-    evidence: 'VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines',
+    evidence:
+      'VERIFIED — and thinness was the least of it. FAQ.md asserted Android push "is straightforward there" while this very file recorded #8 as open with "UNKNOWN — no Android device available": the repo shipped a claim and the record contradicting it. FAQ also said "153 tests" and README "204 tests" against a suite that had moved on.',
+    loop: {
+      attacked:
+        'Treating this as a writing task was the lazy pass — more prose rots the same way the two lines did. So the question became: what DETECTS the rot? Building that detector caught three of my own errors in a row. (1) My first version demanded an exact sentence in both docs; it failed on the docs I had just written, because one says it inside a wrapped blockquote with markdown bold — the detector was wrong, not the docs, so it now normalises before matching. (2) I shipped a DEAD ANCHOR in the same edit — a link to #why-the-notification-row-says-push-is-unavailable, a heading that never existed — which is what motivated a link checker at all. (3) That checker then reported three LIVE anchors as dead, because my slug collapsed runs of spaces while GitHub emits one hyphen per space: removing an em-dash leaves two spaces and therefore two hyphens. That exact slug bug had already bitten this repo once, in the README table of contents, which makes it mechanism debt rather than bad luck.',
+    },
+    result:
+      'Android now has a real section: Chrome/Firefox/Edge/Samsung Internet, the optional Add to Home screen, the HTTPS requirement, and the battery-optimisation setting that silently delays notifications — plus an explicit statement that none of it has been exercised on a physical device, naming `grokrc doctor` as the check that would settle it. test/docs.test.ts is the new mechanism, and every one of its four checks was proven to FAIL on known-bad input before being trusted: a reintroduced hardcoded count, a reintroduced "push is straightforward" claim, a removed untested-caveat, and a deliberately dead anchor. The Android caveat check reads backlog #8 status from the DATA, so closing #8 retires the requirement automatically instead of leaving a stale rule behind. Suite 228/228 with an agent, 225 pass 0 fail without one.',
   },
   {
     id: 13,

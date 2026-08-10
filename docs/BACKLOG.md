@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**20 of 25 closed.** Generated from `tools/backlog.mjs` —
+**21 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -111,7 +111,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** Live events are now capped by the same trimEvent that history uses, applied once per event rather than once per client (test/live-event-size.test.ts: 200k -> capped, nested 400k -> capped, and a small event still arrives byte-for-byte so the cap cannot become a silent mangler). Tool rows now carry a RANKED label that never downgrades — naming files beats a title, which beats the generic word — so a finished row still says which file it wrote, and locations are shown when the title does not already name the path. Guards live-events-are-capped and tool-row-keeps-the-filename both proven load-bearing. Suite 222/222 with an agent, 219 pass 0 fail without one.
 
-## C · Product gaps  —  4/5 closed
+## C · Product gaps  —  5/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 22 | Opening a long session crashed the phone — "A problem repeatedly occurred" | `done` | VERIFIED — the owner's x.com session is 1518 events / 9.97 MB; a real browser received 4.5 MB and rendered 1.6 million characters |
 | 25 | Issuing a pairing code destroyed the one being typed | `done` | VERIFIED — auth.ts held ONE pending slot; beginPairing() overwrote it. 29 half-finished device pairings accumulated while the owner was told "invalid" |
 | 11 | `grokrc config set` requires a daemon restart to take effect | `done` | VERIFIED live against the running daemon: `config set historyLimit 250` -> "applied to the running daemon — no restart needed", while `config set lan false` -> "the daemon is already bound to its address: restart to apply". Both settings restored afterwards and the daemon stayed healthy. |
-| 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
+| 12 | Android home-screen / notification docs are thin | `done` | VERIFIED — and thinness was the least of it. FAQ.md asserted Android push "is straightforward there" while this very file recorded #8 as open with "UNKNOWN — no Android device available": the repo shipped a claim and the record contradicting it. FAQ also said "153 tests" and README "204 tests" against a suite that had moved on. |
 
 ### 10 · `grokrc doctor` spawns its own probe agent instead of asking the running daemon
 
@@ -144,6 +144,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** The feature was already implemented, so the lazy pass was to mark it done and move on. Attacking it instead: I registered guards for its two controls and BOTH came back UNPROVEN — test/config-reload.test.ts passed with `server.applyConfig({historyLimit})` deleted AND with the entire needsRestart loop deleted. Reading it showed why: the test defined its own `reload` handler inline (lines 41-54) and asserted against that. It was a forked copy of the production logic, so it measured itself and could never fail for anything src/cli.ts did — a green test proving nothing, which is exactly what directive 03 exists to catch. Two further detector errors surfaced while fixing it: my first rewrite wrote a PARTIAL config file, so `port: undefined` looked like a change and needsRestart was non-empty for the wrong reason; and once corrected, `applied` came back as [defaultCwd, historyLimit] on a reload that only changed defaultCwd — production pushed historyLimit unconditionally while checking defaultCwd for an actual change.
 
 **Result.** The logic moved into one implementation, `applyReload` in src/daemon/config.ts, which cli.ts now calls; the test drives that exported function with recorders instead of reimplementing it. historyLimit is now reported only when it actually changed, matching how defaultCwd already behaved, so a reload no longer claims to have applied a setting the user never touched. Tests went 2 -> 4, covering the historyLimit branch and the nothing-changed case that the old file left uncovered. Guards config-reload-reaches-the-daemon and config-reload-admits-what-it-cannot-apply now both prove load-bearing, having failed to before. Suite 224/224 with an agent, 221 pass 0 fail without one.
+
+### 12 · Android home-screen / notification docs are thin
+
+**Reanalyse — attacked.** Treating this as a writing task was the lazy pass — more prose rots the same way the two lines did. So the question became: what DETECTS the rot? Building that detector caught three of my own errors in a row. (1) My first version demanded an exact sentence in both docs; it failed on the docs I had just written, because one says it inside a wrapped blockquote with markdown bold — the detector was wrong, not the docs, so it now normalises before matching. (2) I shipped a DEAD ANCHOR in the same edit — a link to #why-the-notification-row-says-push-is-unavailable, a heading that never existed — which is what motivated a link checker at all. (3) That checker then reported three LIVE anchors as dead, because my slug collapsed runs of spaces while GitHub emits one hyphen per space: removing an em-dash leaves two spaces and therefore two hyphens. That exact slug bug had already bitten this repo once, in the README table of contents, which makes it mechanism debt rather than bad luck.
+
+**Result.** Android now has a real section: Chrome/Firefox/Edge/Samsung Internet, the optional Add to Home screen, the HTTPS requirement, and the battery-optimisation setting that silently delays notifications — plus an explicit statement that none of it has been exercised on a physical device, naming `grokrc doctor` as the check that would settle it. test/docs.test.ts is the new mechanism, and every one of its four checks was proven to FAIL on known-bad input before being trusted: a reintroduced hardcoded count, a reintroduced "push is straightforward" claim, a removed untested-caveat, and a deliberately dead anchor. The Android caveat check reads backlog #8 status from the DATA, so closing #8 retires the requirement automatically instead of leaving a stale rule behind. Suite 228/228 with an agent, 225 pass 0 fail without one.
 
 ## D · Housekeeping  —  2/3 closed
 
@@ -184,10 +190,9 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 5
+## Still open — 4
 
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
-- **#12** Android home-screen / notification docs are thin
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
 - **#16** A malicious relay can serve modified JavaScript
