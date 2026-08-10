@@ -93,7 +93,7 @@ export class AuthStore {
    *
    * Each code still expires on its own timer and is still single use.
    */
-  beginPairing(): { code: string; expiresAt: number } {
+  beginPairing(): PendingPairing {
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) {
       code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];

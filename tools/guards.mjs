@@ -190,4 +190,15 @@ export const GUARDS = [
     replace: '',
     test: 'test/relay-isolation.test.ts',
   },
+  {
+    id: 'turn-completion-is-understood',
+    why: 'lose this case and every session sits on “working” forever — the phone never shows a finished turn. Thirteen test files drive a mock that always sends `turn_completed`, so they would stay green while the real agent’s completion signal fell through to an opaque `raw` passthrough.',
+    file: 'src/daemon/events.ts',
+    find: "    case 'turn_completed':",
+    replace: "    case '__disabled_turn_completed':",
+    // Not a node:test file: this one drives a REAL grok and compares it against
+    // the pinned protocol surface. That is the point — it is the only check in
+    // this repo that can notice the live agent and the mock parting ways.
+    test: 'tools/acp-conformance.mjs',
+  },
 ];

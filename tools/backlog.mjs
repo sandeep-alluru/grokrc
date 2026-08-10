@@ -61,9 +61,17 @@ export const ITEMS = [
     id: 3,
     section: 'A',
     effort: 'L',
-    status: 'open',
-    title: 'Mock debt: 13 of 32 test files reference a mock/stub/fake',
-    evidence: 'VERIFIED — directive-check.mjs reports it as DEBT under 03 law 4',
+    status: 'done',
+    title:
+      'Mock debt: 13 test files drive MockTransport, and nothing checked the capture still held',
+    evidence:
+      'VERIFIED — enumerated all 39 test files to zero: 16 match the checker, but 3 of those match only inside COMMENTS (midturn.test.ts argues a replaying mock would be wrong; takeover.test.ts says "Real, not a stub"; relay-isolation.test.ts calls a real WebSocket a "fake daemon socket"). True count is 13/39. The mock captured grok 0.2.118; the installed agent is 1.0.0.',
+    loop: {
+      attacked:
+        'My leading diagnosis was "a major version bump means the capture has drifted and 13 files are green against a fiction." I built tools/acp-conformance.mjs to drive a REAL grok 1.0.0 and compare it against the claims read out of mock-transport.ts, and the diagnosis was REFUTED: every shape the mock asserts is still produced — agent_message_chunk, agent_thought_chunk, tool_call, tool_call_update, turn_completed — and the permission option kinds (allow_always, allow_once, reject_once) match the capture exactly. The mock is not lying. Then I attacked my own gate, which is where the real defect was: its assertion "every live kind normalizes to at least one event" passed 16/16 and was WORTHLESS, because normalizeSessionUpdate ends in `default: return [{k:"raw"}]` — true for every string that exists. A check that cannot fail certifies nothing, which is the same defect the item is about. Replaced it with a comparison against a measured, pinned surface, then proved that one CAN fail: dropping a kind from the pin exits 1, dropping a method exits 1, removing a kind from the opaque list exits 1, and the restored fixture is byte-identical with exit 0.',
+    },
+    result:
+      'The mocks are no longer unaccountable. tools/acp-conformance.mjs reads the mock’s claims from mock-transport.ts (never a hand-copied list), drives a real agent, and compares against test/fixtures/acp-surface.json — a MEASURED pin of 16 update kinds and 15 JSON-RPC methods on grok 1.0.0, reproduced identically across three runs. Wired into `npm test` via test:real, so the mock-backed files are now gated by a real-stack run in the default test command. Guard `turn-completion-is-understood` proves it load-bearing: disabling the turn_completed case in production makes the conformance check fail (verify-guards 21/21). Measured and now visible on every run: 9 of 16 live kinds reach the client as opaque `raw` events (hook_execution, interaction_resolved, last_turn_summary, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk), and 11 live kinds are exercised by no mock-backed test. 8 kinds new since 0.2.118 added to the declared union. Suite: 218 tests, 215 pass, 0 fail in both environments; the check skips loudly with no agent on PATH.',
   },
   {
     id: 4,

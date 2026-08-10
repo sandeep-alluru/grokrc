@@ -68,9 +68,18 @@ export interface InitializeResult {
 
 /**
  * Discriminator values observed on `params.update.sessionUpdate`.
- * `available_commands_update` is confirmed from a live capture; the rest follow
- * the ACP spec's naming and are handled defensively — an unknown value is
- * surfaced as a passthrough event rather than dropped.
+ *
+ * The final block was MEASURED against `grok 1.0.0` by
+ * `tools/acp-conformance.mjs`, which drives a real agent and records every
+ * discriminator it sends. That recording lives in
+ * `test/fixtures/acp-surface.json` and is compared on every `npm test` that has
+ * an agent available, so a value the agent starts or stops sending fails a
+ * check instead of being discovered by a user.
+ *
+ * Nine of these currently normalize to an opaque `raw` passthrough: the client
+ * receives them but has no specific handling. That is defensive by design, not
+ * an oversight — and the conformance check prints the list on every run so the
+ * number cannot quietly grow.
  */
 export type SessionUpdateKind =
   | 'agent_message_chunk'
@@ -87,6 +96,15 @@ export type SessionUpdateKind =
   | 'task_backgrounded'
   | 'task_completed'
   | 'hook_execution'
+  /* ── measured on grok 1.0.0; none of these existed in the 0.2.118 capture ── */
+  | 'interaction_resolved'
+  | 'last_turn_summary'
+  | 'model_changed'
+  | 'pending_interaction'
+  | 'response_completed'
+  | 'session_info_update'
+  | 'session_summary_generated'
+  | 'tool_call_delta_chunk'
   | (string & {});
 
 export interface ContentBlock {

@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**17 of 25 closed.** Generated from `tools/backlog.mjs` —
+**18 of 25 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,13 +12,13 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  7/8 closed
+## A · Automated coverage gaps  —  8/8 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 1 | `removeSessionDir()` has no test, so it cannot be registered as a guard | `done` | VERIFIED — test/session-cleanup.test.ts, and the containment check is a proven guard |
 | 2 | Terminal client's exit guard (`nothing to drive from here`) has no test | `done` | VERIFIED — test/term-exit.test.ts drives the real CLI against a real daemon over a real socket |
-| 3 | Mock debt: 13 of 32 test files reference a mock/stub/fake | `open` | VERIFIED — directive-check.mjs reports it as DEBT under 03 law 4 |
+| 3 | Mock debt: 13 test files drive MockTransport, and nothing checked the capture still held | `done` | VERIFIED — enumerated all 39 test files to zero: 16 match the checker, but 3 of those match only inside COMMENTS (midturn.test.ts argues a replaying mock would be wrong; takeover.test.ts says "Real, not a stub"; relay-isolation.test.ts calls a real WebSocket a "fake daemon socket"). True count is 13/39. The mock captured grok 0.2.118; the installed agent is 1.0.0. |
 | 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `done` | VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered |
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
 | 21 | Real-stack checks load dist/ but nothing warned when it was stale | `done` | VERIFIED — six consecutive false "still failing" results on #19 were the harness testing the previous build |
@@ -36,6 +36,12 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 **Reanalyse — attacked.** My first test hung, and my SECOND detector was also wrong — twice on one item. (1) `assert.equal(e.killed, false || undefined)` evaluates to `=== undefined`, so a clean non-zero exit, where killed is false, reported a hang that never happened. (2) Once fixed it exited 1 but printed 'no session matching does-not-exist' — a CLIENT-SIDE pre-check, not the guard. The guard fires on a daemon ERROR frame arriving before any session exists. A valid token can never reach it, so the test now uses a token the daemon REJECTS. Without that, the file would have gone green while the control stayed untested.
 
 **Result.** The client exits non-zero and prints "no session opened — nothing to drive from here" instead of sitting with no prompt and no way to quit but ctrl-C (originally exit 124, killed by timeout). Guard term-exits-when-no-session-opened proven load-bearing.
+
+### 3 · Mock debt: 13 test files drive MockTransport, and nothing checked the capture still held
+
+**Reanalyse — attacked.** My leading diagnosis was "a major version bump means the capture has drifted and 13 files are green against a fiction." I built tools/acp-conformance.mjs to drive a REAL grok 1.0.0 and compare it against the claims read out of mock-transport.ts, and the diagnosis was REFUTED: every shape the mock asserts is still produced — agent_message_chunk, agent_thought_chunk, tool_call, tool_call_update, turn_completed — and the permission option kinds (allow_always, allow_once, reject_once) match the capture exactly. The mock is not lying. Then I attacked my own gate, which is where the real defect was: its assertion "every live kind normalizes to at least one event" passed 16/16 and was WORTHLESS, because normalizeSessionUpdate ends in `default: return [{k:"raw"}]` — true for every string that exists. A check that cannot fail certifies nothing, which is the same defect the item is about. Replaced it with a comparison against a measured, pinned surface, then proved that one CAN fail: dropping a kind from the pin exits 1, dropping a method exits 1, removing a kind from the opaque list exits 1, and the restored fixture is byte-identical with exit 0.
+
+**Result.** The mocks are no longer unaccountable. tools/acp-conformance.mjs reads the mock’s claims from mock-transport.ts (never a hand-copied list), drives a real agent, and compares against test/fixtures/acp-surface.json — a MEASURED pin of 16 update kinds and 15 JSON-RPC methods on grok 1.0.0, reproduced identically across three runs. Wired into `npm test` via test:real, so the mock-backed files are now gated by a real-stack run in the default test command. Guard `turn-completion-is-understood` proves it load-bearing: disabling the turn_completed case in production makes the conformance check fail (verify-guards 21/21). Measured and now visible on every run: 9 of 16 live kinds reach the client as opaque `raw` events (hook_execution, interaction_resolved, last_turn_summary, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk), and 11 live kinds are exercised by no mock-backed test. 8 kinds new since 0.2.118 added to the declared union. Suite: 218 tests, 215 pass, 0 fail in both environments; the check skips loudly with no agent on PATH.
 
 ### 4 · Real agents spawned outside `npm test` still write into the developer’s ~/.grok
 
@@ -166,9 +172,8 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 8
+## Still open — 7
 
-- **#3** Mock debt: 13 of 32 test files reference a mock/stub/fake
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
 - **#9** Multi-file diff rendering and very long tool output unverified

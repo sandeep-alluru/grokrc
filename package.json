@@ -1,7 +1,7 @@
 {
   "name": "grokrc",
   "version": "0.1.2",
-  "description": "Remote control for xAI's Grok Build CLI \u2014 drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
+  "description": "Remote control for xAI's Grok Build CLI — drive your terminal coding agent from your phone over the agent's own protocol, not a screen scrape.",
   "type": "module",
   "license": "MIT",
   "author": "Sandeep Alluru",
@@ -49,7 +49,7 @@
     "test": "npm run test:mock && npm run build && npm run test:real",
     "test:unit": "node --test --experimental-strip-types test/events.test.ts test/observer.test.ts test/preflight.test.ts test/push.test.ts test/relay.test.ts test/server.test.ts",
     "test:mock": "node tools/isolated-test.mjs --test --experimental-strip-types --test-concurrency=1 test/*.test.ts",
-    "test:real": "node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs",
+    "test:real": "node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs && node tools/isolated-test.mjs tools/acp-conformance.mjs",
     "verify:guards": "node tools/verify-guards.mjs",
     "guards": "node tools/verify-guards.mjs --list",
     "check:live": "node --experimental-strip-types tools/live-check.mjs",
@@ -60,7 +60,9 @@
     "format": "prettier --write \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
     "format:check": "prettier --check \"{src,test,tools,web}/**/*.{ts,js,mjs}\" \"*.{json,js}\"",
     "check:stranger": "bash tools/stranger-check.sh",
-    "backlog": "node tools/backlog-report.mjs"
+    "backlog": "node tools/backlog-report.mjs",
+    "check:acp": "node --experimental-strip-types tools/acp-conformance.mjs",
+    "pin:acp": "node --experimental-strip-types tools/acp-conformance.mjs --pin"
   },
   "dependencies": {
     "web-push": "^3.6.7",

@@ -96,18 +96,24 @@ process.on('uncaughtException', (err) => {
  * Resolves to true when the file passed.
  */
 function runTest(testFile) {
-  return new Promise((res) => {
-    const child = spawn(
-      process.execPath,
-      [
+  // Not every control is provable by a `node:test` file. The ACP conformance
+  // gate drives a real agent and compares it against a pinned protocol surface,
+  // which cannot live in test/*.test.ts — `test:mock` must never spawn an agent,
+  // and harness-isolation exists to enforce exactly that. So a guard may name a
+  // runnable check instead, and this ONE runner drives both. A second runner
+  // per shape is how this file would rot into a copy per guard.
+  const isCheck = testFile.endsWith('.mjs');
+  const args = isCheck
+    ? [join(ROOT, 'tools/isolated-test.mjs'), '--experimental-strip-types', testFile]
+    : [
         join(ROOT, 'tools/isolated-test.mjs'),
         '--test',
         '--experimental-strip-types',
         '--test-concurrency=1',
         testFile,
-      ],
-      { cwd: ROOT, stdio: 'ignore' }
-    );
+      ];
+  return new Promise((res) => {
+    const child = spawn(process.execPath, args, { cwd: ROOT, stdio: 'ignore' });
     child.on('close', (code) => res(code === 0));
     child.on('error', () => res(false));
   });
