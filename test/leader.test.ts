@@ -14,8 +14,8 @@ import { strict as assert } from 'node:assert';
 import { test, before, after } from 'node:test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { AcpClient } from '../src/acp/client.ts';
 import { StdioTransport } from '../src/acp/transport.ts';
 import { SessionManager } from '../src/daemon/session-manager.ts';
@@ -39,7 +39,31 @@ async function waitForSocket(path: string, ms: number): Promise<boolean> {
   return false;
 }
 
+/**
+ * Refuse to spawn a real agent against the developer's own Grok history.
+ *
+ * `tools/isolated-test.mjs` sets GROK_HOME for `npm test`, but a file run
+ * directly — `node --test test/leader.test.ts`, which is what you do while
+ * debugging — inherits nothing. That is how `grokrc-leadertest-*` groups keep
+ * reappearing in ~/.grok after the leak was supposedly closed: the wrapper was
+ * the only control, and it does not cover the way the file is actually run.
+ */
+function isolatedHome(): string | null {
+  const home = process.env.GROK_HOME;
+  const real = join(process.env.HOME ?? homedir(), '.grok');
+  if (!home || resolve(home) === resolve(real)) return null;
+  return home;
+}
+
 before(async () => {
+  if (!isolatedHome()) {
+    // Not isolated: skip rather than write sessions into the real ~/.grok.
+    available = false;
+    console.log(
+      '  (skipped: run via `npm test`, or set GROK_HOME — refusing to use your real ~/.grok)'
+    );
+    return;
+  }
   try {
     leader = spawn(
       'grok',
@@ -56,6 +80,26 @@ before(async () => {
       available = false;
     });
     available = await waitForSocket(sock, 30_000);
+
+    // A socket is not a usable agent. With an isolated GROK_HOME and no cached
+    // credentials the leader starts and binds, then refuses every session with
+    // "Authentication required" — so `available` has to mean "can actually open
+    // a session", or the tests fail for an environment reason and look like
+    // product defects.
+    if (available) {
+      const probe = connect();
+      try {
+        await probe.initialize();
+        await probe.newSession(workDir);
+      } catch {
+        available = false;
+        console.log(
+          '  (leader is up but cannot open a session — no credentials in this GROK_HOME)'
+        );
+      } finally {
+        probe.close();
+      }
+    }
   } catch {
     available = false;
   }

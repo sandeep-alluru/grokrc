@@ -1,6 +1,6 @@
 # grokrc — open items
 
-**3 of 20 closed.** Generated from `tools/backlog.mjs` —
+**8 of 20 closed.** Generated from `tools/backlog.mjs` —
 edit that, then run `npm run backlog -- --write`. `npm run backlog -- --check`
 fails if this file has drifted, so status cannot be claimed in one place and
 contradicted in another.
@@ -12,15 +12,21 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## A · Automated coverage gaps  —  1/5 closed
+## A · Automated coverage gaps  —  2/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
 | 1 | `removeSessionDir()` has no test, so it cannot be registered as a guard | `open` | VERIFIED — src/cli.ts defines it; grep over test/ returns nothing |
 | 2 | Terminal client's exit guard (`nothing to drive from here`) has no test | `open` | VERIFIED — src/term/client.ts has it, no test references it |
 | 3 | Mock debt: 13 of 32 test files reference a mock/stub/fake | `open` | VERIFIED — directive-check.mjs reports it as DEBT under 03 law 4 |
-| 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `open` | VERIFIED — 3 dead-cwd groups reappeared: grokrc-pkgtest-*, grokrc-leadertest-*, grokrc-public-* |
+| 4 | Real agents spawned outside `npm test` still write into the developer’s ~/.grok | `done` | VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered |
 | 20 | CI had been failing on EVERY run since 2026-08-06 and nobody looked | `done` | VERIFIED — gh run list showed 10 consecutive failures across the public launch and two npm releases |
+
+### 4 · Real agents spawned outside `npm test` still write into the developer’s ~/.grok
+
+**Reanalyse — attacked.** Attacked my own fix: the isolated-test wrapper was assumed to cover the leak, so I measured check:stranger and it was clean — 20 sessions before and after. The leak was still recurring, which REFUTED "the wrapper is enough". Tracing the new group (grokrc-leadertest-Y6ANl9) showed it came from `node --test test/leader.test.ts` run directly while debugging: the wrapper only applies through npm scripts, and debugging never goes through them.
+
+**Result.** leader.test.ts now refuses to spawn a real agent when GROK_HOME is unset or is the real home, and skips with a message naming the fix. Verified: running the file directly leaves the session count unchanged (20 -> 20), while `npm test` still exercises the leader for real (206/206, 0 skipped).
 
 ### 20 · CI had been failing on EVERY run since 2026-08-06 and nobody looked
 
@@ -36,15 +42,27 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 **Result.** CI environment reproduced locally (no agent on PATH): 201 pass, 0 fail, 3 skipped, exit 0. Developer environment: 204/204, both real-stack checks ALL CLEAR. Guards 15/15 in the CI environment, where one was previously unprovable.
 
-## B · Never verified  —  0/5 closed
+## B · Never verified  —  2/5 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| 5 | Node 20 and 21 untested; `engines` claims >=20 | `open` | UNVERIFIED — only Node 22 exists here. Settled by a CI matrix |
-| 6 | macOS untested; README says "expected to work" | `open` | UNVERIFIED — no macOS machine. Settled by a macos-latest CI job |
+| 5 | Node 20 and 21 untested; `engines` claims >=20 | `done` | VERIFIED — CI matrix: dist on Node 20, 21, 22 and 24, ubuntu and macos, 8/8 green |
+| 6 | macOS untested; README says "expected to work" | `done` | VERIFIED — the same matrix on macos-latest: 4 runtime jobs plus 2 full-suite jobs green |
 | 7 | Relay mode never run against a real VPS | `open` | UNVERIFIED — covered in-process and in a browser, never over the internet |
 | 8 | Android push never tested | `open` | UNKNOWN — no Android device available |
 | 9 | Multi-file diff rendering and very long tool output unverified | `open` | UNVERIFIED — browser tests replay captured write/edit payloads only |
+
+### 5 · Node 20 and 21 untested; `engines` claims >=20
+
+**Reanalyse — attacked.** Attacked the obvious matrix design first: `node-version: [20, 22]` running `npm test` would FAIL on 20, because the suite uses --experimental-strip-types which does not exist before 22.6 — measuring the test framework, not the product. REFUTED. Also attacked omitting Node 21 as "short-lived": that is a reason to expect it works, not evidence, and `engines` admits it, so it is tested.
+
+**Result.** compat.yml builds once on 22 then EXECUTES dist/ on 20, 21, 22, 24: --help, the engines floor, doctor failing cleanly, config naming defaultCwd, and up refusing without an agent. All 8 runtime jobs green.
+
+### 6 · macOS untested; README says "expected to work"
+
+**Reanalyse — attacked.** Attacked "macOS is basically Linux for a Node CLI" — untested is untested, and the systemd unit is genuinely Linux-only. Ran the real suite there rather than reasoning about it. What SURVIVED: the package and the full suite both work on macOS; only the systemd unit does not, which the docs already say.
+
+**Result.** macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".
 
 ## C · Product gaps  —  0/3 closed
 
@@ -54,13 +72,25 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 | 11 | `grokrc config set` requires a daemon restart to take effect | `open` | VERIFIED — src/cli.ts prints "restart to apply" |
 | 12 | Android home-screen / notification docs are thin | `open` | VERIFIED — USER-GUIDE §10 covers iOS in depth, Android in two lines |
 
-## D · Housekeeping  —  0/3 closed
+## D · Housekeeping  —  2/3 closed
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| 13 | /tmp/grokrc-handback and its throwaway session in ~/.grok | `open` | VERIFIED — directory present |
+| 13 | /tmp/grokrc-handback and its throwaway session in ~/.grok | `done` | VERIFIED — directory removed |
 | 14 | Two pre-launch backup bundles in $HOME, 8.6 MB | `open` | VERIFIED — grokrc-pre-*.bundle |
-| 15 | 3 dead-cwd session groups in ~/.grok (residue of #4) | `open` | VERIFIED — scan of ~/.grok/sessions |
+| 15 | 3 dead-cwd session groups in ~/.grok (residue of #4) | `done` | VERIFIED — 4 dead-cwd groups removed; a fresh scan finds none |
+
+### 13 · /tmp/grokrc-handback and its throwaway session in ~/.grok
+
+**Reanalyse — attacked.** Checked first whether anything still referenced it: the ~/.grok session pointing at it was in the dead-cwd set being cleared in the same pass, so removing the directory orphaned nothing.
+
+**Result.** /tmp/grokrc-handback removed along with its session group.
+
+### 15 · 3 dead-cwd session groups in ~/.grok (residue of #4)
+
+**Reanalyse — attacked.** Attacked the idea that clearing them was sufficient: the same residue had already been cleared once and came back, so deleting without closing the source would just repeat. Held this until #4 was actually fixed, then cleared.
+
+**Result.** 4 groups removed (grokrc-pkgtest-DXc5, grokrc-leadertest-gkXRVV, grokrc-leadertest-Y6ANl9, grokrc-public-uNy4). Session count stable at 15 across a subsequent full run.
 
 ## E · Reviewed after challenge  —  2/4 closed
 
@@ -73,22 +103,17 @@ Status: `open` · `done` · `accepted` (no action intended) · `not-a-limitation
 
 ---
 
-## Still open — 17
+## Still open — 12
 
 - **#1** `removeSessionDir()` has no test, so it cannot be registered as a guard
 - **#2** Terminal client's exit guard (`nothing to drive from here`) has no test
 - **#3** Mock debt: 13 of 32 test files reference a mock/stub/fake
-- **#4** Real agents spawned outside `npm test` still write into the developer’s ~/.grok
-- **#5** Node 20 and 21 untested; `engines` claims >=20
-- **#6** macOS untested; README says "expected to work"
 - **#7** Relay mode never run against a real VPS
 - **#8** Android push never tested
 - **#9** Multi-file diff rendering and very long tool output unverified
 - **#10** `grokrc doctor` spawns its own probe agent instead of asking the running daemon
 - **#11** `grokrc config set` requires a daemon restart to take effect
 - **#12** Android home-screen / notification docs are thin
-- **#13** /tmp/grokrc-handback and its throwaway session in ~/.grok
 - **#14** Two pre-launch backup bundles in $HOME, 8.6 MB
-- **#15** 3 dead-cwd session groups in ~/.grok (residue of #4)
 - **#16** A malicious relay can serve modified JavaScript
 - **#19** A turn killed mid-flight may lose its tail; recovery on resume is unverified

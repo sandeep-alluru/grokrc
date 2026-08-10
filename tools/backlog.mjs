@@ -55,10 +55,16 @@ export const ITEMS = [
     id: 4,
     section: 'A',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: 'Real agents spawned outside `npm test` still write into the developer’s ~/.grok',
     evidence:
-      'VERIFIED — 3 dead-cwd groups reappeared: grokrc-pkgtest-*, grokrc-leadertest-*, grokrc-public-*',
+      'VERIFIED — check:stranger runs leak-free (20 -> 20 sessions); the residual groups came from running test files DIRECTLY, which the wrapper never covered',
+    loop: {
+      attacked:
+        'Attacked my own fix: the isolated-test wrapper was assumed to cover the leak, so I measured check:stranger and it was clean — 20 sessions before and after. The leak was still recurring, which REFUTED "the wrapper is enough". Tracing the new group (grokrc-leadertest-Y6ANl9) showed it came from `node --test test/leader.test.ts` run directly while debugging: the wrapper only applies through npm scripts, and debugging never goes through them.',
+    },
+    result:
+      'leader.test.ts now refuses to spawn a real agent when GROK_HOME is unset or is the real home, and skips with a message naming the fix. Verified: running the file directly leaves the session count unchanged (20 -> 20), while `npm test` still exercises the leader for real (206/206, 0 skipped).',
   },
   {
     id: 20,
@@ -87,17 +93,30 @@ export const ITEMS = [
     id: 5,
     section: 'B',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: 'Node 20 and 21 untested; `engines` claims >=20',
-    evidence: 'UNVERIFIED — only Node 22 exists here. Settled by a CI matrix',
+    evidence: 'VERIFIED — CI matrix: dist on Node 20, 21, 22 and 24, ubuntu and macos, 8/8 green',
+    loop: {
+      attacked:
+        'Attacked the obvious matrix design first: `node-version: [20, 22]` running `npm test` would FAIL on 20, because the suite uses --experimental-strip-types which does not exist before 22.6 — measuring the test framework, not the product. REFUTED. Also attacked omitting Node 21 as "short-lived": that is a reason to expect it works, not evidence, and `engines` admits it, so it is tested.',
+    },
+    result:
+      'compat.yml builds once on 22 then EXECUTES dist/ on 20, 21, 22, 24: --help, the engines floor, doctor failing cleanly, config naming defaultCwd, and up refusing without an agent. All 8 runtime jobs green.',
   },
   {
     id: 6,
     section: 'B',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: 'macOS untested; README says "expected to work"',
-    evidence: 'UNVERIFIED — no macOS machine. Settled by a macos-latest CI job',
+    evidence:
+      'VERIFIED — the same matrix on macos-latest: 4 runtime jobs plus 2 full-suite jobs green',
+    loop: {
+      attacked:
+        'Attacked "macOS is basically Linux for a Node CLI" — untested is untested, and the systemd unit is genuinely Linux-only. Ran the real suite there rather than reasoning about it. What SURVIVED: the package and the full suite both work on macOS; only the systemd unit does not, which the docs already say.',
+    },
+    result:
+      'macos-latest covered for dist on all four Node versions AND the full suite on 22 and 24. README no longer says "expected to work".',
   },
   {
     id: 7,
@@ -151,9 +170,14 @@ export const ITEMS = [
     id: 13,
     section: 'D',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: '/tmp/grokrc-handback and its throwaway session in ~/.grok',
-    evidence: 'VERIFIED — directory present',
+    evidence: 'VERIFIED — directory removed',
+    loop: {
+      attacked:
+        'Checked first whether anything still referenced it: the ~/.grok session pointing at it was in the dead-cwd set being cleared in the same pass, so removing the directory orphaned nothing.',
+    },
+    result: '/tmp/grokrc-handback removed along with its session group.',
   },
   {
     id: 14,
@@ -167,9 +191,15 @@ export const ITEMS = [
     id: 15,
     section: 'D',
     effort: 'S',
-    status: 'open',
+    status: 'done',
     title: '3 dead-cwd session groups in ~/.grok (residue of #4)',
-    evidence: 'VERIFIED — scan of ~/.grok/sessions',
+    evidence: 'VERIFIED — 4 dead-cwd groups removed; a fresh scan finds none',
+    loop: {
+      attacked:
+        'Attacked the idea that clearing them was sufficient: the same residue had already been cleared once and came back, so deleting without closing the source would just repeat. Held this until #4 was actually fixed, then cleared.',
+    },
+    result:
+      '4 groups removed (grokrc-pkgtest-DXc5, grokrc-leadertest-gkXRVV, grokrc-leadertest-Y6ANl9, grokrc-public-uNy4). Session count stable at 15 across a subsequent full run.',
   },
   {
     id: 16,
