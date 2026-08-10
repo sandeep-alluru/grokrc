@@ -9,7 +9,7 @@ phone — over the agent's own protocol, not a screen scrape.
   <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-200%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-204%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
 </p>
 
@@ -292,8 +292,8 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **Observed mode** — mirrors sessions you started by hand in a terminal
 - ✅ **Relay mode** — the relay serves the PWA and tunnels `/api/*`, so a phone with no
   route to your machine can load the app, pair, and drive a session
-- 🟡 **Web Push** — delivered to a real desktop browser (`sent: 1, failed: 0`); delivery
-  to an iOS home-screen app is **not yet confirmed on a device**
+- ✅ **Web Push** — delivered to a real desktop browser AND a real iPhone; delivery to an iOS
+  home-screen app is **confirmed on a real iPhone**
 - ✅ **Verified end-to-end against a live agent** — real turn, real
   `session/request_permission`, approved from a remote client, agent proceeded
   (`tools/e2e-drive.mjs`, capture in `docs/captures/e2e-drive.json`)
@@ -302,21 +302,21 @@ Do not expose the port directly to the public internet. Use a Tailnet, or relay 
 - ✅ **End-to-end encrypted through the relay** — verified by tapping every relayed frame
 - ✅ **Shared-backend handoff verified** — two independent clients on one `grok agent leader`,
   the second loading a session created by the first
-- ✅ 200 tests — unit, browser (real Chromium against the real PWA), and real-stack
+- ✅ 204 tests — unit, browser (real Chromium against the real PWA), and real-stack
   checks that drive an actual `grok` process; build, typecheck, and lint green
 
 ![approval screen](docs/screenshots/approval.png)
 
 ## Limitations
 
-|                 |                                                                                                                                                                                                                                     |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                                                                 |
-| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                                     |
-| Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery to a desktop browser is verified; to an iOS device it is not |
-| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                                                          |
-| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it                                    |
-| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                                        |
+|                 |                                                                                                                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Malicious relay | E2E encryption defeats a _passive_ relay, not one serving modified JS. Self-host it                                                                                                                             |
+| Relay metadata  | Routes, message sizes, and timing are visible. Contents are not                                                                                                                                                 |
+| Push on iOS     | Apple allows Web Push **only** in a home-screen app installed from **Safari**, over HTTPS. Chrome/Firefox/DuckDuckGo/Brave/Edge on iOS cannot do push at all. Delivery is verified on a real iPhone as of 0.1.2 |
+| Observed mode   | Read-only while mirroring — use **Resume** to take it live                                                                                                                                                      |
+| Log tail        | If the agent process is killed mid-turn, Grok may not have flushed its last message to `updates.jsonl`, so the read-only view can be missing it. Resuming replays from the agent and recovers it                |
+| Tool coverage   | Browser tests replay captured `write`/`edit` payloads. Diff rendering for multi-file edits, and very long output, unverified                                                                                    |
 
 ### How the browser tests work
 
@@ -430,7 +430,7 @@ relayed client still has to present a valid device token, which is tested.
 ## Development
 
 ```bash
-npm test          # 200 tests: mock suite -> build -> real-stack checks
+npm test          # 204 tests: mock suite -> build -> real-stack checks
 npm run verify:guards  # disable each load-bearing control; its test must FAIL
 npm run check:live     # drive the RUNNING daemon in a real browser
 npm run typecheck

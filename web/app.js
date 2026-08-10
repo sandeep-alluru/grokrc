@@ -1016,11 +1016,19 @@ function renderPushPrompt() {
   sub.className = 'sub';
 
   if (blocker) {
-    // The platform cannot do push from here. Say so and name the way out —
-    // an early `return` would leave the user hunting for a button that the
-    // code decided not to draw.
+    // The platform cannot do push from here. Say so, name the way out, and show
+    // the raw facts — an early `return` would leave the user hunting for a
+    // button the code decided not to draw, and a prose-only message costs a
+    // round trip to interpret.
     name.textContent = '🔔 Notifications are off';
     sub.textContent = blocker;
+    const facts = document.createElement('div');
+    facts.className = 'sub';
+    facts.dataset.pushFacts = '1';
+    facts.style.cssText =
+      'margin-top:6px;font-family:ui-monospace,monospace;font-size:11px;opacity:.8';
+    facts.textContent = pushFacts();
+    meta.append(facts);
     row.style.opacity = '0.75';
   } else {
     name.textContent = '🔔 Enable notifications';
@@ -1069,6 +1077,24 @@ function isStandalone() {
  * so a Safari tab is not broken — it is the wrong container, and saying which
  * one to use is the entire fix.
  */
+/**
+ * The four facts that decide whether push can work, as one readable line.
+ *
+ * Diagnosing this by asking the owner what the row said cost several rounds:
+ * each answer was a summary of a summary. Put the primary evidence on screen —
+ * whichever of these is wrong IS the reason, with no interpretation in between.
+ */
+function pushFacts() {
+  const perm = typeof Notification === 'undefined' ? 'no-API' : Notification.permission;
+  return [
+    `installed:${isStandalone() ? 'yes' : 'NO'}`,
+    `pushAPI:${'PushManager' in window ? 'yes' : 'NO'}`,
+    `sw:${'serviceWorker' in navigator ? 'yes' : 'NO'}`,
+    `https:${globalThis.isSecureContext ? 'yes' : 'NO'}`,
+    `permission:${perm}`,
+  ].join(' · ');
+}
+
 function pushBlocker() {
   if (!globalThis.isSecureContext) return 'Needs HTTPS — open this page over https.';
   if (!('serviceWorker' in navigator)) return 'This browser has no service worker support.';

@@ -52,6 +52,29 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
   card to turn green, then asserted on the agent's closing message — two different
   events. It now waits for the text it asserts on. Verified across five consecutive runs.
 
+## [0.1.2] — 2026-08-10
+
+### Fixed
+
+- **Push notifications never reached an iPhone.** The VAPID subject shipped as
+  `mailto:grokrc@localhost`. Apple validates the JWT `sub` claim and rejects a
+  non-routable address with a bare `403`; Mozilla does not check, so desktop
+  browsers worked and iOS silently failed — which looked exactly like an iOS
+  permissions problem. The default is now `https://github.com/sandeep-alluru/grokrc`,
+  overridable with `GROKRC_VAPID_SUBJECT`.
+
+  Existing installs are **repaired on load**. The subject is part of the signed
+  token, not the key pair, so no device has to re-subscribe.
+
+  Verified end to end: delivered to a real iPhone and confirmed received —
+  `sent: 2, failed: 0`, where the same send was `sent: 1, failed: 1` before.
+
+### Added
+
+- The notification row shows the raw facts when push is unavailable
+  (`installed · pushAPI · sw · https · permission`), so one screenshot explains
+  a failure instead of a round trip.
+
 ## [0.1.1] — 2026-08-10
 
 Onboarding fixes, found by installing 0.1.0 into a fresh HOME with no agent and
@@ -113,6 +136,7 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.1.1...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.0

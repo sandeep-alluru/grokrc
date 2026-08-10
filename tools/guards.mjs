@@ -47,6 +47,14 @@ export const GUARDS = [
     test: 'test/handback.test.ts',
   },
   {
+    id: 'vapid-subject-is-routable',
+    why: 'Apple 403s a VAPID subject it cannot route; the shipped default mailto:grokrc@localhost broke push on every iPhone while Firefox kept working',
+    file: 'src/daemon/push.ts',
+    find: '    if (!isRoutableSubject(this.#keys.subject)) {',
+    replace: '    if (false) {',
+    test: 'test/vapid-subject.test.ts',
+  },
+  {
     id: 'health-reports-real-version',
     why: 'the version was hardcoded twice and reported 0.1.0 from a 0.1.1 build — the first thing anyone checks when a fix looks missing',
     file: 'src/daemon/server.ts',

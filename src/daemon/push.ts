@@ -49,6 +49,32 @@ export interface PushError {
   endpoint: string;
 }
 
+/**
+ * VAPID `sub` — who to contact about this pusher.
+ *
+ * Apple rejects a subject it cannot route, with a 403 and no explanation. A
+ * project URL is valid per RFC 8292, needs no personal email, and is the same
+ * for every self-hosted install. Override with GROKRC_VAPID_SUBJECT.
+ */
+const VAPID_SUBJECT =
+  process.env.GROKRC_VAPID_SUBJECT || 'https://github.com/sandeep-alluru/grokrc';
+
+/** A subject Apple will accept: https:// URL, or mailto: with a real domain. */
+export function isRoutableSubject(subject: string): boolean {
+  if (typeof subject !== 'string') return false;
+  if (subject.startsWith('https://')) {
+    try {
+      const h = new URL(subject).hostname;
+      return h.includes('.') && h !== 'localhost';
+    } catch {
+      return false;
+    }
+  }
+  if (!subject.startsWith('mailto:')) return false;
+  const domain = subject.slice(7).split('@')[1] ?? '';
+  return domain.includes('.') && !domain.endsWith('.localhost') && domain !== 'localhost';
+}
+
 export class PushService {
   #keys: VapidKeys | null = null;
   #subs: StoredSubscription[] = [];
@@ -65,9 +91,17 @@ export class PushService {
       this.#keys = JSON.parse(await readFile(KEYS_PATH, 'utf8')) as VapidKeys;
     } catch {
       const generated = webpush.generateVAPIDKeys();
-      // `mailto:` is required by the spec; it is never contacted for a
-      // self-hosted daemon, so a placeholder is honest rather than a real address.
-      this.#keys = { ...generated, subject: 'mailto:grokrc@localhost' };
+      this.#keys = { ...generated, subject: VAPID_SUBJECT };
+      await writeFile(KEYS_PATH, JSON.stringify(this.#keys, null, 2), { mode: 0o600 });
+    }
+
+    // Repair keys written before the subject was known to matter. Apple
+    // validates the JWT `sub` claim and rejects a non-routable address with a
+    // bare 403; Mozilla does not check, so this failed on iPhones only while
+    // desktop Firefox kept working. The subject is part of the signed token,
+    // NOT the key pair, so rewriting it does not invalidate any subscription.
+    if (!isRoutableSubject(this.#keys.subject)) {
+      this.#keys = { ...this.#keys, subject: VAPID_SUBJECT };
       await writeFile(KEYS_PATH, JSON.stringify(this.#keys, null, 2), { mode: 0o600 });
     }
 
