@@ -162,7 +162,7 @@ you have.
 
 ### Is it on npm?
 
-Not yet. Install from source — see [SETUP.md](SETUP.md).
+Not yet. Install from source — see [SETUP.md](../SETUP.md).
 
 ### Can I use it on Android?
 

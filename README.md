@@ -9,14 +9,19 @@ phone — over the agent's own protocol, not a screen scrape.
   <a href="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sandeep-alluru/grokrc/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-204%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/status-pre--1.0-orange">
 </p>
 
-**[Setup](docs/SETUP.md)** · **[User Guide](docs/USER-GUIDE.md)** ·
+**[Setup](SETUP.md)** · **[User Guide](docs/USER-GUIDE.md)** ·
 **[Troubleshooting](docs/TROUBLESHOOTING.md)** · **[FAQ](docs/FAQ.md)** ·
 **[Architecture](docs/01-architecture.md)** · **[Security](SECURITY.md)** ·
 **[Contributing](CONTRIBUTING.md)**
+
+| Platform    | Status    | Notes                                                              |
+| ----------- | --------- | ------------------------------------------------------------------ |
+| **Linux**   | Supported | Full test suite in CI; systemd unit supplied                        |
+| **macOS**   | Supported | Full test suite in CI; no service integration supplied              |
+| **Windows** | Partial   | CLI covered in CI; see [Windows support](docs/WINDOWS.md)           |
 
 <p align="center">
   <img src="docs/screenshots/sessions.png" alt="Session list" width="30%">
@@ -53,7 +58,7 @@ It prints a URL and a 6-character code. Open the URL on your phone, type the cod
 ```
 
 Stuck? `grokrc doctor` checks the agent, the protocol, and whether approvals will
-actually fire. Full walkthrough in **[docs/SETUP.md](docs/SETUP.md)**.
+actually fire. Full walkthrough in **[SETUP.md](SETUP.md)**.
 
 ---
 
@@ -90,7 +95,7 @@ diffs, and plans arrive as typed JSON instead of characters on a screen.
 
 ## Install
 
-> **Full setup guide: [docs/SETUP.md](docs/SETUP.md)** — install, configure, reach it
+> **Full setup guide: [SETUP.md](SETUP.md)** — install, configure, reach it
 > from your phone (LAN / Tailscale / relay), run it as a service, enable push,
 > plus troubleshooting and the security model.
 
@@ -280,7 +285,7 @@ Remote control of a coding agent **is** remote code execution. Treated according
   `bypassPermissions` on its own. Remote approval means a human tapping a button.
 
 Do not expose the port directly to the public internet. Use a Tailnet, or relay mode
-(see [docs/SETUP.md](docs/SETUP.md) §6).
+(see [SETUP.md](SETUP.md) §6).
 
 ---
 
@@ -448,11 +453,9 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 
 ## Documentation
 
-- [Windows support](docs/WINDOWS.md) — platform matrix, current limitations, and how to help finish the port
-
 | Document                                   | What is in it                                          |
 | ------------------------------------------ | ------------------------------------------------------ |
-| [Setup](docs/SETUP.md)                     | Install, configure, networking, run as a service       |
+| [Setup](SETUP.md)                          | Install, configure, networking, run as a service       |
 | [User Guide](docs/USER-GUIDE.md)           | Daily use — sessions, approvals, resume, notifications |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Symptom-first fixes                                    |
 | [FAQ](docs/FAQ.md)                         | Short answers                                          |
@@ -461,6 +464,7 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 | [Security](SECURITY.md)                    | Threat model and vulnerability reporting               |
 | [Contributing](CONTRIBUTING.md)            | Dev setup and the bar for a change                     |
 | [Changelog](CHANGELOG.md)                  | What changed                                           |
+| [Windows support](docs/WINDOWS.md)         | Platform status, current limitations, and open work    |
 | [Backlog](docs/BACKLOG.md)                 | Every known open item, with its evidence class         |
 
 ## Contributing

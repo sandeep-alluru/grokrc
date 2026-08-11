@@ -3,7 +3,7 @@
 How to actually use grokrc day to day.
 
 This assumes the daemon is installed and your phone is paired. If not, start with
-[SETUP.md](SETUP.md) — installation, configuration, and networking live there. This
+[SETUP.md](../SETUP.md) — installation, configuration, and networking live there. This
 guide covers what to do once it works.
 
 ---
@@ -516,14 +516,14 @@ that can modify files. Set it before creating sessions from the phone.
 - **Close sessions you are done with.** The live cap is 12, and hitting it during a
   resume is annoying.
 - **Run it as a service** so it survives reboots — see
-  [SETUP.md §7](SETUP.md#7-run-it-as-a-service).
+  [SETUP.md §7](../SETUP.md#7-run-it-as-a-service).
 - **Revoke devices you no longer use.** `grokrc devices` shows last-seen times.
 
 ---
 
 ## See also
 
-- [SETUP.md](SETUP.md) — installation, configuration, networking
+- [SETUP.md](../SETUP.md) — installation, configuration, networking
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — when something does not work
 - [FAQ.md](FAQ.md) — short answers
 - [01-architecture.md](01-architecture.md) — how it works internally

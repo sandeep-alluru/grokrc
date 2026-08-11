@@ -34,7 +34,7 @@ have what you need.
 |                |                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------- |
 | **Node.js**    | 20 or newer. Every version the package admits — 20, 21, 22 and 24 — is exercised in CI |
-| **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`, then `grok login`   |
+| **Grok Build** | on your `PATH`, and logged in — see §2                                                |
 | **OS**         | see the table below                                                                   |
 | **A phone**    | any browser. It installs as a PWA — no app store                                       |
 
@@ -46,18 +46,10 @@ Each row reflects the jobs run by continuous integration on every push.
 | ----------- | ------------------------------------------------------------------------------------------------------ |
 | **Linux**   | Full support. Developed here, and the whole suite runs on `ubuntu-latest` (Node 22 and 24) every push     |
 | **macOS**   | Supported. The packaged CLI runs on Node 20/21/22/24 and the **full suite** runs on Node 22 and 24 in CI  |
-| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the test suite has not yet run there. See [Windows support](WINDOWS.md) |
+| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the test suite has not yet run there. See [Windows support](docs/WINDOWS.md) |
 
-The systemd unit in §7 is Linux-only. macOS and Windows have no service manager
-here yet — run `grokrc up` in a terminal, or supply your own launchd plist or
-Scheduled Task.
-
-Check the agent works before you start — grokrc cannot do anything without it:
-
-```bash
-grok --version          # e.g. grok 1.0.0 (stable)
-grok login              # required; grokrc surfaces this if you skip it
-```
+A systemd unit is supplied for Linux. macOS and Windows recipes are given in §7
+but are not shipped with the project.
 
 Notifications additionally need **HTTPS** (§6 and §8). Everything else works over
 plain HTTP on your own network.
@@ -68,26 +60,60 @@ plain HTTP on your own network.
 
 ### First, check Node
 
-grokrc needs Node 20 or newer. Distro packages are often older than that, so
-check before installing anything else:
+grokrc needs **Node 20 or newer**. Packaged versions are frequently older than
+that, so check before installing anything else:
 
 ```bash
 node --version      # must be v20.x or higher
 ```
 
-If it is missing or too old, install a current Node without touching system
-packages:
+If it is missing or too old:
+
+**Linux**
 
 ```bash
-# nvm — works on any distro, no root
+# nvm — works on any distribution, no root required
 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 exec $SHELL
 nvm install 22
 ```
 
-Distro packages work too when they are new enough — `apt install nodejs npm` on
-Debian/Ubuntu, `dnf install nodejs` on Fedora, `pacman -S nodejs npm` on Arch —
-but check `node --version` afterwards rather than assuming.
+Distribution packages also work when new enough — `apt install nodejs npm`
+(Debian/Ubuntu), `dnf install nodejs` (Fedora), `pacman -S nodejs npm` (Arch) —
+but re-check `node --version` afterwards.
+
+**macOS**
+
+```bash
+brew install node          # Homebrew
+# or, to manage versions:
+brew install nvm && nvm install 22
+```
+
+**Windows**
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+# or download the MSI from https://nodejs.org
+```
+
+Open a new terminal afterwards so the updated `PATH` takes effect.
+
+### Then, install Grok Build
+
+grokrc drives Grok Build; it cannot do anything without it.
+
+```bash
+curl -fsSL https://x.ai/cli/install.sh | bash     # Linux and macOS
+grok login
+```
+
+On Windows, follow the instructions at [x.ai/cli](https://x.ai/cli). Confirm the
+agent responds before continuing:
+
+```bash
+grok --version
+```
 
 ### Option A — from npm (recommended)
 
@@ -306,13 +332,20 @@ sealed.
 
 ## 7. Run it as a service
 
+Optional. grokrc runs perfectly well as `grokrc up` in a terminal — a service just
+means it survives logout and reboot.
+
+Whatever the platform, the daemon must run **as you**, not as root or a system
+account: it reads your `~/.grok/auth.json` and spawns agents under your identity.
+
+### Linux — systemd (supplied)
+
 ```bash
 packaging/systemd/install.sh
 ```
 
-A **user** unit, not a system one — it needs your `~/.grok/auth.json` and must spawn
-agents as you, so no sudo is involved. The installer enables lingering so it starts
-at boot and survives logout.
+A **user** unit, not a system one, so no sudo is involved. The installer enables
+lingering, so the daemon starts at boot and survives logout.
 
 ```bash
 systemctl --user status grokrc
@@ -321,11 +354,66 @@ systemctl --user restart grokrc
 packaging/systemd/uninstall.sh          # keeps ~/.grokrc pairings
 ```
 
-Flags go through `--`, though config is the better home for them:
+Flags go through `--`, though `grokrc config` is the better home for them:
 
 ```bash
 packaging/systemd/install.sh -- --lan --pair
 ```
+
+### macOS — launchd (not supplied)
+
+No launchd agent ships with grokrc. To create one, save the following as
+`~/Library/LaunchAgents/com.grokrc.daemon.plist`, replacing the `grokrc` path with
+the output of `which grokrc`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>          <string>com.grokrc.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/opt/homebrew/bin/grokrc</string>
+      <string>up</string>
+    </array>
+    <key>RunAtLoad</key>      <true/>
+    <key>KeepAlive</key>      <true/>
+    <key>StandardOutPath</key>   <string>/tmp/grokrc.log</string>
+    <key>StandardErrorPath</key> <string>/tmp/grokrc.err</string>
+  </dict>
+</plist>
+```
+
+```bash
+launchctl load -w ~/Library/LaunchAgents/com.grokrc.daemon.plist
+launchctl list | grep grokrc
+launchctl unload -w ~/Library/LaunchAgents/com.grokrc.daemon.plist
+```
+
+### Windows — Scheduled Task (not supplied)
+
+No service integration ships with grokrc. A logon-triggered Scheduled Task is the
+smallest thing that survives a reboot. In PowerShell:
+
+```powershell
+$exe    = (Get-Command grokrc).Source
+$action = New-ScheduledTaskAction -Execute $exe -Argument 'up'
+$logon  = New-ScheduledTaskTrigger -AtLogOn
+Register-ScheduledTask -TaskName 'grokrc' -Action $action -Trigger $logon
+```
+
+```powershell
+Get-ScheduledTask -TaskName grokrc
+Stop-ScheduledTask -TaskName grokrc
+Unregister-ScheduledTask -TaskName grokrc -Confirm:$false
+```
+
+> The systemd unit is maintained and tested as part of this project. The launchd
+> and Scheduled Task recipes above are standard operating-system mechanisms given
+> for convenience — they are not shipped with grokrc and are not covered by its
+> tests. See [Windows support](docs/WINDOWS.md) for the current platform status.
 
 ---
 
@@ -516,11 +604,41 @@ What this does **not** protect against: someone with write access to `~/.grokrc`
 
 ## 14. Uninstall
 
+**1. Stop the service**, if you created one.
+
 ```bash
-packaging/systemd/uninstall.sh     # remove the service, keep pairings
+packaging/systemd/uninstall.sh                                   # Linux
+```
+
+```bash
+launchctl unload -w ~/Library/LaunchAgents/com.grokrc.daemon.plist   # macOS
+rm ~/Library/LaunchAgents/com.grokrc.daemon.plist
+```
+
+```powershell
+Unregister-ScheduledTask -TaskName grokrc -Confirm:$false        # Windows
+```
+
+**2. Remove the package** — identical everywhere:
+
+```bash
 npm uninstall -g grokrc            # if installed from npm
 #   or, from source:  npm unlink   (run in the clone)
-rm -rf ~/.grokrc                   # device tokens, push keys, settings
+```
+
+**3. Remove your data.** This deletes device tokens, push keys and settings.
+
+```bash
+rm -rf ~/.grokrc                   # Linux and macOS
+```
+
+```powershell
+Remove-Item -Recurse -Force $HOME\.grokrc    # Windows
+```
+
+**4. Undo any network exposure** you set up:
+
+```bash
 tailscale serve --https=443 off    # if you used Tailscale
 ```
 

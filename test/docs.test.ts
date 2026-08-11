@@ -29,13 +29,7 @@ const read = (p: string) => readFile(join(ROOT, p), 'utf8');
 /** Prose docs, excluding generated ones. docs/BACKLOG.md is generated from
  *  tools/backlog.mjs and its entries are dated records of a specific run, so a
  *  count inside one is history rather than a live claim. */
-const PROSE = [
-  'README.md',
-  'docs/FAQ.md',
-  'docs/USER-GUIDE.md',
-  'docs/SETUP.md',
-  'CONTRIBUTING.md',
-];
+const PROSE = ['README.md', 'docs/FAQ.md', 'docs/USER-GUIDE.md', 'SETUP.md', 'CONTRIBUTING.md'];
 
 test('no doc hardcodes a test count', async () => {
   const offenders: string[] = [];
@@ -44,6 +38,9 @@ test('no doc hardcodes a test count', async () => {
     for (const line of src.split('\n')) {
       // "204 tests", "153 tests —", but not "the tests" or "npm test".
       if (/\b\d{2,}\s+tests\b/i.test(line)) offenders.push(`${f}: ${line.trim()}`);
+      // Shields badges URL-encode the space, so `tests-204%20passing` slipped
+      // past the prose pattern above and sat in the README for weeks.
+      else if (/badge\/tests?-\d+/i.test(line)) offenders.push(`${f}: ${line.trim()}`);
     }
   }
   assert.deepEqual(

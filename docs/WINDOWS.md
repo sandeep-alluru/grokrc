@@ -104,7 +104,7 @@ is working end to end:
 node dist/cli.js pair
 ```
 
-From there, follow the main [setup guide](SETUP.md) from §5 onwards — pairing,
+From there, follow the main [setup guide](../SETUP.md) from §5 onwards — pairing,
 reaching the daemon from your phone, and notifications are all
 platform-independent.
 
