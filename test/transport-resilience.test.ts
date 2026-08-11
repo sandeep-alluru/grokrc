@@ -14,6 +14,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { StdioTransport, NdjsonDecoder } from '../src/acp/transport.ts';
 import type { JsonRpcMessage } from '../src/acp/protocol.ts';
 
@@ -65,28 +67,82 @@ test('writing to a dead agent surfaces an error event, and does not throw', asyn
   t.close();
 });
 
-test('a stdin write failure is reported as an error event, not a crash', async () => {
-  // A process that exits after a moment: the write lands in the window between
-  // the child dying and `close` reaching us — the exact race that matters.
-  const t = new StdioTransport({ command: EXIT_NOW.command, args: EXIT_NOW.args, cwd: WORKDIR });
-  const errors: Error[] = [];
-  let closed = false;
-  t.on('error', (e) => errors.push(e));
-  t.on('close', () => (closed = true));
+/**
+ * A stand-in agent that closes its own stdin and then STAYS ALIVE.
+ *
+ * Two things make the EPIPE deterministic here, and both were missing before.
+ *
+ * 1. IT ACTUALLY RUNS. `StdioTransport` always injects `agent stdio` ahead of
+ *    any args, so `{command: node, args: ['-e', '...']}` really spawned
+ *    `node agent stdio -e ...` — Node looked for a FILE called `agent`, failed
+ *    to find it, and exited. The child never executed the code the test named.
+ *    Writing a real file called `agent` into the working directory is what makes
+ *    the injected argv run something on purpose.
+ *
+ * 2. IT STAYS ALIVE. Racing a dying process cannot work: `send()` checks
+ *    `stdin.writable` first, and once a child has exited that flag is already
+ *    false, so the write never reaches the pipe. Measured, the racing version
+ *    proved the control on 1 run in 8. With the child alive, the parent's write
+ *    end stays writable while the read end is gone — exactly the kernel
+ *    condition for EPIPE, and it does not depend on timing at all.
+ */
+const AGENT_SRC =
+  'require("fs").closeSync(0);\n' +
+  'process.stdout.write(JSON.stringify({jsonrpc:"2.0",method:"ready"})+"\\n");\n' +
+  // Bounded, not immortal: the child must never be able to outlive the test.
+  'setTimeout(()=>process.exit(0),10000);\n';
 
-  // Hammer the window rather than hoping to hit it once.
-  for (let i = 0; i < 40; i++) {
+async function agentThatClosedItsStdin(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'grokrc-epipe-'));
+  // Named `agent` because that is the argv the transport injects.
+  await writeFile(join(dir, 'agent'), AGENT_SRC);
+  return dir;
+}
+
+test('an EPIPE on agent stdin becomes an error event, not a crash', async () => {
+  const dir = await agentThatClosedItsStdin();
+  const t = new StdioTransport({ command: process.execPath, cwd: dir });
+
+  const errors: Error[] = [];
+  let ready = false;
+  t.on('error', (e) => errors.push(e));
+  t.on('message', (m: JsonRpcMessage) => {
+    if ((m as { method?: string }).method === 'ready') ready = true;
+  });
+
+  assert.equal(
+    await until(() => ready, 8000),
+    true,
+    'the stand-in agent never signalled that it had closed stdin'
+  );
+
+  // Large enough to pass the pipe buffer, so the failure surfaces rather than
+  // being quietly absorbed by the kernel.
+  // One write past the pipe buffer is enough. Queuing more only leaves unsent
+  // bytes on a broken pipe, which keeps the handle — and the whole test run —
+  // alive after close().
+  const big = 'x'.repeat(64 * 1024);
+  for (let i = 0; i < 3 && errors.length === 0; i++) {
     try {
-      t.send({ jsonrpc: '2.0', id: i, method: 'noop' });
+      t.send({ jsonrpc: '2.0', id: i, method: 'noop', params: { big } });
     } catch {
-      /* "transport closed" is fine */
+      /* once `writable` flips, send() refuses — the error EVENT is the subject */
     }
-    await new Promise((r) => setTimeout(r, 5));
+    await until(() => errors.length > 0, 500);
   }
 
-  await until(() => closed, 3000);
-  assert.equal(closed, true, 'close event should still arrive');
+  // Without the stdin 'error' listener Node throws the unhandled stream error
+  // and this process DIES rather than failing — which is the crash the control
+  // exists to prevent, and how verify-guards detects the control is load-bearing.
+  assert.ok(errors.length > 0, 'a broken agent stdin must surface as an error event');
+  assert.match(
+    errors.map((e) => e.message).join(' | '),
+    /EPIPE|stdin/i,
+    'the error should name the broken pipe'
+  );
+
   t.close();
+  await rm(dir, { recursive: true, force: true });
 });
 
 test('a large but legitimate partial frame is still buffered', () => {
