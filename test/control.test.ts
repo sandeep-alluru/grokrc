@@ -23,8 +23,9 @@ process.env.GROKRC_HOME = tmp;
 const { AuthStore } = await import('../src/daemon/auth.ts');
 const { ControlServer, ControlUnavailableError, controlRequest, daemonRunning } =
   await import('../src/daemon/control.ts');
+const { controlEndpoint, POSIX_ONLY } = await import('./helpers/control.ts');
 
-const SOCK = join(tmp, 'control.sock');
+const SOCK = controlEndpoint(tmp);
 
 let auth: InstanceType<typeof AuthStore>;
 let server: InstanceType<typeof ControlServer>;
@@ -139,7 +140,7 @@ test('malformed params are refused', async () => {
   await assert.rejects(() => controlRequest('revoke', {}, SOCK), /deviceId required/);
 });
 
-test('the socket is owner-only', async () => {
+test('the socket is owner-only', { skip: POSIX_ONLY }, async () => {
   const st = await stat(SOCK);
   const mode = st.mode & 0o777;
   assert.equal(
@@ -150,7 +151,7 @@ test('the socket is owner-only', async () => {
 });
 
 test('no daemon means ControlUnavailableError, so callers can fall back', async () => {
-  const missing = join(tmp, 'does-not-exist.sock');
+  const missing = controlEndpoint(tmp, 'does-not-exist');
   await assert.rejects(
     () => controlRequest('ping', undefined, missing),
     (err: Error) => err instanceof ControlUnavailableError
@@ -158,7 +159,7 @@ test('no daemon means ControlUnavailableError, so callers can fall back', async 
   assert.equal(await daemonRunning(missing), false);
 });
 
-test('a stale socket file left by a crashed daemon is reclaimed', async () => {
+test('a stale socket file left by a crashed daemon is reclaimed', { skip: POSIX_ONLY }, async () => {
   const stale = join(tmp, 'stale.sock');
   // A plain file standing where a socket should be: bind() would fail with
   // EADDRINUSE and the daemon would refuse to start, forever.
@@ -201,7 +202,7 @@ test('a live socket is NOT stolen from a running daemon', async () => {
   assert.deepEqual(await controlRequest('ping', undefined, SOCK), { pong: true });
 });
 
-test('close() removes the socket file', async () => {
+test('close() removes the socket file', { skip: POSIX_ONLY }, async () => {
   const path = join(tmp, 'transient.sock');
   const s2 = new ControlServer(
     {

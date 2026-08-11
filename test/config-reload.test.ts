@@ -23,7 +23,11 @@ process.env.GROKRC_HOME = tmp;
 const { ControlServer, controlRequest } = await import('../src/daemon/control.ts');
 const { applyReload } = await import('../src/daemon/config.ts');
 type GrokrcConfig = import('../src/daemon/config.ts').GrokrcConfig;
-const SOCK = join(tmp, 'control.sock');
+const { CONTROL_SOCKET_PATH } = await import('../src/daemon/control.ts');
+// GROKRC_HOME is set to a fresh mkdtemp above, so the default endpoint is
+// already unique to this run — and it is a named pipe on Windows, where the
+// `<tmp>/control.sock` this used to hardcode cannot be bound at all.
+const SOCK = CONTROL_SOCKET_PATH;
 
 /**
  * Recorders, not a reimplementation. The reload LOGIC under test is

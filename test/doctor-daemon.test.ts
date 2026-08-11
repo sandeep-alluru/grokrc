@@ -24,9 +24,15 @@ const tmp = await mkdtemp(join(tmpdir(), 'grokrc-doctor-'));
 process.env.GROKRC_HOME = tmp;
 process.env.GROK_HOME = tmp;
 
-const { ControlServer } = await import('../src/daemon/control.ts');
+const { ControlServer, CONTROL_SOCKET_PATH } = await import('../src/daemon/control.ts');
 const CLI = resolve(import.meta.dirname, '../src/cli.ts');
-const SOCK = join(tmp, 'control.sock');
+// The DEFAULT endpoint, not a bespoke one: `runDoctor()` spawns the real CLI,
+// which computes this itself from GROKRC_HOME. Binding anything else would mean
+// the child looked for a daemon at one address while the test served another —
+// on POSIX both spellings happened to be `<tmp>/control.sock`, which is why a
+// hardcoded path survived. It is a named pipe on Windows, and the two differ.
+// GROKRC_HOME is a fresh mkdtemp above, so this is already unique per run.
+const SOCK = CONTROL_SOCKET_PATH;
 
 /** A daemon that reports counters no disk-reading process could invent. */
 const LIVE = {

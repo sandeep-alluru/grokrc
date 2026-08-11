@@ -13,8 +13,25 @@
  */
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
+import { tmpdir } from 'node:os';
 import { StdioTransport, NdjsonDecoder } from '../src/acp/transport.ts';
 import type { JsonRpcMessage } from '../src/acp/protocol.ts';
+
+/**
+ * A real process that exits immediately, and a directory that exists.
+ *
+ * Both tests below used `true` / `sh -c 'exit 0'` in `/tmp`. Neither exists on
+ * Windows, so `spawn` failed on the CWD before any child ran and the EPIPE race
+ * these tests exist to provoke never happened. They passed anyway — through the
+ * spawn-error path — which made the `stdin-error-handler` guard UNPROVABLE
+ * there: `verify-guards` removed the handler and the tests still passed,
+ * reporting a control that could not be shown to be doing any work.
+ *
+ * `process.execPath` is the one executable guaranteed to be present on every
+ * platform this runs on, and it can be told to exit immediately.
+ */
+const EXIT_NOW = { command: process.execPath, args: ['-e', 'process.exit(0)'] };
+const WORKDIR = tmpdir();
 
 /** Wait for a condition, or give up. */
 async function until(fn: () => boolean, ms = 4000): Promise<boolean> {
@@ -27,8 +44,8 @@ async function until(fn: () => boolean, ms = 4000): Promise<boolean> {
 }
 
 test('writing to a dead agent surfaces an error event, and does not throw', async () => {
-  // `true` exits immediately — the agent is gone before we ever write.
-  const t = new StdioTransport({ command: 'true', cwd: '/tmp' });
+  // A process that exits immediately — the agent is gone before we ever write.
+  const t = new StdioTransport({ command: EXIT_NOW.command, args: EXIT_NOW.args, cwd: WORKDIR });
   const errors: Error[] = [];
   t.on('error', (e) => errors.push(e));
 
@@ -51,7 +68,7 @@ test('writing to a dead agent surfaces an error event, and does not throw', asyn
 test('a stdin write failure is reported as an error event, not a crash', async () => {
   // A process that exits after a moment: the write lands in the window between
   // the child dying and `close` reaching us — the exact race that matters.
-  const t = new StdioTransport({ command: 'sh', args: ['-c', 'exit 0'], cwd: '/tmp' });
+  const t = new StdioTransport({ command: EXIT_NOW.command, args: EXIT_NOW.args, cwd: WORKDIR });
   const errors: Error[] = [];
   let closed = false;
   t.on('error', (e) => errors.push(e));

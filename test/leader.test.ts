@@ -131,6 +131,12 @@ test('--leader and --leader-socket precede the subcommand', () => {
     leaderSocket: '/tmp/x.sock',
     model: 'grok-4.5',
   });
+  // This test reads argv and nothing else, so whether `true` exists is
+  // irrelevant — except that spawn reports ENOENT ASYNCHRONOUSLY, after the test
+  // has ended, and an 'error' with no listener is thrown by Node. On Windows
+  // there is no `true`, so both argv tests failed on an uncaughtException raised
+  // by a process they never intended to run.
+  t.on('error', () => {});
   const argv = t.args;
   t.close();
 
@@ -144,6 +150,7 @@ test('--leader and --leader-socket precede the subcommand', () => {
 
 test('argv is unchanged when leader mode is off', () => {
   const t = new StdioTransport({ command: 'true', cwd: workDir });
+  t.on('error', () => {}); // see above: async spawn ENOENT, no `true` on Windows
   const argv = t.args;
   t.close();
   assert.deepEqual(argv, ['agent', 'stdio']);

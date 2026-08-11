@@ -21,6 +21,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -70,7 +71,9 @@ async function loadWith(vapid: Record<string, string>): Promise<{
   const home = await mkdtemp(join(tmpdir(), 'grokrc-vapid-'));
   await writeFile(join(home, 'vapid.json'), JSON.stringify(vapid), { mode: 0o600 });
 
-  const mod = resolve(import.meta.dirname, '../src/daemon/push.ts');
+  // A URL, not a path — interpolated into a child's `import()`, where an
+  // absolute Windows path is rejected as an unknown URL scheme.
+  const mod = pathToFileURL(resolve(import.meta.dirname, '../src/daemon/push.ts')).href;
   await execFileAsync(
     process.execPath,
     [

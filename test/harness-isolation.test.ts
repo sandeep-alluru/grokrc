@@ -15,8 +15,12 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const HARNESS = resolve(import.meta.dirname, '../tools/harness.mjs');
+// A URL, not a path: `import()` of `C:\...` is rejected as an unknown URL
+// scheme on Windows (ERR_UNSUPPORTED_ESM_URL_SCHEME), so every test in this
+// file errored before reaching its assertions.
+const HARNESS = pathToFileURL(resolve(import.meta.dirname, '../tools/harness.mjs')).href;
 
 test('bootDaemon refuses a REAL agent pointed at your own ~/.grok', async () => {
   const { bootDaemon } = await import(HARNESS);

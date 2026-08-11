@@ -29,7 +29,8 @@
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { countMatches, forSource } from './guard-match.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -46,9 +47,13 @@ const only = flag('--only')
   .map((s) => s.trim())
   .filter(Boolean);
 
-const { GUARDS } = await import(
-  registryPath.startsWith('/') ? registryPath : resolve(process.cwd(), registryPath)
-);
+// `import()` of a path — not a URL. On Windows an absolute path begins `C:\`,
+// which the ESM loader reads as a URL scheme and rejects with
+// ERR_UNSUPPORTED_ESM_URL_SCHEME, so the guard runner could not start at all
+// there. `pathToFileURL` is the supported spelling on every platform. The
+// `startsWith('/')` test it replaces was the same POSIX-only "is it absolute?"
+// assumption; `resolve()` already leaves an absolute path untouched.
+const { GUARDS } = await import(pathToFileURL(resolve(process.cwd(), registryPath)).href);
 const guards = only ? GUARDS.filter((g) => only.includes(g.id)) : GUARDS;
 
 if (argv.includes('--list')) {
@@ -142,7 +147,12 @@ try {
     const abs = join(ROOT, g.file);
     const original = await readFile(abs, 'utf8');
     const want = g.count ?? 1;
-    const found = original.split(g.find).length - 1;
+
+    // Line endings are handled in ONE place, shared with the test that checks
+    // this registry — see tools/guard-match.mjs for why CRLF is in scope.
+    const find = forSource(original, g.find);
+    const replace = forSource(original, g.replace);
+    const found = countMatches(original, g.find);
 
     // DRIFT — a pattern matching nothing would "verify" a guard while changing
     // no code at all.
@@ -177,7 +187,7 @@ try {
 
     // MUTATE
     dirty.set(g.file, original);
-    await writeFile(abs, original.split(g.find).join(g.replace));
+    await writeFile(abs, original.split(find).join(replace));
 
     process.stdout.write(`  · ${label} disabling … `);
     const mutated = await runTest(g.test);
