@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path';
 // it (config-dir.ts), but many modules import it from here.
 export { CONFIG_DIR } from './config-dir.ts';
 import { CONFIG_DIR, ensureConfigDir } from './config-dir.ts';
+import { background } from './background.ts';
 const STORE_PATH = join(CONFIG_DIR, 'devices.json');
 
 const PAIRING_TTL_MS = 5 * 60_000;
@@ -174,7 +175,11 @@ export class AuthStore {
     if (!device) return null;
 
     device.lastSeen = Date.now();
-    void this.#save();
+    // Not awaited — the caller is authenticating, and a timestamp is not worth
+    // blocking on. But `void` alone meant a failed write became an unhandled
+    // rejection, and Node kills the process: an antivirus lock on devices.json
+    // took down every live session on the next `hello`.
+    background('recording when a device was last seen', this.#save());
     return device;
   }
 

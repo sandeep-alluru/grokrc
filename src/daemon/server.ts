@@ -17,6 +17,7 @@ import type { PushService } from './push.ts';
 import { SessionManager } from './session-manager.ts';
 import { readBody } from '../http-body.ts';
 import { isInside } from '../paths.ts';
+import { background } from './background.ts';
 
 export interface ServerOptions {
   host?: string;
@@ -164,7 +165,21 @@ export class RemoteControlServer {
   constructor(opts: ServerOptions) {
     this.#opts = { host: opts.host ?? '127.0.0.1', port: opts.port ?? 4319, ...opts };
 
-    this.#http = createServer((req, res) => void this.#onHttp(req, res));
+    // `#onHttp` dispatches to handlers by RETURNING their promise, so a
+    // rejection anywhere in one — `#handlePair` writing the device store,
+    // `#handleSubscribe` writing the subscription store — arrived here with
+    // nothing awaiting it. Node kills the process on an unhandled rejection, so
+    // a phone pairing while the disk was full took down every live session, and
+    // the phone never got a reply either. Catching here covers every route,
+    // including ones added later.
+    this.#http = createServer((req, res) => {
+      void this.#onHttp(req, res).catch((err: unknown) => {
+        console.warn(`  ⚠ request ${req.method} ${req.url} failed: ${(err as Error)?.message}`);
+        // Answer, so the client fails fast instead of waiting for a timeout.
+        if (!res.headersSent) json(res, 500, { error: 'internal error' });
+        else res.end();
+      });
+    });
     // Cap frame size so a hostile or buggy client can't exhaust memory with one
     // message. Prompts are text; 1 MiB is generous.
     this.#wss = new WebSocketServer({ server: this.#http, maxPayload: 1024 * 1024 });
@@ -196,16 +211,22 @@ export class RemoteControlServer {
       // reason the agent stops being silently blocked.
       const push = this.#opts.push;
       if (!push) return;
+      // Fire-and-forget, but never unguarded: `#send` prunes expired
+      // subscriptions and writes the store, and that write killed the daemon
+      // when it failed. Reproduced against a real 410 endpoint.
       if (ev.k === 'approval') {
         const title = sid ? (this.#opts.sessions.get(sid)?.title ?? 'session') : 'session';
-        void push.notifyApproval(ev, title);
+        background('sending the approval notification', push.notifyApproval(ev, title));
       } else if (ev.k === 'status' && ev.state === 'done' && sid) {
-        void push.notifyDone(sid, this.#opts.sessions.get(sid)?.title ?? 'session');
+        background(
+          'sending the turn-finished notification',
+          push.notifyDone(sid, this.#opts.sessions.get(sid)?.title ?? 'session')
+        );
       }
     });
 
     this.#opts.sessions.on('session-list-changed', () => {
-      void this.#broadcastSessions();
+      background('broadcasting the session list', this.#broadcastSessions());
     });
   }
 
@@ -705,7 +726,7 @@ export class RemoteControlServer {
             sessionId: info.id,
             events: trimHistory(sessions.history(info.id)),
           });
-          void this.#broadcastSessions();
+          background('broadcasting the session list', this.#broadcastSessions());
           return;
         }
 
@@ -725,7 +746,7 @@ export class RemoteControlServer {
             // have to reconstruct it from a session id and a path.
             command: info ? `cd ${info.cwd} && grok -r ${msg.sessionId}` : null,
           });
-          void this.#broadcastSessions();
+          background('broadcasting the session list', this.#broadcastSessions());
           return;
         }
 

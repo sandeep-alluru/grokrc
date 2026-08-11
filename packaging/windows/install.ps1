@@ -173,7 +173,17 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
   -Settings $settings -Principal $principal `
-  -Description 'grokrc - remote control for Grok Build' | Out-Null
+  -Description 'grokrc - remote control for Grok Build' `
+  -ErrorAction Stop | Out-Null
+
+# TWIN of the same defect found in install-watchdog.ps1: Register-ScheduledTask
+# reports a rejected task XML or a denied permission as a NON-TERMINATING CIM
+# error, which $ErrorActionPreference='Stop' does not catch. That script printed
+# "installed watchdog task" while nothing had been registered. Verify before
+# claiming, in both.
+if (-not (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
+  throw "registration reported no error but '$TaskName' does not exist - nothing was installed"
+}
 
 Write-Host "  task:  $TaskName"
 Write-Host "  log:   $LogPath"

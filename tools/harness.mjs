@@ -64,7 +64,13 @@ async function scratchDir(prefix) {
  */
 export async function isolatedGrokHome({ prompting = true } = {}) {
   const home = await scratchDir('grokrc-grokhome-');
-  const real = join(process.env.HOME, '.grok');
+  // TWIN of the fallback added at the bottom of this file. `process.env.HOME` is
+  // undefined on Windows unless something set it — npm does, PowerShell does
+  // not — so `join()` threw ERR_INVALID_ARG_TYPE and every real-stack check died
+  // on startup when run outside npm. The credential copy below then silently
+  // copied nothing, which is the worse half: a check that boots an agent with no
+  // auth fails for a reason that has nothing to do with what it measures.
+  const real = join(process.env.HOME ?? homedir(), '.grok');
 
   if (prompting) {
     await writeFile(

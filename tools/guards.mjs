@@ -45,6 +45,22 @@ export const GUARDS = [
     test: 'test/takeover.test.ts',
   },
   {
+    id: 'background-writes-cannot-kill-the-daemon',
+    why: 'auth.verify() runs on every WebSocket hello and ends in a fire-and-forget store write. `void` alone makes a failed write an unhandled rejection, and Node terminates the process — one antivirus lock on devices.json takes down every live session. REPRODUCED: a real process died with EISDIR at async #save',
+    file: 'src/daemon/auth.ts',
+    find: "    background('recording when a device was last seen', this.#save());",
+    replace: '    void this.#save();',
+    test: 'test/store-write-failure.test.ts',
+  },
+  {
+    id: 'http-handler-rejection-is-answered',
+    why: '#onHttp dispatches by RETURNING a handler promise, so a rejection in #handlePair or #handleSubscribe had nothing awaiting it: the daemon died AND the phone never got a reply. The catch covers every route, including ones added later',
+    file: 'src/daemon/server.ts',
+    find: "      void this.#onHttp(req, res).catch((err: unknown) => {\n        console.warn(`  ⚠ request ${req.method} ${req.url} failed: ${(err as Error)?.message}`);\n        // Answer, so the client fails fast instead of waiting for a timeout.\n        if (!res.headersSent) json(res, 500, { error: 'internal error' });\n        else res.end();\n      });",
+    replace: '      void this.#onHttp(req, res);',
+    test: 'test/store-write-failure.test.ts',
+  },
+  {
     id: 'config-dir-drops-inherited-access',
     onlyOn: 'win32',
     why: '~/.grokrc holds the VAPID private key, the device store and a plaintext `grokrc term` token. POSIX gets 0700; on Windows the mode is ignored, so an ACL replaces it. `/inheritance:r` is the load-bearing half — a bare /grant is ADDITIVE, so an inherited Users or Everyone entry would survive and the directory would be no more private than its parent. WINDOWS-ONLY: on POSIX this argument list is never reached',
