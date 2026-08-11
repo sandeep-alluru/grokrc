@@ -117,9 +117,32 @@ export class ControlServer {
     this.#server = server;
 
     await new Promise<void>((res, rej) => {
-      server.once('error', rej);
+      /**
+       * EADDRINUSE here always means a live daemon, and it is the one thing the
+       * user needs told.
+       *
+       * On Unix `#clearStaleSocket()` above has already removed a socket file
+       * left by a crashed daemon, so anything still holding the address is
+       * running. On Windows there is no file to go stale — a named pipe
+       * disappears with the process that created it — so the name being taken
+       * means the same thing, with less ambiguity.
+       *
+       * Without this the Windows path reported the raw errno. `cli.ts` prints
+       * it as `⚠ control socket unavailable: listen EADDRINUSE ... \\.\pipe\
+       * grokrc-8f2e5c6…`, which names neither the cause nor the fix, for the
+       * most likely mistake there is: starting a second `grokrc up`.
+       */
+      const onError = (err: NodeJS.ErrnoException) =>
+        rej(
+          err.code === 'EADDRINUSE'
+            ? new Error(
+                `another grokrc daemon is already running (control endpoint ${this.#path} is in use)`
+              )
+            : err
+        );
+      server.once('error', onError);
       server.listen(this.#path, () => {
-        server.removeListener('error', rej);
+        server.removeListener('error', onError);
         res();
       });
     });

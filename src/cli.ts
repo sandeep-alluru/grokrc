@@ -15,6 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
+import { isStrictlyInside } from './paths.ts';
 import {
   CONFIG_KEYS,
   applyReload,
@@ -506,7 +507,7 @@ export async function removeSessionDir(sessionId: string, cwd: string): Promise<
     const grokHome = process.env.GROK_HOME ?? resolve(homedir(), '.grok');
     const dir = resolve(grokHome, 'sessions', encodeURIComponent(cwd), sessionId);
     // Refuse to delete anything that is not inside the session store.
-    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;
+    if (!isStrictlyInside(resolve(grokHome, 'sessions'), dir)) return;
     await rm(dir, { recursive: true, force: true });
   } catch {
     /* best effort */

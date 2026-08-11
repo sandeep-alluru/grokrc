@@ -14,6 +14,7 @@
 import { strict as assert } from 'node:assert';
 import { test, before, after } from 'node:test';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { copyFileSync, existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,14 +23,52 @@ const grokHome = await mkdtemp(join(tmpdir(), 'grokrc-takeover-grok-'));
 process.env.GROK_HOME = grokHome;
 process.env.GROKRC_HOME = await mkdtemp(join(tmpdir(), 'grokrc-takeover-'));
 
-const { SessionManager, looksLikeGrok, processArgs } =
+const { SessionManager, looksLikeGrok, looksLikeGrokExe, processArgs } =
   await import('../src/daemon/session-manager.ts');
 
 const spawned: ChildProcess[] = [];
 
-/** A live process whose argv[0] is exactly `name`. Real, not a stub. */
+const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Scratch directory holding the fake agents Windows needs as real files.
+ *
+ * The SPACE in the name is deliberate and load-bearing: Grok installs to
+ * `C:\Program Files\grok` by default, and the original Windows defect was that
+ * a space in the path made a genuine agent unrecognisable. A temp directory
+ * without one would exercise the easy case and report success.
+ */
+const fakeBin = await mkdtemp(join(tmpdir(), 'grokrc takeover bin '));
+
+/**
+ * A live process that identifies itself as exactly `name`. Real, not a stub.
+ *
+ * The two platforms need different tricks because they answer "what is this
+ * process?" differently, and the difference is the point of the test:
+ *
+ *   POSIX    `ps` reports argv[0], which `exec -a` can set to anything. That is
+ *            precisely why takeOver cannot trust a name alone on a stale pid.
+ *   Windows  there is no argv[0] to spoof — the process table reports the
+ *            EXECUTABLE PATH, which is a fact about a file on disk. So the fake
+ *            agent has to be a real executable with the right filename. A copy
+ *            of ping.exe is used: present on every Windows install, tiny, and
+ *            it will sit for minutes on request.
+ *
+ * The Windows form is the stronger of the two — it cannot be spoofed, only
+ * named — which is worth knowing when reading the guarantees this test claims.
+ */
 function spawnAs(name: string): ChildProcess {
-  const p = spawn('bash', ['-c', `exec -a ${name} sleep 300`], { stdio: 'ignore' });
+  let p: ChildProcess;
+  if (IS_WINDOWS) {
+    const exe = join(fakeBin, `${name}.exe`);
+    if (!existsSync(exe)) {
+      copyFileSync(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE'), exe);
+    }
+    // -n 300: one ping a second for five minutes. Longer than any test here.
+    p = spawn(exe, ['-n', '300', '127.0.0.1'], { stdio: 'ignore', windowsHide: true });
+  } else {
+    p = spawn('bash', ['-c', `exec -a ${name} sleep 300`], { stdio: 'ignore' });
+  }
   // An unhandled 'error' on a ChildProcess is thrown by Node. Even when the
   // binary is certain to exist, a missing listener turns any spawn failure
   // into a dead test runner instead of a failed test.
@@ -74,6 +113,7 @@ after(async () => {
   }
   await rm(grokHome, { recursive: true, force: true });
   await rm(process.env.GROKRC_HOME!, { recursive: true, force: true });
+  await rm(fakeBin, { recursive: true, force: true });
 });
 
 /* ─── the pid guard ───────────────────────────────────────────────────────── */
@@ -100,8 +140,14 @@ test('processArgs reads a real process, and null once it is gone', async () => {
   await new Promise((r) => setTimeout(r, 200));
 
   const args = await processArgs(p.pid!);
-  assert.ok(args, 'should read the command line of a live process');
-  assert.equal(looksLikeGrok(args!), true, `expected a grok-looking argv, got: ${args}`);
+  assert.ok(args, 'should read the identity of a live process');
+  // The predicate has to match the SHAPE processArgs returns on this platform:
+  // a command line from `ps`, an executable path from the Windows process
+  // table. Using looksLikeGrok on Windows fails here whenever the path contains
+  // a space — which `fakeBin` deliberately does, because `C:\Program Files` is
+  // where Grok installs. That is the same mismatch takeOver dispatches around.
+  const identify = IS_WINDOWS ? looksLikeGrokExe : looksLikeGrok;
+  assert.equal(identify(args!), true, `expected a grok-looking identity, got: ${args}`);
 
   p.kill('SIGKILL');
   await new Promise((r) => setTimeout(r, 300));

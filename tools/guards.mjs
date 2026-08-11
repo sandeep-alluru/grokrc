@@ -22,6 +22,22 @@
  */
 export const GUARDS = [
   {
+    id: 'path-containment-refuses-escapes',
+    why: 'four call sites (static serving in the daemon and the relay, the observed-session store, and doctor’s cleanup) ask "is this path inside that root?" through this one function. Without the refusal it answers yes to everything, and the two HTTP guards become directory traversal',
+    file: 'src/paths.ts',
+    find: "  if (rel === '' || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) return false;",
+    replace: '',
+    test: 'test/paths.test.ts',
+  },
+  {
+    id: 'takeover-identity-matches-the-platform-shape',
+    why: 'processArgs returns a command line on POSIX and an executable path on Windows. Matching a path with the command-line predicate word-splits it, so `C:\\Program Files\\grok\\grok.exe` reduces to `C:\\Program` and a genuine agent is refused — takeover is dead in Grok’s own default install location. WINDOWS-ONLY: on POSIX both branches are the same call, so verify-guards reports this unproven there rather than failing',
+    file: 'src/daemon/session-manager.ts',
+    find: '    const identifiesAsGrok = IS_WINDOWS ? looksLikeGrokExe(args) : looksLikeGrok(args);',
+    replace: '    const identifiesAsGrok = looksLikeGrok(args);',
+    test: 'test/takeover.test.ts',
+  },
+  {
     id: 'push-prompt-always-renders',
     why: 'iOS Safari tabs have no PushManager; the early return left users with no row and no reason',
     file: 'web/app.js',
@@ -82,7 +98,7 @@ export const GUARDS = [
     id: 'session-cleanup-stays-in-the-store',
     why: 'removeSessionDir builds a delete path from a session id supplied from outside; without the containment check a diagnostic command becomes an arbitrary recursive delete',
     file: 'src/cli.ts',
-    find: "    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;",
+    find: "    if (!isStrictlyInside(resolve(grokHome, 'sessions'), dir)) return;",
     replace: '    // containment check disabled',
     test: 'test/session-cleanup.test.ts',
   },
@@ -136,8 +152,8 @@ export const GUARDS = [
     id: 'takeover-pid-identity',
     why: 'pids get recycled; without the argv[0] check a stale registry entry makes a phone tap kill an unrelated process',
     file: 'src/daemon/session-manager.ts',
-    find: '    if (!looksLikeGrok(args)) {',
-    replace: '    if (false && !looksLikeGrok(args)) {',
+    find: '    if (!identifiesAsGrok) {',
+    replace: '    if (false) {',
     test: 'test/takeover.test.ts',
   },
   {
@@ -176,7 +192,7 @@ export const GUARDS = [
   },
   {
     id: 'stdin-error-handler',
-    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon',
+    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon. POSIX-ONLY PROOF: the control is detected by the process CRASHING on an unhandled stream error, which needs a write to land in flight. Measured on Windows — 40/40 sends took the `stdin.writable === false` path in send() and stdin.write was never reached, so no EPIPE, no error event, and verify-guards reports this UNPROVEN there. The control still matters: the daemon runs on Linux under systemd',
     file: 'src/acp/transport.ts',
     find: "    this.#child.stdin.on('error', (err: NodeJS.ErrnoException) => {",
     replace: "    this.#child.stdin.on('__disabled', (err: NodeJS.ErrnoException) => {",

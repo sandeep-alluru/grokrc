@@ -16,6 +16,7 @@ import type { RcEvent } from './events.ts';
 import type { PushService } from './push.ts';
 import { SessionManager } from './session-manager.ts';
 import { readBody } from '../http-body.ts';
+import { isInside } from '../paths.ts';
 
 export interface ServerOptions {
   host?: string;
@@ -500,7 +501,7 @@ export class RemoteControlServer {
     const rel = url.pathname === '/' ? '/index.html' : url.pathname;
     const root = resolve(this.#opts.webRoot);
     const target = resolve(join(root, normalize(rel)));
-    if (!target.startsWith(root + '/') && target !== root) {
+    if (!isInside(root, target)) {
       return json(res, 403, { error: 'forbidden' });
     }
     try {

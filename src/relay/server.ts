@@ -25,6 +25,7 @@ import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readBody } from '../http-body.ts';
+import { isInside } from '../paths.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -184,7 +185,7 @@ export class RelayServer {
     const rel = url.pathname === '/' || url.pathname === '/client' ? '/index.html' : url.pathname;
     const root = resolve(this.#webRoot);
     const target = resolve(join(root, normalize(rel)));
-    if (!target.startsWith(root + '/') && target !== root) {
+    if (!isInside(root, target)) {
       return json(res, 403, { error: 'forbidden' });
     }
     try {

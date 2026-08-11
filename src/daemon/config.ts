@@ -17,7 +17,7 @@
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { CONFIG_DIR } from './auth.ts';
 
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
@@ -87,7 +87,11 @@ export function validateConfig(cfg: GrokrcConfig): ConfigIssue[] {
   const issues: ConfigIssue[] = [];
 
   if (cfg.defaultCwd !== undefined) {
-    if (typeof cfg.defaultCwd !== 'string' || !cfg.defaultCwd.startsWith('/')) {
+    // `isAbsolute`, not `startsWith('/')`: the latter is absolute only on POSIX,
+    // so on Windows `grokrc config set defaultCwd C:\code` was refused as "must
+    // be an absolute path" — the one required setting could not be set at all.
+    // See the same fix in session-manager.ts assertSafeCwd.
+    if (typeof cfg.defaultCwd !== 'string' || !isAbsolute(cfg.defaultCwd)) {
       issues.push({
         key: 'defaultCwd',
         message: 'must be an absolute path',

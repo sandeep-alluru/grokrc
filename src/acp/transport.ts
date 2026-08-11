@@ -181,10 +181,27 @@ export class StdioTransport extends EventEmitter implements Transport {
   close(): void {
     if (this.#closed) return;
     this.#closed = true;
-    this.#child.kill('SIGTERM');
+    /**
+     * Killing a child that never started is not an error worth propagating.
+     *
+     * `spawn` reports ENOENT asynchronously, so a transport whose agent binary
+     * was missing still holds a ChildProcess with no pid. Killing that throws
+     * `EINVAL` on Windows (and is a silent no-op on Linux, which is why this
+     * went unnoticed). close() is called from shutdown paths and from `catch`
+     * blocks, so a throw here replaces the real failure with a confusing one —
+     * the same shape as the spawn-ENOENT bug that used to take down the daemon.
+     */
+    const kill = (signal: 'SIGTERM' | 'SIGKILL') => {
+      try {
+        this.#child.kill(signal);
+      } catch {
+        /* never started, or already reaped */
+      }
+    };
+    kill('SIGTERM');
     // Escalate if the agent ignores SIGTERM — otherwise a wedged agent keeps
     // the daemon alive forever on shutdown.
-    const t = setTimeout(() => this.#child.kill('SIGKILL'), 3000);
+    const t = setTimeout(() => kill('SIGKILL'), 3000);
     t.unref?.();
   }
 }
