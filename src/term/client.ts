@@ -18,9 +18,10 @@
  */
 import { createInterface, type Interface } from 'node:readline';
 import { AuthStore, CONFIG_DIR } from '../daemon/auth.ts';
+import { ensureConfigDir } from '../daemon/config-dir.ts';
 import type { RcEvent, SessionState } from '../daemon/events.ts';
 import { join } from 'node:path';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const TOKEN_PATH = join(CONFIG_DIR, 'term-token');
 
@@ -117,7 +118,7 @@ export class TerminalClient {
     const auth = new AuthStore();
     await auth.load();
     const { token } = await auth.mintLocalDevice(`terminal (${process.env.USER ?? 'local'})`);
-    await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    await ensureConfigDir();
     await writeFile(TOKEN_PATH, token, { mode: 0o600 });
     return token;
   }

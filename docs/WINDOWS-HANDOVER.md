@@ -269,20 +269,82 @@ turns it on.~~
 > `test/takeover.test.ts` passes here in full, including *"a grok-looking owner
 > is stopped with SIGTERM"* — the destructive path, end to end, on Windows.
 
-### 3. No service manager off Linux — OPEN
+### 3. No service manager off Linux — FIXED
 
-`packaging/` contains only systemd units. There is no Windows equivalent, so
+~~`packaging/` contains only systemd units. There is no Windows equivalent, so
 "run it as a service" does not apply. Reasonable options, in rough order of
 effort: a Startup-folder shortcut, a Scheduled Task at logon, or NSSM. None has
-been tried.
+been tried.~~
 
-### 4. File permissions are not enforced on Windows — OPEN, security-relevant
+> **Done: `packaging/windows/`** — `install.ps1`, `uninstall.ps1`,
+> `install-watchdog.ps1`, plus `tools/watchdog.ps1`. A Scheduled Task, chosen to
+> match the systemd USER unit's shape: runs as you, needs no administrator,
+> starts automatically, restarts on failure. A Windows *Service* was rejected —
+> services run as SYSTEM or need a stored password, and a coding agent running
+> as SYSTEM is the wrong answer to every question.
+>
+> Verified on this machine, not just written: installed, daemon served
+> `{"ok":true}` over the tailnet, stop/start cycled cleanly, uninstalled.
+>
+> **Three defects found by running it, all fixed:**
+>
+> 1. *The task exited 1 with no log.* The action was an inline `-Command`
+>    carrying three quoted paths inside one already-quoted argument; Task
+>    Scheduler passes that string verbatim and the inner quotes terminate it
+>    early. It now writes a generated launcher script and uses `-File`, which
+>    needs one level of quoting — and restores the thing that made systemd's
+>    `EnvironmentFile` good, a generated file you can open and edit.
+>
+> 2. *`Stop-ScheduledTask` orphaned the daemon.* systemd puts a service in a
+>    cgroup and kills the tree; Task Scheduler terminates only the process it
+>    launched, so the `node` child survived holding port 4319. The restart then
+>    crash-looped on EADDRINUSE **while `/api/health` kept answering from the
+>    orphan** — the task said one thing and the port said another. The launcher
+>    now clears its own orphan before binding, scoped by the full entry path so
+>    it can only ever match a daemon from this checkout.
+>
+> 3. *The log was unreadable.* node writes UTF-8; PowerShell redirection decoded
+>    it as the OEM code page, rendering the daemon's own exposure warning as
+>    `ΓÜá reachable from other machines` — the single line most worth reading.
+>
+> **Honest differences from systemd**, both in the script header: it starts at
+> **logon**, not boot (earlier means storing your password, and losing network
+> access under S4U); and Task Scheduler captures no output, so stdout is
+> redirected to `%LOCALAPPDATA%\grokrc\grokrc.log` instead of the journal —
+> `journalctl -f` becomes `Get-Content <log> -Wait`.
+
+### 4. File permissions are not enforced on Windows — FIXED, security-relevant
 
 `src/daemon/config.ts` writes with `mode: 0o600` and creates `CONFIG_DIR` with
 `0o700`. Windows largely ignores POSIX modes. Device tokens are stored hashed
 (`test/server.test.ts` asserts the plaintext token never reaches disk), so this
 is not a token-disclosure hole, but the config directory is less protected than
 on Unix.
+
+> **Done.** Five call sites asked for `mode: 0o700` independently; they now
+> funnel through `ensureConfigDir()` in `src/daemon/config-dir.ts`, which keeps
+> the POSIX mode and, on Windows, applies an ACL with `icacls /inheritance:r`
+> followed by a single grant to the current account. At most one `icacls` per
+> process — the result is cached, because turning five `mkdir` calls into five
+> subprocess spawns would be a poor trade.
+>
+> Worth noting what the directory actually holds, since the original text
+> undersells it: `vapid.json` is a Web Push **private key**, and `term-token` is
+> a **plaintext** bearer token for `grokrc term`. Hashed device tokens were not
+> the whole story.
+>
+> **The first version of the test was worthless and verify-guards caught it.**
+> It asserted "BUILTIN\Users is absent" on a plain `%TEMP%` directory — which
+> has no such entry to begin with, so it passed with the hardening disabled. The
+> test now CREATES the condition: it gives a parent an inheritable grant to
+> `BUILTIN\Users` (matched by SID, so it does not depend on display language),
+> creates the config directory inside it, and requires that the child does not
+> keep what it inherited. Guard `config-dir-drops-inherited-access` is proven
+> load-bearing against that version.
+>
+> `/inheritance:r` is the load-bearing half: a bare `/grant` is ADDITIVE, so
+> without it an inherited entry survives and the directory is no more private
+> than its parent.
 
 Related and already documented in `SECURITY.md`: Windows named pipes are
 machine-global and Node exposes no ACL control, so the control pipe's name is
@@ -369,13 +431,23 @@ Ubuntu-only, so `--with-deps` is now applied conditionally.
 
 ### Still open, in the order I would take them
 
-1. **`grok login`, then `npm test` in full.** Everything requiring
-   authentication is still UNVERIFIED on Windows: `test:real`,
-   `tools/midturn-check.mjs`, and the three `grok agent leader` tests. This also
-   settles §3.5 — whether terminating an agent on Windows, which has no real
-   SIGTERM, loses the tail of a turn.
-2. **Renormalise line endings** (§4b) — one command, its own commit.
-3. **§3.3 service manager** and **§3.4 file permissions** — untouched here.
+1. **Renormalise line endings** (§4b) — one command, its own commit. Until then
+   `npm run format:check` fails on a pre-existing Windows clone, for line-ending
+   reasons only. A fresh clone and CI are already fine.
+2. **`npm run check:stranger` has no Windows form.** `tools/stranger-check.sh`
+   is bash, and it installs the package into a sandboxed HOME with a
+   system-only PATH to test the first-run experience. That experience is exactly
+   where the Windows-specific onboarding lives — no PATH entry from the
+   installer, no `grok login` yet — so it is the most valuable remaining gap.
+3. **`session/request_permission` is not exercised on Windows.** The conformance
+   run reports `the agent did not ask permission on this turn — option shape
+   unchecked`, because `isolatedGrokHome({ prompting: false })` writes no
+   `config.toml`. Nothing is wrong; it is simply unmeasured here, and
+   `tools/e2e-drive.mjs` (which sets `prompting: true`) is the tool that would
+   close it.
+4. **Push on Windows** is untested. iOS push is verified from Linux; whether a
+   Windows-hosted daemon delivers to an iPhone is a different question only in
+   that nobody has run it.
 
 ---
 
@@ -407,15 +479,36 @@ Not optional here, and the reason the defects above are stated the way they are.
 proven load-bearing, format/lint/typecheck clean, CI and Compatibility both
 green, `main` at the commit that added this file.
 
-**VERIFIED on Windows 11 / Node 24 / `grok 1.0.0`, after the fixes above:**
-247 passing, 0 failing, 7 skipped — each skip printing why. `typecheck` and
-`lint` clean (two pre-existing `no-explicit-any` warnings, untouched).
-`format:check` fails on a pre-existing clone for line-ending reasons only — see
-§4b. Nothing that needs `grok login` has been run here.
+**VERIFIED on Windows 11 / Node 24 / `grok 1.0.0`, with a signed-in agent:**
+`npm test` in full — mock suite **256 passing, 0 failing, 7 skipped** (each skip
+printing why), then all four real-stack checks **ALL CLEAR**: `live-ui-check`,
+`resume-check`, `midturn-check` and `acp-conformance`. `typecheck` and `lint`
+clean (two pre-existing `no-explicit-any` warnings, untouched). `format:check`
+fails on a pre-existing clone for line-ending reasons only — see §4b.
 
-**Guards: 28 of 29 proven load-bearing on Windows**, including the two added
-here. The exception is `stdin-error-handler`, and it is a genuine platform
-limit rather than a weak test. That control is detected by the process
+**§3.5 is settled.** `midturn-check` closes an agent mid-turn and resumes:
+*"recovered 2 event(s) the agent never persisted"* and *"the last streamed line
+survived the resume"*. Windows has no real `SIGTERM`, and the tail of the turn
+survives anyway.
+
+**The protocol surface matches the pin** on Windows — 14 kinds, 14 methods,
+`grok 1.0.0` — with `hook_execution` and `last_turn_summary` simply not produced
+by that turn, and permission options unexercised because the isolated home runs
+with prompting off.
+
+**Verified against a real daemon over a real network**, which the suite cannot
+do: `npm run check:live` against a Tailscale-bound daemon paired a browser
+through the **named pipe**, loaded the PWA, opened a WebSocket, created a
+session and cancelled a turn — 17 checks, ALL CLEAR.
+
+**Guards: 31 of 31 proven load-bearing**, including the five added here
+(`path-containment-refuses-escapes`,
+`takeover-identity-matches-the-platform-shape`,
+`exposure-notice-tells-the-truth`, `config-dir-drops-inherited-access`, and the
+repaired `harness-refuses-real-grok-home`).
+
+`stdin-error-handler` deserves a note: it is proven on Linux and is a genuine
+platform limit here rather than a weak test. That control is detected by the process
 *crashing* on an unhandled stream error, which requires a write to land in the
 window between the agent dying and `close` arriving. Measured here: **40 of 40
 sends took the `stdin.writable === false` branch in `send()` and

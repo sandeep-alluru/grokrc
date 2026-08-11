@@ -18,11 +18,12 @@
  *   -> {"id":1,"cmd":"pair"}
  *   <- {"id":1,"ok":true,"result":{"code":"7K44NP","expiresAt":1785...}}
  */
-import { chmod, mkdir, stat, unlink } from 'node:fs/promises';
+import { chmod, stat, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { CONFIG_DIR } from './auth.ts';
+import { ensureConfigDir } from './config-dir.ts';
 
 /**
  * Windows has no Unix domain sockets, and `net` will not bind a filesystem path
@@ -108,7 +109,7 @@ export class ControlServer {
   }
 
   async listen(): Promise<void> {
-    await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    await ensureConfigDir();
     // A named pipe is not a file: it has no stale remnant to clear, and it
     // disappears with the process that created it.
     if (!IS_WINDOWS) await this.#clearStaleSocket();

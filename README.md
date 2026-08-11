@@ -207,19 +207,39 @@ than silently ignored.
 
 ### Run it as a service
 
+**Linux** — a systemd **user** unit, not a system one, because it needs
+`~/.grok/auth.json` and must spawn agents as you. No sudo. The installer enables
+lingering so it starts at boot and survives logout.
+
 ```bash
 packaging/systemd/install.sh                    # loopback, behind a tunnel
 packaging/systemd/install.sh -- --lan           # reachable on your LAN
 ```
 
-A **user** unit, not a system one — it needs `~/.grok/auth.json` and must spawn agents as
-you, so no sudo is involved. The installer enables lingering so it starts at boot and
-survives logout.
-
 ```
 systemctl --user status grokrc     journalctl --user -u grokrc -f
 systemctl --user restart grokrc    packaging/systemd/uninstall.sh
 ```
+
+**Windows** — a Scheduled Task, same shape and same reasoning: runs as you, needs no
+administrator, starts automatically, restarts on failure.
+
+```powershell
+packaging\windows\install.ps1                        # loopback
+packaging\windows\install.ps1 -DaemonArgs '--lan'    # reachable on your LAN
+packaging\windows\install-watchdog.ps1               # optional health check
+```
+
+```powershell
+Get-ScheduledTask grokrc                     Get-Content "$env:LOCALAPPDATA\grokrc\grokrc.log" -Wait
+Stop-ScheduledTask -TaskName grokrc          packaging\windows\uninstall.ps1
+```
+
+Two honest differences from systemd, both documented in the script header: it starts at
+**logon** rather than at boot (starting earlier means storing your password), and Task
+Scheduler captures no output, so stdout goes to a log file instead of the journal. A
+Windows *Service* was rejected deliberately — services run as SYSTEM, and a coding agent
+running as SYSTEM is the wrong answer to every question.
 
 Pair a device against a running service with `grokrc up --pair` (or edit
 `~/.config/grokrc/grokrc.env` and restart).

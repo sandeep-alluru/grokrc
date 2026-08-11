@@ -38,6 +38,22 @@ export const GUARDS = [
     test: 'test/takeover.test.ts',
   },
   {
+    id: 'config-dir-drops-inherited-access',
+    why: '~/.grokrc holds the VAPID private key, the device store and a plaintext `grokrc term` token. POSIX gets 0700; on Windows the mode is ignored, so an ACL replaces it. `/inheritance:r` is the load-bearing half — a bare /grant is ADDITIVE, so an inherited Users or Everyone entry would survive and the directory would be no more private than its parent. WINDOWS-ONLY: on POSIX this argument list is never reached',
+    file: 'src/daemon/config-dir.ts',
+    find: "      [dir, '/inheritance:r', '/grant:r', `${user}:(OI)(CI)F`, '/Q'],",
+    replace: "      [dir, '/grant', `${user}:(OI)(CI)F`, '/Q'],",
+    test: 'test/config-dir.test.ts',
+  },
+  {
+    id: 'exposure-notice-tells-the-truth',
+    why: 'the one line saying who can reach the daemon is safety text for a remote-code-execution surface. It used to branch only on 0.0.0.0, so binding to a Tailscale address announced "loopback only" while every machine on the tailnet could drive a session — understating exposure, which is the direction that matters',
+    file: 'src/cli.ts',
+    find: '  if (!LOOPBACK_HOSTS.has(host)) {',
+    replace: '  if (false) {',
+    test: 'test/exposure-notice.test.ts',
+  },
+  {
     id: 'push-prompt-always-renders',
     why: 'iOS Safari tabs have no PushManager; the early return left users with no row and no reason',
     file: 'web/app.js',
@@ -178,8 +194,8 @@ export const GUARDS = [
     id: 'harness-refuses-real-grok-home',
     why: 'tests spawning a real agent wrote 80 sessions into the developer’s own ~/.grok',
     file: 'tools/harness.mjs',
-    find: "  if (!transportFactory) {\n    const real = join(process.env.HOME ?? '', '.grok');",
-    replace: "  if (false) {\n    const real = join(process.env.HOME ?? '', '.grok');",
+    find: '  if (!transportFactory) {',
+    replace: '  if (false) {',
     test: 'test/harness-isolation.test.ts',
   },
   {

@@ -11,11 +11,13 @@
  *  - The store is written 0600.
  */
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-export const CONFIG_DIR = process.env.GROKRC_HOME ?? join(homedir(), '.grokrc');
+// Re-exported: CONFIG_DIR now lives with the code that creates and permissions
+// it (config-dir.ts), but many modules import it from here.
+export { CONFIG_DIR } from './config-dir.ts';
+import { CONFIG_DIR, ensureConfigDir } from './config-dir.ts';
 const STORE_PATH = join(CONFIG_DIR, 'devices.json');
 
 const PAIRING_TTL_MS = 5 * 60_000;
@@ -72,7 +74,7 @@ export class AuthStore {
   }
 
   async #save(): Promise<void> {
-    await mkdir(dirname(STORE_PATH), { recursive: true, mode: 0o700 });
+    await ensureConfigDir(dirname(STORE_PATH));
     await writeFile(STORE_PATH, JSON.stringify({ devices: this.#devices }, null, 2), {
       mode: 0o600,
     });

@@ -35,7 +35,7 @@ have what you need.
 | -------------- | -------------------------------------------------------------------------------- |
 | **Node.js**    | 20+ per `engines`; **developed and tested on 22**. 20 and 21 are untested          |
 | **Grok Build** | on your `PATH` — `curl -fsSL https://x.ai/cli/install.sh \| bash`, then `grok login` |
-| **OS**         | Verified on Linux. macOS is expected to work but untested; the systemd unit is Linux-only |
+| **OS**         | Verified on Linux, macOS and Windows — full suite on all three in CI. Autostart differs: systemd on Linux, a Scheduled Task on Windows (§7) |
 | **A phone**    | any browser. It installs as a PWA — no app store                                   |
 
 Check the agent works before you start — grokrc cannot do anything without it:
@@ -269,6 +269,8 @@ sealed.
 
 ## 7. Run it as a service
 
+### Linux — systemd
+
 ```bash
 packaging/systemd/install.sh
 ```
@@ -289,6 +291,36 @@ Flags go through `--`, though config is the better home for them:
 ```bash
 packaging/systemd/install.sh -- --lan --pair
 ```
+
+### Windows — Scheduled Task
+
+Same shape and the same reasoning: runs as you, no administrator, starts
+automatically, restarts on failure.
+
+```powershell
+packaging\windows\install.ps1
+packaging\windows\install.ps1 -DaemonArgs '--lan'
+packaging\windows\install-watchdog.ps1 -BindHost 127.0.0.1   # optional health check
+```
+
+```powershell
+Get-ScheduledTask grokrc
+Get-Content "$env:LOCALAPPDATA\grokrc\grokrc.log" -Wait -Tail 40
+Stop-ScheduledTask -TaskName grokrc; Start-ScheduledTask -TaskName grokrc
+packaging\windows\uninstall.ps1          # keeps ~/.grokrc pairings
+```
+
+Two differences worth knowing:
+
+- It starts at **logon**, not at boot. Starting earlier means "run whether the user is
+  logged on or not", which requires storing your password. Pass `-RunWhetherLoggedOn`
+  if you want that trade.
+- Task Scheduler captures no output, so stdout goes to
+  `%LOCALAPPDATA%\grokrc\grokrc.log`. That log is the equivalent of `journalctl -f`.
+
+If you give the daemon a specific `--host`, give the watchdog the **same** one. A
+daemon bound to one address does not answer on loopback, and a watchdog probing the
+wrong address will restart a perfectly healthy daemon on every run.
 
 ---
 

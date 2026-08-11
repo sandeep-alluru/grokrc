@@ -11,7 +11,7 @@
  * pairing over HTTP, a real browser. Nothing is simulated.
  */
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -181,7 +181,12 @@ export async function bootDaemon({ transportFactory, defaultCwd, push } = {}) {
   // Refusing here is the only version of this rule that survives: a comment
   // asking the next tool to remember would be forgotten exactly as these two were.
   if (!transportFactory) {
-    const real = join(process.env.HOME ?? '', '.grok');
+    // `homedir()`, not `process.env.HOME`. HOME is undefined on Windows, so this
+    // resolved to `<cwd>/.grok` — the repo directory — and the guard could never
+    // fire for the actual C:\Users\<you>\.grok it exists to protect. The test
+    // covering it computed the same wrong path, so it compared two identically
+    // wrong values and passed while measuring nothing.
+    const real = join(process.env.HOME ?? homedir(), '.grok');
     const home = process.env.GROK_HOME;
     if (!home || resolve(home) === resolve(real)) {
       throw new Error(
