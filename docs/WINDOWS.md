@@ -200,10 +200,33 @@ saying so is more useful than implying coverage that does not exist.
 - **Web Push from a Windows-hosted daemon.** Delivery to an iPhone is verified
   from Linux. Whether a Windows host behaves identically has not been run.
 
-Line endings are worth one note for contributors: git's Windows default
-(`core.autocrlf=true`) checks the tree out as CRLF. `.gitattributes` pins
-everything to LF, so a fresh clone is correct; an older clone may need
-`git add --renormalize .` once.
+### Line endings, if you cloned before `.gitattributes` existed
+
+Git's Windows default (`core.autocrlf=true`) writes the working tree as CRLF.
+`.gitattributes` now pins everything to LF, so a **fresh clone is already
+correct** and nothing below applies to it.
+
+An older clone still has CRLF files on disk, and `npm run format:check` fails on
+all of them — Prettier defaults to `endOfLine: "lf"`. The files are otherwise
+byte-identical to what Prettier would produce.
+
+The usual advice, `git add --renormalize .`, **does nothing here**. That command
+repairs a repository whose *committed* content is CRLF. This one was authored on
+Linux, so the committed content is already LF — `git ls-files --eol` reports
+`i/lf` for every tracked file. There is nothing to renormalise.
+
+What is stale is the working tree. Refreshing it is not a commit at all; git
+reports no change afterwards, because only the line endings differed:
+
+```bash
+git status                       # confirm a clean tree first
+git ls-files -z | xargs -0 rm -f
+git checkout -- .
+```
+
+`git checkout-index -a -f` looks like it should do the same job and does not: git
+skips files it considers up to date via the stat cache, so they have to be
+removed before being checked out again.
 
 ---
 

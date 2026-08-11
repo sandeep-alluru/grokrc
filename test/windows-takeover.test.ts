@@ -29,9 +29,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 
-const { looksLikeGrok, looksLikeGrokExe, processArgs } = await import(
-  '../src/daemon/session-manager.ts'
-);
+const { looksLikeGrok, looksLikeGrokExe, processArgs } =
+  await import('../src/daemon/session-manager.ts');
 
 const IS_WINDOWS = process.platform === 'win32';
 

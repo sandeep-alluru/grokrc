@@ -87,7 +87,11 @@ test(
       // S-1-5-32-545 is BUILTIN\Users, matched by SID so this does not depend
       // on the machine's display language.
       const inherited = await execFileAsync('icacls', [parent], { windowsHide: true });
-      assert.match(inherited.stdout, /S-1-5-32-545|Users/i, 'precondition: the parent grants Users');
+      assert.match(
+        inherited.stdout,
+        /S-1-5-32-545|Users/i,
+        'precondition: the parent grants Users'
+      );
 
       assert.doesNotMatch(stdout, /\bEveryone:/i, `Everyone still has access:\n${stdout}`);
       assert.doesNotMatch(
