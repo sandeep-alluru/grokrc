@@ -109,11 +109,10 @@ threat model that only describes the strongest platform is not a threat model.
   - Using **your own** relay on a host you control: this risk is yours to hold, and
     serving the client from it is reasonable.
 
-  A path that would remove the risk entirely — install the PWA once from the daemon's
-  own origin over Tailscale, then let the installed app talk to the relay — is
-  **untested**. It should follow from how service workers cache and from WebSocket's
-  cross-origin rules, but nobody here has run it, and reasoning is not measurement.
-  Tracked as backlog #16.
+  There is a possible mitigation that would remove the risk entirely: install the
+  PWA once from the daemon's own origin over Tailscale, then let the installed
+  application communicate with the relay. This has **not been tested** and is not
+  currently a supported configuration.
 - **Prompt injection into the agent.** If Grok reads a hostile file and decides to run
   something, grokrc faithfully relays the approval request. **Approvals are your
   control** — see below.
