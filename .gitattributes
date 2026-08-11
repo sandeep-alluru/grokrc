@@ -18,8 +18,23 @@
 # `tools/guard-match.mjs` makes the guard runner tolerate CRLF regardless, so a
 # contributor who has already cloned is not stuck. This file is the actual fix.
 #
-# Applying it to an existing clone is a separate, tree-wide commit:
-#     git add --renormalize . && git commit -m "Normalise line endings to LF"
+# NOTE, because the usual advice does not apply here: `git add --renormalize .`
+# does NOTHING in this repo. That command fixes a repository whose COMMITTED
+# content is CRLF. This one was authored on Linux, so the committed content is
+# already LF — measured with `git ls-files --eol`, which reports `i/lf` for every
+# tracked file. There is nothing to renormalise and the commit would be empty.
+#
+# What is stale in an older clone is the WORKING TREE, written as CRLF before
+# this file existed. Refreshing it is not a commit at all — git reports no change
+# afterwards, because only the line endings differed:
+#
+#     git status                       # confirm a clean tree first
+#     git ls-files -z | xargs -0 rm -f
+#     git checkout -- .
+#
+# `git checkout-index -a -f` looks like it should do this and does not: git skips
+# files it considers up to date via the stat cache, so they must actually be
+# removed first.
 * text=auto eol=lf
 
 # Binary — never touched.
