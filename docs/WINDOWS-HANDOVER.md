@@ -6,6 +6,19 @@ run on Windows by its author. Every claim below is labelled **VERIFIED**,
 named. Where you find this document wrong, the document is wrong — trust the
 machine in front of you.
 
+> **Updated 2026-08-10, from Windows 11 (Node 24, `grok 1.0.0` native).** The
+> suite has now been run here. §2's UNKNOWNs are settled, §3.1's proposed fix
+> was MEASURED and is incomplete — see the correction in place — and two defects
+> nobody had listed made the product unusable on this platform rather than
+> merely degraded. Sections carrying new results say so inline.
+>
+> One claim in this document was wrong in a way worth naming up front: it said
+> the Windows gap was about the control socket and takeover. Those were real,
+> but they were not what stopped grokrc working here. **The daemon returned 403
+> for every file in its own PWA, and every absolute path on the machine was
+> refused as "not absolute".** Both were single-line POSIX assumptions in code
+> the Windows CLI smoke tests never executed.
+
 ---
 
 ## 0. What this project is
@@ -77,6 +90,12 @@ guess when the agent is waiting.
 | `config` | reads and prints settings |
 | `up` with no agent | refuses to start, and says what is missing |
 
+> **These five steps were all green while the product could not serve a single
+> file or open a single session on Windows** (§3.0a, §3.0b). Worth keeping in
+> mind when reading any "VERIFIED" in this section: a smoke test that never
+> requests an asset cannot notice that every asset 403s. That is the argument
+> for the `windows-latest` entry now in the `suite` matrix, not just here.
+
 **VERIFIED — the control socket has a Windows form.** Windows has no Unix domain
 sockets; `net` will not bind a filesystem path there. `CONTROL_SOCKET_PATH`
 (`src/daemon/control.ts`) is now a named pipe, `\\.\pipe\grokrc-<hash>`, where
@@ -93,32 +112,99 @@ the pipe work is wrong, `grokrc up` still serves phones; only `pair`, `devices`,
 
 ## 2. What is NOT known
 
-**UNKNOWN — the test suite has never run on Windows.** `.github/workflows/compat.yml`
-runs the `suite` job on `[ubuntu-latest, macos-latest]` only. The Windows jobs
-run five CLI smoke steps and nothing else. **This is the single biggest gap, and
-it is the first thing to close.**
+> **All three UNKNOWNs below are now settled. Kept with their answers rather
+> than deleted, because what they turned out to hide is the point.**
 
-**UNKNOWN — whether `grok` itself exists for Windows.** grokrc drives xAI's Grok
-Build over ACP (`grok agent stdio`). Whether xAI ships a Windows build was not
-checked from here. If it does not, the daemon runs but can open no session, and
-WSL2 becomes the supported path rather than native Windows.
+**~~UNKNOWN~~ → VERIFIED — the test suite runs on Windows, and the first run was
+catastrophic.** `compat.yml` ran the `suite` job on `[ubuntu-latest,
+macos-latest]` only; the Windows jobs ran five CLI smoke steps. This was
+correctly called the biggest gap. First real run: **149 passing, 169 failing.**
+After the fixes in §3, the same command reports **247 passing, 0 failing, 7
+skipped** — every skip naming its reason. `windows-latest` is now in the `suite`
+matrix, so this cannot silently regress.
 
-**UNKNOWN — whether the named pipe actually binds.** The code is written; no
-Windows process has executed it. Settled by §4 step 3.
+**~~UNKNOWN~~ → VERIFIED — xAI ships a native Windows build.** `x.ai/cli/install.sh`
+detects `MINGW*|MSYS*|CYGWIN*` and installs `grok-<version>-windows-x86_64.exe`
+to `~/.grok/bin/grok.exe`; its own header documents Git for Windows / MSYS2 as a
+supported host. Installed and running here: `grok 1.0.0 (3cd0d0cbce)`. **WSL2 is
+not required.** Note the installer does not put itself on PATH on Windows — it
+prints the instruction and leaves `%USERPROFILE%\.grok\bin` to you.
+
+**~~UNKNOWN~~ → VERIFIED — the named pipe binds, and the CLI reaches a daemon
+over it.** `test/control.test.ts`, `test/config-reload.test.ts` and
+`test/doctor-daemon.test.ts` all pass on Windows, the last of which spawns the
+REAL CLI as a child and has it find a running daemon through the pipe — the
+end-to-end proof §4 step 3 asked for. Three tests in that file are skipped here
+and say why: a named pipe has no mode, no stale remnant and no directory entry,
+so `chmod`, stale-socket reclamation and unlink-on-close have nothing to observe.
+
+**Caveat on all of the above: nothing requiring authentication has run.** `grok
+login` has not been completed on this machine, so `npm run test:real` and
+`tools/midturn-check.mjs` — the checks that drive a live agent — remain
+UNVERIFIED here, and the three `grok agent leader` tests skip.
 
 ---
 
 ## 3. Known defects, in priority order
 
-### 1. `looksLikeGrok` cannot read a Windows path containing spaces — OPEN
+> **The two that mattered most were not on this list.** Both were found by
+> running the suite, and both were fail-CLOSED — they refused legitimate work
+> rather than allowing anything unsafe, which is the only reason the platform
+> was merely unusable instead of dangerous.
+
+### 0a. Every absolute path on the machine was refused — FIXED
+
+`assertSafeCwd` (`src/daemon/session-manager.ts`) and `validateConfig`
+(`src/daemon/config.ts`) both tested "is this absolute?" as
+`cwd.startsWith('/')`. On Windows every real path is `C:\...`, so **every
+directory failed**. `create`, `resume`, `observe` and `takeOver` all call it, so
+no session could be created, resumed, mirrored or taken over — and
+`grokrc config set defaultCwd C:\code`, the one required setting, was refused as
+"must be an absolute path".
+
+Measured before the fix, against `node`'s own answer for the same string:
+
+```
+cwd under test        : c:\Agent-Hub\grok-remote-control
+node path.isAbsolute  : true
+validateConfig issues : [{"key":"defaultCwd","message":"must be an absolute path",...}]
+create()              : REJECTED -> cwd must be an absolute path
+observe()             : REJECTED -> cwd must be an absolute path
+```
+
+Now `path.isAbsolute`, which is the platform's own answer and still refuses a
+relative path — and still refuses a Windows drive-RELATIVE path like `C:foo`,
+which is not absolute despite the drive letter.
+
+### 0b. The daemon returned 403 for every asset of its own PWA — FIXED
+
+Four guards asked "is this resolved path inside that root?" as
+`target.startsWith(root + '/')`. `resolve()` returns `C:\...` on Windows, so the
+`'/'` suffix never matched and **the check refused everything**:
+
+| Call site | What it broke |
+|---|---|
+| `src/daemon/server.ts` | every static file 403'd — the phone app could not load at all |
+| `src/relay/server.ts` | the same, for the relay-served client |
+| `src/daemon/session-manager.ts` | `observe()` threw "resolved outside the session store" for valid sessions |
+| `src/cli.ts` | `removeSessionDir()` returned early, so every `doctor` run leaked a session directory |
+
+Measured before the fix — `GET /`, `/app.js`, `/sw.js` and
+`/manifest.webmanifest` each returned `403 {"error":"forbidden"}`. After: `200`
+with real byte counts, and seven traversal attempts (`/../package.json`,
+`/..%2f…`, `/%2e%2e/…`, `/..\package.json`, …) still refused with no leak.
+
+Now one tested helper, `src/paths.ts`, using `relative()` rather than a
+separator-aware `startsWith` — it is also case-insensitive on win32, which a
+string compare of `C:\Users` against `c:\users` is not. Guard
+`path-containment-refuses-escapes` proves the refusal is load-bearing.
+
+### 1. `looksLikeGrok` cannot read a Windows path containing spaces — FIXED (the fix proposed below was incomplete)
 
 `src/daemon/session-manager.ts` takes argv0 by splitting the command line on
 whitespace. `C:\Program Files\grok\grok.exe agent stdio` yields `C:\Program`, so
 a genuine agent is rejected as "not a grok process" — and `Program Files` is the
 normal install location.
-
-This is asserted as a known limit in `test/windows-takeover.test.ts` so it stays
-visible.
 
 **Do not fix this by pattern-matching the whole string.** `sshd --config
 /etc/grok` would then match, and this function exists precisely to stop a phone
@@ -129,10 +215,32 @@ of `processArgs`, which must return **the executable path alone**:
 Get-CimInstance Win32_Process -Filter "ProcessId=<pid>" | Select-Object -ExpandProperty ExecutablePath
 ```
 
-With a clean path and no arguments, the existing separator handling already
-works — `looksLikeGrok('C:\tools\grok.exe')` passes today.
+~~With a clean path and no arguments, the existing separator handling already
+works — `looksLikeGrok('C:\tools\grok.exe')` passes today.~~
 
-### 2. `processArgs` has no Windows implementation — OPEN
+> **CORRECTION — measured, and this last paragraph is wrong.** Returning the
+> bare path is necessary and **not sufficient**. `looksLikeGrok` word-splits
+> *before* it looks at separators, so the clean path
+> `C:\Program Files\grok\grok.exe` still reduces to `C:\Program` and a genuine
+> agent is still refused. The example in the original text works only because
+> `C:\tools\grok.exe` happens to contain no space — which is exactly the case
+> the defect is not about.
+>
+> **What was done.** `processArgs` returns the executable path on Windows (as
+> proposed), *and* a second predicate `looksLikeGrokExe` matches a path without
+> splitting it. They are kept separate deliberately: one predicate accepting
+> both shapes would accept `vim /home/me/grok`. `takeOver` dispatches on
+> platform, and guard `takeover-identity-matches-the-platform-shape` proves that
+> dispatch load-bearing — with it disabled, the takeover suite fails.
+>
+> `test/takeover.test.ts` now creates its fake agents in a temp directory whose
+> name **contains a space**, so the `Program Files` shape is exercised rather
+> than assumed. Windows also has no argv[0] to spoof, so where POSIX uses
+> `exec -a`, the Windows path copies a real executable to `grok.exe` and runs
+> it — a stronger check, since identity there is a fact about a file rather than
+> a string a process chose for itself.
+
+### 2. `processArgs` has no Windows implementation — FIXED
 
 It shells out to `ps -o args= -p <pid>`, which does not exist on Windows.
 
@@ -146,8 +254,20 @@ and now — nothing to stop"* and resumes **without killing**. On any machine
 without `ps`, every takeover would have skipped the safety check and put two
 agents on one conversation — the exact thing `resume()` exists to refuse.
 
-So on Windows today: **takeover fails safely and loudly.** Implementing §3.1
-turns it on.
+~~So on Windows today: **takeover fails safely and loudly.** Implementing §3.1
+turns it on.~~
+
+> **Now implemented, and takeover works on Windows.** `processArgs` reads the
+> process table through `Get-CimInstance Win32_Process` and still distinguishes
+> all three answers — a path, `null` for a pid that is genuinely absent, and
+> `ARGS_UNKNOWN` when it could not look. One case the original note did not
+> anticipate: a protected process reports an **empty** `ExecutablePath`. That is
+> "I could not look", not "it is dead", so it maps to `ARGS_UNKNOWN` and
+> takeOver still refuses. The pid is validated as an integer before it reaches
+> the WQL filter — it arrives from Grok's on-disk registry, so it is not trusted.
+>
+> `test/takeover.test.ts` passes here in full, including *"a grok-looking owner
+> is stopped with SIGTERM"* — the destructive path, end to end, on Windows.
 
 ### 3. No service manager off Linux — OPEN
 
@@ -168,6 +288,38 @@ Related and already documented in `SECURITY.md`: Windows named pipes are
 machine-global and Node exposes no ACL control, so the control pipe's name is
 *unguessable* rather than *protected*. On Unix the socket is `chmod 0600` in the
 user's own directory.
+
+### 4b. Line endings defeat two of this repo's own mechanisms — PARTLY FIXED
+
+Not a product defect, and the reason a Windows contributor cannot currently get
+a clean run of the gates. There is no `.gitattributes`, so git's Windows default
+(`core.autocrlf=true`) checks the tree out as CRLF, and:
+
+- **`npm run format:check` fails on ~88 files**, including ones nobody has
+  touched. Prettier defaults to `endOfLine: "lf"`. Measured: `package.json`
+  normalised to LF is **byte-identical** to `prettier package.json` — every
+  reported "style issue" is the line ending and nothing else.
+- **every multi-line pattern in `tools/guards.mjs` matched zero times**, so
+  `npm run verify:guards` reported PATTERN DRIFT rather than proving controls
+  load-bearing. The mechanism built to catch a check that silently measures
+  nothing was, on Windows, a check that silently measured nothing.
+
+**Fixed in the tool:** matching now adapts the pattern to the file's line
+endings, in one place shared with its test (`tools/guard-match.mjs`) rather than
+in two copies that disagreed.
+
+**Fixed for the repo, but NOT applied:** a `.gitattributes` with
+`* text=auto eol=lf` is added. It governs fresh clones and CI, so the new
+`windows-latest` job gets LF. It does **not** rewrite an existing working tree.
+Doing that is one command and a tree-wide diff, so it is left as the owner's
+own commit rather than buried in this change:
+
+```
+git add --renormalize . && git commit -m "Normalise line endings to LF"
+```
+
+Until that lands, `npm run format:check` still fails on a pre-existing Windows
+clone. It passes on a fresh one.
 
 ### 5. Signal semantics differ — UNVERIFIED
 
@@ -192,43 +344,38 @@ npm ci
 npm run build
 ```
 
-**Step 1 — does the suite even run?** This is the highest-value unknown.
+> **Steps 1–4 are done.** What they found is in §2 and §3. The instinct behind
+> them was right and the prediction was not: the failures were not mostly `bash`
+> and `stranger-check.sh` — they were POSIX assumptions in **product** code that
+> five CLI smoke steps could never reach. What remains for the next person is
+> below, under "still open".
 
-```powershell
-npm test
-```
+**Step 1 — does the suite even run?** ✅ It does. 149 pass / 169 fail on the
+first run; 247 pass / 0 fail / 7 skipped after §3. Run it with `npm run test:mock`
+alone if you have no agent — `npm test` also runs the real-stack checks.
 
-Expect failures; they are the work. Capture the whole output before fixing
-anything. Likely candidates, all UNVERIFIED: tests that spawn `bash`, tests
-asserting POSIX paths, and `tools/stranger-check.sh` (a bash script).
+**Step 2 — is there an agent at all?** ✅ Native Windows build, `grok 1.0.0`.
+The installer is a bash script; run it from Git Bash, or fetch
+`https://x.ai/cli/grok-<version>-windows-x86_64.exe` directly. It installs to
+`~/.grok/bin/` and does **not** add itself to PATH on Windows — add
+`%USERPROFILE%\.grok\bin` yourself.
 
-**Step 2 — is there an agent at all?**
+**Step 3 — does the named pipe bind?** ✅ Yes, including the real CLI reaching a
+running daemon through it (`test/doctor-daemon.test.ts`).
 
-```powershell
-grok --version
-node dist/cli.js doctor
-```
+**Step 4 — turn on the real gate.** ✅ `windows-latest` is in the `suite` matrix
+in `.github/workflows/compat.yml`. Note `npx playwright install --with-deps` is
+Ubuntu-only, so `--with-deps` is now applied conditionally.
 
-If `grok` does not exist for Windows, stop and reconsider scope: WSL2 would then
-be the supported path, and everything below applies to the WSL side instead.
+### Still open, in the order I would take them
 
-**Step 3 — does the named pipe bind?** The one piece of Windows-specific code
-written blind.
-
-```powershell
-node dist/cli.js up --port 4319
-# in a second terminal:
-node dist/cli.js pair
-```
-
-`pair` reaching the running daemon proves the pipe works end to end. If `up`
-prints `⚠ control socket unavailable`, that message contains the error — it is
-the whole answer.
-
-**Step 4 — turn on the real gate.** Once the suite passes, add `windows-latest`
-to the `suite` job matrix in `.github/workflows/compat.yml` (it currently lists
-only ubuntu and macOS). Until that lands, Windows support is a claim rather than
-a measurement.
+1. **`grok login`, then `npm test` in full.** Everything requiring
+   authentication is still UNVERIFIED on Windows: `test:real`,
+   `tools/midturn-check.mjs`, and the three `grok agent leader` tests. This also
+   settles §3.5 — whether terminating an agent on Windows, which has no real
+   SIGTERM, loses the tail of a turn.
+2. **Renormalise line endings** (§4b) — one command, its own commit.
+3. **§3.3 service manager** and **§3.4 file permissions** — untouched here.
 
 ---
 
@@ -256,9 +403,31 @@ Not optional here, and the reason the defects above are stated the way they are.
 
 ## 6. Current state, for reference
 
-**VERIFIED at time of writing:** 240 tests passing, 27/27 guards proven
-load-bearing, format/lint/typecheck clean, CI and Compatibility both green,
-`main` at the commit that added this file.
+**VERIFIED at time of writing (on Linux):** 240 tests passing, 27/27 guards
+proven load-bearing, format/lint/typecheck clean, CI and Compatibility both
+green, `main` at the commit that added this file.
+
+**VERIFIED on Windows 11 / Node 24 / `grok 1.0.0`, after the fixes above:**
+247 passing, 0 failing, 7 skipped — each skip printing why. `typecheck` and
+`lint` clean (two pre-existing `no-explicit-any` warnings, untouched).
+`format:check` fails on a pre-existing clone for line-ending reasons only — see
+§4b. Nothing that needs `grok login` has been run here.
+
+**Guards: 28 of 29 proven load-bearing on Windows**, including the two added
+here. The exception is `stdin-error-handler`, and it is a genuine platform
+limit rather than a weak test. That control is detected by the process
+*crashing* on an unhandled stream error, which requires a write to land in the
+window between the agent dying and `close` arriving. Measured here: **40 of 40
+sends took the `stdin.writable === false` branch in `send()` and
+`stdin.write` was never reached** — no EPIPE, no error event, nothing to crash.
+`verify:guards` runs on ubuntu-latest in CI, where it proves 29/29, so this
+costs no coverage; it is recorded in `tools/guards.mjs` so the next Windows run
+does not mistake it for a regression.
+
+While measuring this, both tests in `test/transport-resilience.test.ts` turned
+out to be spawning `true` and `sh` in `/tmp` — none of which exist on Windows —
+so `spawn` failed on the CWD and the transport under test never ran at all. They
+now use `process.execPath`, which exists everywhere.
 
 Backlog: `npm run backlog` — 22 of 25 closed. The three open items need physical
 hardware or the owner's decision (a VPS for relay testing, an Android device,

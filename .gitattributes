@@ -1,0 +1,29 @@
+# Keep the working tree byte-identical on every platform.
+#
+# Without this, git's Windows default (`core.autocrlf=true`) checks the tree out
+# with CRLF, and two mechanisms this repo relies on stop working — neither of
+# them loudly:
+#
+#   · `npm run format:check` fails on EVERY file. Prettier defaults to
+#     `endOfLine: "lf"`, so a stock Windows clone reports ~88 files as
+#     misformatted while being byte-identical to Prettier's output apart from
+#     the line endings. Measured: `package.json` normalised to LF equals
+#     `prettier package.json` exactly.
+#
+#   · every multi-line pattern in `tools/guards.mjs` matches ZERO times, so
+#     `npm run verify:guards` reports PATTERN DRIFT instead of proving the
+#     controls load-bearing — the mechanism that exists to catch a check which
+#     silently measures nothing, silently measuring nothing.
+#
+# `tools/guard-match.mjs` makes the guard runner tolerate CRLF regardless, so a
+# contributor who has already cloned is not stuck. This file is the actual fix.
+#
+# Applying it to an existing clone is a separate, tree-wide commit:
+#     git add --renormalize . && git commit -m "Normalise line endings to LF"
+* text=auto eol=lf
+
+# Binary — never touched.
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
