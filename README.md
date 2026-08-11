@@ -21,7 +21,7 @@ phone — over the agent's own protocol, not a screen scrape.
 | ----------- | --------- | ------------------------------------------------------------------ |
 | **Linux**   | Supported | Full test suite in CI; systemd unit supplied                        |
 | **macOS**   | Supported | Full test suite in CI; no service integration supplied              |
-| **Windows** | Partial   | CLI covered in CI; see [Windows support](docs/WINDOWS.md)           |
+| **Windows** | Supported | Full test suite in CI; Scheduled Task installer supplied             |
 
 <p align="center">
   <img src="docs/screenshots/sessions.png" alt="Session list" width="30%">
@@ -137,11 +137,12 @@ grokrc config set defaultCwd ~/code    # required — grokrc will not guess
 grokrc doctor                          # agent, ACP handshake, approvals
 ```
 
-Node 20 or newer per `engines`, **developed and tested on Node 22** — 20 and 21 are
-untested. Verified against `grok 0.2.118` and `1.0.0` on Linux. macOS runs the full
-suite in CI on Node 22 and 24; Windows has the packaged CLI covered on Node
-20/21/22/24 but the suite has never run there — see the
-[Windows support](docs/WINDOWS.md). The systemd unit is Linux-only.
+Node 20 or newer per `engines` — every version the package admits (20, 21, 22, 24) is
+exercised in CI. Verified against `grok 0.2.118` and `1.0.0`. Linux, macOS and
+Windows each run the packaged CLI on all four Node versions and the **full suite** on
+Node 22 and 24. Autostart is the one thing that differs: a systemd user unit on Linux,
+a Scheduled Task on Windows, nothing supplied for macOS — see
+[Windows support](docs/WINDOWS.md).
 
 ## Use
 
@@ -214,19 +215,39 @@ than silently ignored.
 
 ### Run it as a service
 
+**Linux** — a systemd **user** unit, not a system one, because it needs
+`~/.grok/auth.json` and must spawn agents as you. No sudo. The installer enables
+lingering so it starts at boot and survives logout.
+
 ```bash
 packaging/systemd/install.sh                    # loopback, behind a tunnel
 packaging/systemd/install.sh -- --lan           # reachable on your LAN
 ```
 
-A **user** unit, not a system one — it needs `~/.grok/auth.json` and must spawn agents as
-you, so no sudo is involved. The installer enables lingering so it starts at boot and
-survives logout.
-
 ```
 systemctl --user status grokrc     journalctl --user -u grokrc -f
 systemctl --user restart grokrc    packaging/systemd/uninstall.sh
 ```
+
+**Windows** — a Scheduled Task, same shape and same reasoning: runs as you, needs no
+administrator, starts automatically, restarts on failure.
+
+```powershell
+packaging\windows\install.ps1                        # loopback
+packaging\windows\install.ps1 -DaemonArgs '--lan'    # reachable on your LAN
+packaging\windows\install-watchdog.ps1               # optional health check
+```
+
+```powershell
+Get-ScheduledTask grokrc                     Get-Content "$env:LOCALAPPDATA\grokrc\grokrc.log" -Wait
+Stop-ScheduledTask -TaskName grokrc          packaging\windows\uninstall.ps1
+```
+
+Two honest differences from systemd, both documented in the script header: it starts at
+**logon** rather than at boot (starting earlier means storing your password), and Task
+Scheduler captures no output, so stdout goes to a log file instead of the journal. A
+Windows *Service* was rejected deliberately — services run as SYSTEM, and a coding agent
+running as SYSTEM is the wrong answer to every question.
 
 Pair a device against a running service with `grokrc up --pair` (or edit
 `~/.config/grokrc/grokrc.env` and restart).
@@ -452,6 +473,7 @@ vendor `x.ai/*` extensions that will drift — when it does, re-run the probe, u
 ---
 
 ## Documentation
+
 
 | Document                                   | What is in it                                          |
 | ------------------------------------------ | ------------------------------------------------------ |

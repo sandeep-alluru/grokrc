@@ -12,10 +12,11 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve as resolvePath } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { AcpClient, type PermissionRequest } from '../acp/client.ts';
 import { StdioTransport, type Transport } from '../acp/transport.ts';
 import { SessionObserver } from './observer.ts';
+import { isStrictlyInside } from '../paths.ts';
 import {
   normalizePermission,
   normalizeSessionUpdate,
@@ -102,7 +103,76 @@ async function isLeaderProcess(pid: number): Promise<boolean> {
  */
 export const ARGS_UNKNOWN = 'unknown';
 
+/** Windows has no `ps`, and no argv[0] to read. See {@link processArgs}. */
+const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Windows: the EXECUTABLE PATH of a pid, via the process table.
+ *
+ * Returns the path alone — never a command line — because Windows does not
+ * offer a trustworthy argv[0] the way `ps` does, and because a joined command
+ * line cannot be split back apart: `C:\Program Files\grok\grok.exe agent stdio`
+ * has no unambiguous boundary between the program and its first argument, and
+ * `Program Files` is the normal install location.
+ *
+ * The three answers are kept distinct, because collapsing them is what made the
+ * original bug dangerous:
+ *   · a path        the process is there and identified
+ *   · null          the process table has no such pid — it is GONE
+ *   · ARGS_UNKNOWN  it exists but could not be identified, or we could not look
+ *
+ * A protected process reports an empty ExecutablePath. That is "I could not
+ * look", not "it is dead", so it maps to ARGS_UNKNOWN and takeOver refuses.
+ */
+async function windowsExecutablePath(pid: number): Promise<string | null> {
+  // `pid` is interpolated into a WQL filter. It reaches here from Grok's
+  // on-disk registry, so it is validated as an integer rather than trusted.
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+
+  const script =
+    `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" -ErrorAction SilentlyContinue; ` +
+    `if ($null -eq $p) { 'GONE' } else { 'EXE:' + $p.ExecutablePath }`;
+
+  try {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const { stdout } = await promisify(execFile)(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { windowsHide: true }
+    );
+    const out = stdout.trim();
+    if (out === 'GONE') return null;
+    if (!out.startsWith('EXE:')) return ARGS_UNKNOWN;
+    const path = out.slice('EXE:'.length).trim();
+    return path === '' ? ARGS_UNKNOWN : path;
+  } catch {
+    // PowerShell missing, blocked by policy, or the query failed. Every one of
+    // those means we learned nothing — which must never read as "it is dead".
+    return ARGS_UNKNOWN;
+  }
+}
+
+/**
+ * How a pid identifies itself.
+ *
+ *   string      the argv (POSIX) or the executable path (Windows)
+ *   null        the process is GONE — the process table was read and it is absent
+ *   'unknown'   it could not be read at all, so nothing was learned
+ *
+ * The third case used to collapse into `null`, and that was dangerous rather
+ * than merely imprecise: takeOver reads `null` as "died between the registry
+ * read and now — nothing to stop" and resumes WITHOUT killing the old agent. On
+ * Windows there was no `ps`, so every takeover skipped the safety check and put
+ * two agents on one conversation — the exact thing resume() exists to refuse.
+ * "I could not look" is not "it is dead".
+ *
+ * The two platforms return DIFFERENT SHAPES, and callers must not guess which:
+ * a POSIX command line is matched with {@link looksLikeGrok}, a Windows
+ * executable path with {@link looksLikeGrokExe}. See takeOver.
+ */
 export async function processArgs(pid: number): Promise<string | null> {
+  if (IS_WINDOWS) return windowsExecutablePath(pid);
   try {
     const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
@@ -110,8 +180,8 @@ export async function processArgs(pid: number): Promise<string | null> {
     const line = stdout.trim();
     return line === '' ? null : line;
   } catch (err) {
-    // ENOENT means the `ps` BINARY is missing — Windows, or a stripped
-    // container. A non-zero exit means ps ran and the pid was not there.
+    // ENOENT means the `ps` BINARY is missing — a stripped container. A
+    // non-zero exit means ps ran and the pid was not there.
     const code = (err as NodeJS.ErrnoException).code;
     return code === 'ENOENT' ? ARGS_UNKNOWN : null;
   }
@@ -130,10 +200,31 @@ export async function processArgs(pid: number): Promise<string | null> {
  */
 export function looksLikeGrok(args: string): boolean {
   const argv0 = args.trim().split(/\s+/)[0] ?? '';
-  // Split on BOTH separators. Splitting on '/' alone left a Windows argv0 —
-  // `C:\\tools\\grok.exe` — intact, so it never equalled `grok.exe` and a real
-  // agent was rejected as "not a grok process".
-  const base = argv0.split(/[/\\]/).pop() ?? '';
+  return looksLikeGrokExe(argv0);
+}
+
+/**
+ * Does this EXECUTABLE PATH belong to Grok?
+ *
+ * The same question as {@link looksLikeGrok}, asked of a path that is known to
+ * be a path — no command line, no arguments, so no whitespace to interpret.
+ * That distinction is the whole reason this exists.
+ *
+ * docs/WINDOWS-HANDOVER.md §3.1 proposed fixing the Windows case by having
+ * `processArgs` return "the executable path alone", and states that "with a
+ * clean path and no arguments, the existing separator handling already works".
+ * MEASURED, and that is wrong: `looksLikeGrok` takes argv[0] by splitting on
+ * whitespace FIRST, so the clean path `C:\Program Files\grok\grok.exe` still
+ * reduces to `C:\Program` and a genuine agent is still rejected. Returning the
+ * bare path is necessary and not sufficient — the predicate has to stop
+ * splitting too, which it can only do safely when it knows there are no
+ * arguments to split off.
+ *
+ * Splitting on BOTH separators matters: on '/' alone a Windows path stays
+ * intact and never equals `grok.exe`.
+ */
+export function looksLikeGrokExe(exePath: string): boolean {
+  const base = exePath.trim().split(/[/\\]/).pop() ?? '';
   return base === 'grok' || base === 'grok.exe';
 }
 
@@ -156,9 +247,23 @@ async function assertCwdExists(cwd: string): Promise<void> {
   }
 }
 
-/** cwd becomes a path segment and a process spawn directory. */
+/**
+ * cwd becomes a path segment and a process spawn directory.
+ *
+ * The test is "absolute", and it was written as `startsWith('/')` — which is
+ * absolute only on POSIX. On Windows every real path is `C:\...`, so this
+ * rejected EVERY directory on the machine: create, resume, observe and takeOver
+ * all call it, so no session could be created, resumed, mirrored or taken over
+ * on Windows at all. Measured: node's own `path.isAbsolute` returned true for
+ * the same path this threw on.
+ *
+ * `isAbsolute` is the platform's own answer and keeps the property the check
+ * exists for — a relative path from a remote client is still refused, and so is
+ * a Windows drive-RELATIVE path like `C:foo`, which is not absolute despite the
+ * drive letter.
+ */
 function assertSafeCwd(cwd: string): void {
-  if (typeof cwd !== 'string' || !cwd.startsWith('/')) {
+  if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
     throw new Error(
       `cwd must be an absolute path, got ${JSON.stringify(String(cwd).slice(0, 60))}`
     );
@@ -312,7 +417,7 @@ export class SessionManager extends EventEmitter {
     const dir = join(sessionsRoot, encodeURIComponent(cwd), id);
     // Belt and braces: even with both inputs validated, confirm the resolved
     // path never escapes the session store.
-    if (!resolvePath(dir).startsWith(resolvePath(sessionsRoot) + '/')) {
+    if (!isStrictlyInside(sessionsRoot, dir)) {
       throw new Error('invalid session id: resolved outside the session store');
     }
     const now = Date.now();
@@ -796,7 +901,11 @@ export class SessionManager extends EventEmitter {
       // ps ran and found nothing: it died between the registry read and now.
       return this.resume(id, cwd, opts);
     }
-    if (!looksLikeGrok(args)) {
+    // processArgs returns a command line on POSIX and an executable path on
+    // Windows. Matching the wrong shape is how this check silently stops
+    // working: a path is not a command line and must not be word-split.
+    const identifiesAsGrok = IS_WINDOWS ? looksLikeGrokExe(args) : looksLikeGrok(args);
+    if (!identifiesAsGrok) {
       throw new Error(
         `refusing to stop pid ${owner.pid}: it is not a grok process (${args.slice(0, 60)}). ` +
           `Grok's session registry is stale and the pid has been reused.`

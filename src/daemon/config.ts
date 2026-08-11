@@ -15,10 +15,11 @@
  * directory for someone else's machine is worse than saying "set this" — so it
  * is unset on a fresh install and the daemon says so at startup.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { CONFIG_DIR } from './auth.ts';
+import { ensureConfigDir } from './config-dir.ts';
 
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 
@@ -64,7 +65,7 @@ export async function loadConfig(): Promise<GrokrcConfig> {
 }
 
 export async function saveConfig(cfg: GrokrcConfig): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  await ensureConfigDir();
   await writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
 }
 
@@ -87,7 +88,11 @@ export function validateConfig(cfg: GrokrcConfig): ConfigIssue[] {
   const issues: ConfigIssue[] = [];
 
   if (cfg.defaultCwd !== undefined) {
-    if (typeof cfg.defaultCwd !== 'string' || !cfg.defaultCwd.startsWith('/')) {
+    // `isAbsolute`, not `startsWith('/')`: the latter is absolute only on POSIX,
+    // so on Windows `grokrc config set defaultCwd C:\code` was refused as "must
+    // be an absolute path" — the one required setting could not be set at all.
+    // See the same fix in session-manager.ts assertSafeCwd.
+    if (typeof cfg.defaultCwd !== 'string' || !isAbsolute(cfg.defaultCwd)) {
       issues.push({
         key: 'defaultCwd',
         message: 'must be an absolute path',

@@ -46,10 +46,18 @@ Each row reflects the jobs run by continuous integration on every push.
 | ----------- | ------------------------------------------------------------------------------------------------------ |
 | **Linux**   | Full support. Developed here, and the whole suite runs on `ubuntu-latest` (Node 22 and 24) every push     |
 | **macOS**   | Supported. The packaged CLI runs on Node 20/21/22/24 and the **full suite** runs on Node 22 and 24 in CI  |
-| **Windows** | Partial. The packaged CLI is covered on Node 20/21/22/24; the test suite has not yet run there. See [Windows support](docs/WINDOWS.md) |
+| **Windows** | Supported. The packaged CLI runs on Node 20/21/22/24 and the **full suite** runs on Node 22 and 24 in CI. See [Windows support](docs/WINDOWS.md) |
 
-A systemd unit is supplied for Linux. macOS and Windows recipes are given in §7
-but are not shipped with the project.
+Autostart is the one thing that genuinely differs: a systemd user unit on Linux
+(§7), a Scheduled Task on Windows (§7). macOS has no service manager here yet —
+run `grokrc up` in a terminal, or supply your own launchd plist.
+
+Check the agent works before you start — grokrc cannot do anything without it:
+
+```bash
+grok --version          # e.g. grok 1.0.0 (stable)
+grok login              # required; grokrc surfaces this if you skip it
+```
 
 Notifications additionally need **HTTPS** (§6 and §8). Everything else works over
 plain HTTP on your own network.
@@ -338,7 +346,7 @@ means it survives logout and reboot.
 Whatever the platform, the daemon must run **as you**, not as root or a system
 account: it reads your `~/.grok/auth.json` and spawns agents under your identity.
 
-### Linux — systemd (supplied)
+### Linux — systemd
 
 ```bash
 packaging/systemd/install.sh
@@ -392,28 +400,36 @@ launchctl list | grep grokrc
 launchctl unload -w ~/Library/LaunchAgents/com.grokrc.daemon.plist
 ```
 
-### Windows — Scheduled Task (not supplied)
+### Windows — Scheduled Task
 
-No service integration ships with grokrc. A logon-triggered Scheduled Task is the
-smallest thing that survives a reboot. In PowerShell:
+Same shape and the same reasoning: runs as you, no administrator, starts
+automatically, restarts on failure.
 
 ```powershell
-$exe    = (Get-Command grokrc).Source
-$action = New-ScheduledTaskAction -Execute $exe -Argument 'up'
-$logon  = New-ScheduledTaskTrigger -AtLogOn
-Register-ScheduledTask -TaskName 'grokrc' -Action $action -Trigger $logon
+packaging\windows\install.ps1
+packaging\windows\install.ps1 -DaemonArgs '--lan'
+packaging\windows\install-watchdog.ps1 -BindHost 127.0.0.1   # optional health check
 ```
 
 ```powershell
-Get-ScheduledTask -TaskName grokrc
-Stop-ScheduledTask -TaskName grokrc
-Unregister-ScheduledTask -TaskName grokrc -Confirm:$false
+Get-ScheduledTask grokrc
+Get-Content "$env:LOCALAPPDATA\grokrc\grokrc.log" -Wait -Tail 40
+Stop-ScheduledTask -TaskName grokrc; Start-ScheduledTask -TaskName grokrc
+packaging\windows\uninstall.ps1          # keeps ~/.grokrc pairings
 ```
 
-> The systemd unit is maintained and tested as part of this project. The launchd
-> and Scheduled Task recipes above are standard operating-system mechanisms given
-> for convenience — they are not shipped with grokrc and are not covered by its
-> tests. See [Windows support](docs/WINDOWS.md) for the current platform status.
+Two differences worth knowing:
+
+- It starts at **logon**, not at boot. Starting earlier means "run whether the user is
+  logged on or not", which requires storing your password. Pass `-RunWhetherLoggedOn`
+  if you want that trade.
+- Task Scheduler captures no output, so stdout goes to
+  `%LOCALAPPDATA%\grokrc\grokrc.log`. That log is the equivalent of `journalctl -f`.
+
+If you give the daemon a specific `--host`, give the watchdog the **same** one. A
+daemon bound to one address does not answer on loopback, and a watchdog probing the
+wrong address will restart a perfectly healthy daemon on every run.
+
 
 ---
 
@@ -616,7 +632,7 @@ rm ~/Library/LaunchAgents/com.grokrc.daemon.plist
 ```
 
 ```powershell
-Unregister-ScheduledTask -TaskName grokrc -Confirm:$false        # Windows
+packaging\windows\uninstall.ps1                                   # Windows
 ```
 
 **2. Remove the package** — identical everywhere:

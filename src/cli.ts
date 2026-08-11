@@ -15,6 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { AuthStore } from './daemon/auth.ts';
+import { isStrictlyInside } from './paths.ts';
 import {
   CONFIG_KEYS,
   applyReload,
@@ -118,6 +119,38 @@ async function findGrok(): Promise<string | null> {
 const GROK_MISSING =
   '  \u2717 grok not found on PATH \u2014 install: curl -fsSL https://x.ai/cli/install.sh | bash';
 
+/** Addresses that genuinely cannot be reached from another machine. */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost', '0:0:0:0:0:0:0:1']);
+
+/**
+ * What the bind address actually means for exposure.
+ *
+ * This used to be a two-way branch: `0.0.0.0` warned, and EVERYTHING ELSE was
+ * announced as "loopback only". So `grokrc up --host 100.119.149.50` — a
+ * Tailscale address, reachable by every machine on the tailnet — printed
+ *
+ *     loopback only. Use --lan to reach it from your phone, or tunnel it.
+ *
+ * which is the opposite of the truth, and the direction that matters: it
+ * understates exposure, and it does so for the ONE remote-code-execution
+ * surface this program has. Measured by binding to this machine's own tailnet
+ * address and reading what it said.
+ *
+ * Exported so the claim is testable without binding a socket.
+ */
+export function exposureNotice(host: string, shown: string): string {
+  if (host === '0.0.0.0' || host === '::') {
+    return '  ⚠ bound to all interfaces — keep this on a trusted network or a Tailnet.';
+  }
+  if (!LOOPBACK_HOSTS.has(host)) {
+    return (
+      `  ⚠ reachable from other machines on ${shown} — this is not loopback.\n` +
+      '    Keep it on a trusted network or a Tailnet.'
+    );
+  }
+  return '  loopback only. Use --lan to reach it from your phone, or tunnel it.';
+}
+
 async function cmdUp(flags: Flags): Promise<void> {
   // Before anything else. Starting without an agent means pairing a phone to a
   // daemon that cannot open a single session.
@@ -208,11 +241,7 @@ async function cmdUp(flags: Flags): Promise<void> {
   }
 
   console.log(`\n  grokrc listening on http://${shown}:${bound.port}`);
-  if (host === '0.0.0.0') {
-    console.log('  ⚠ bound to all interfaces — keep this on a trusted network or a Tailnet.');
-  } else {
-    console.log('  loopback only. Use --lan to reach it from your phone, or tunnel it.');
-  }
+  console.log(exposureNotice(host, shown));
 
   // Print a code when nothing is paired, or whenever --pair is asked for.
   // Without the second case, adding a SECOND device (you paired on the desktop,
@@ -506,7 +535,7 @@ export async function removeSessionDir(sessionId: string, cwd: string): Promise<
     const grokHome = process.env.GROK_HOME ?? resolve(homedir(), '.grok');
     const dir = resolve(grokHome, 'sessions', encodeURIComponent(cwd), sessionId);
     // Refuse to delete anything that is not inside the session store.
-    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;
+    if (!isStrictlyInside(resolve(grokHome, 'sessions'), dir)) return;
     await rm(dir, { recursive: true, force: true });
   } catch {
     /* best effort */

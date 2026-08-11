@@ -98,7 +98,11 @@ test('every registered guard names a file and test that exist', async () => {
       throw new Error(`${g.id}: test not found — ${g.test}`);
     });
 
-    const found = src!.split(g.find).length - 1;
+    // The SAME matcher the runner uses, not a second copy of it. When this test
+    // reimplemented the count, the two disagreed about CRLF and the test failed
+    // on Windows while the tool it checks was working correctly.
+    const { countMatches } = await import('../tools/guard-match.mjs');
+    const found = countMatches(src!, g.find);
     assert.equal(
       found,
       g.count ?? 1,

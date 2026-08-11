@@ -128,7 +128,10 @@ test('live sessions are capped', async () => {
   let capped = false;
   for (let i = 0; i < 20; i++) {
     try {
-      made.push((await sessions.create('/tmp')).id);
+      // A directory that exists on this platform: create() checks, and on
+      // Windows `/tmp` does not exist, so every iteration failed with "working
+      // directory no longer exists" and the cap was never reached.
+      made.push((await sessions.create(tmpdir())).id);
     } catch (err) {
       assert.match((err as Error).message, /too many live sessions/);
       capped = true;

@@ -19,8 +19,48 @@
  *   replace  the disabled form
  *   count    expected occurrences (default 1)
  *   test     the test file that must fail once the control is disabled
+ *   onlyOn   'win32' | 'posix' — the platform where this control is REACHABLE.
+ *            Elsewhere the runner reports it as unprovable rather than unproven:
+ *            a control whose code path the current OS never executes cannot be
+ *            shown to be load-bearing here, and calling that a failure makes CI
+ *            red for the operating system it is running on rather than for a
+ *            defect. Prose in `why` cannot be enforced; this field can.
  */
 export const GUARDS = [
+  {
+    id: 'path-containment-refuses-escapes',
+    why: 'four call sites (static serving in the daemon and the relay, the observed-session store, and doctor’s cleanup) ask "is this path inside that root?" through this one function. Without the refusal it answers yes to everything, and the two HTTP guards become directory traversal',
+    file: 'src/paths.ts',
+    find: "  if (rel === '' || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) return false;",
+    replace: '',
+    test: 'test/paths.test.ts',
+  },
+  {
+    id: 'takeover-identity-matches-the-platform-shape',
+    onlyOn: 'win32',
+    why: 'processArgs returns a command line on POSIX and an executable path on Windows. Matching a path with the command-line predicate word-splits it, so `C:\\Program Files\\grok\\grok.exe` reduces to `C:\\Program` and a genuine agent is refused — takeover is dead in Grok’s own default install location. WINDOWS-ONLY: on POSIX both branches are the same call, so verify-guards reports this unproven there rather than failing',
+    file: 'src/daemon/session-manager.ts',
+    find: '    const identifiesAsGrok = IS_WINDOWS ? looksLikeGrokExe(args) : looksLikeGrok(args);',
+    replace: '    const identifiesAsGrok = looksLikeGrok(args);',
+    test: 'test/takeover.test.ts',
+  },
+  {
+    id: 'config-dir-drops-inherited-access',
+    onlyOn: 'win32',
+    why: '~/.grokrc holds the VAPID private key, the device store and a plaintext `grokrc term` token. POSIX gets 0700; on Windows the mode is ignored, so an ACL replaces it. `/inheritance:r` is the load-bearing half — a bare /grant is ADDITIVE, so an inherited Users or Everyone entry would survive and the directory would be no more private than its parent. WINDOWS-ONLY: on POSIX this argument list is never reached',
+    file: 'src/daemon/config-dir.ts',
+    find: "      [dir, '/inheritance:r', '/grant:r', `${user}:(OI)(CI)F`, '/Q'],",
+    replace: "      [dir, '/grant', `${user}:(OI)(CI)F`, '/Q'],",
+    test: 'test/config-dir.test.ts',
+  },
+  {
+    id: 'exposure-notice-tells-the-truth',
+    why: 'the one line saying who can reach the daemon is safety text for a remote-code-execution surface. It used to branch only on 0.0.0.0, so binding to a Tailscale address announced "loopback only" while every machine on the tailnet could drive a session — understating exposure, which is the direction that matters',
+    file: 'src/cli.ts',
+    find: '  if (!LOOPBACK_HOSTS.has(host)) {',
+    replace: '  if (false) {',
+    test: 'test/exposure-notice.test.ts',
+  },
   {
     id: 'push-prompt-always-renders',
     why: 'iOS Safari tabs have no PushManager; the early return left users with no row and no reason',
@@ -82,7 +122,7 @@ export const GUARDS = [
     id: 'session-cleanup-stays-in-the-store',
     why: 'removeSessionDir builds a delete path from a session id supplied from outside; without the containment check a diagnostic command becomes an arbitrary recursive delete',
     file: 'src/cli.ts',
-    find: "    if (!dir.startsWith(resolve(grokHome, 'sessions') + '/')) return;",
+    find: "    if (!isStrictlyInside(resolve(grokHome, 'sessions'), dir)) return;",
     replace: '    // containment check disabled',
     test: 'test/session-cleanup.test.ts',
   },
@@ -136,8 +176,8 @@ export const GUARDS = [
     id: 'takeover-pid-identity',
     why: 'pids get recycled; without the argv[0] check a stale registry entry makes a phone tap kill an unrelated process',
     file: 'src/daemon/session-manager.ts',
-    find: '    if (!looksLikeGrok(args)) {',
-    replace: '    if (false && !looksLikeGrok(args)) {',
+    find: '    if (!identifiesAsGrok) {',
+    replace: '    if (false) {',
     test: 'test/takeover.test.ts',
   },
   {
@@ -162,8 +202,8 @@ export const GUARDS = [
     id: 'harness-refuses-real-grok-home',
     why: 'tests spawning a real agent wrote 80 sessions into the developer’s own ~/.grok',
     file: 'tools/harness.mjs',
-    find: "  if (!transportFactory) {\n    const real = join(process.env.HOME ?? '', '.grok');",
-    replace: "  if (false) {\n    const real = join(process.env.HOME ?? '', '.grok');",
+    find: '  if (!transportFactory) {',
+    replace: '  if (false) {',
     test: 'test/harness-isolation.test.ts',
   },
   {
@@ -176,7 +216,7 @@ export const GUARDS = [
   },
   {
     id: 'stdin-error-handler',
-    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon',
+    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon. POSIX-ONLY PROOF: the control is detected by the process CRASHING on an unhandled stream error, which needs a write to land in flight. Measured on Windows — 40/40 sends took the `stdin.writable === false` path in send() and stdin.write was never reached, so no EPIPE, no error event, and verify-guards reports this UNPROVEN there. The control still matters: the daemon runs on Linux under systemd',
     file: 'src/acp/transport.ts',
     find: "    this.#child.stdin.on('error', (err: NodeJS.ErrnoException) => {",
     replace: "    this.#child.stdin.on('__disabled', (err: NodeJS.ErrnoException) => {",

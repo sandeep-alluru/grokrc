@@ -14,9 +14,14 @@
  */
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const HARNESS = resolve(import.meta.dirname, '../tools/harness.mjs');
+// A URL, not a path: `import()` of `C:\...` is rejected as an unknown URL
+// scheme on Windows (ERR_UNSUPPORTED_ESM_URL_SCHEME), so every test in this
+// file errored before reaching its assertions.
+const HARNESS = pathToFileURL(resolve(import.meta.dirname, '../tools/harness.mjs')).href;
 
 test('bootDaemon refuses a REAL agent pointed at your own ~/.grok', async () => {
   const { bootDaemon } = await import(HARNESS);
@@ -47,7 +52,12 @@ test('bootDaemon refuses a REAL agent pointed at your own ~/.grok', async () => 
 test('it also refuses when GROK_HOME is explicitly the real one', async () => {
   const { bootDaemon } = await import(HARNESS);
   const saved = process.env.GROK_HOME;
-  process.env.GROK_HOME = join(process.env.HOME ?? '', '.grok');
+  // `homedir()`, not `process.env.HOME`. HOME is undefined on Windows, so both
+  // this test and the guard it checks resolved the "real" home to `<cwd>/.grok`
+  // — two identically wrong paths, which compared equal. The test passed while
+  // measuring nothing, and the guard could not fire for the actual
+  // C:\Users\<you>\.grok it exists to protect.
+  process.env.GROK_HOME = join(homedir(), '.grok');
   try {
     let leaked;
     await assert

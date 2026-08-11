@@ -14,10 +14,11 @@
  * Payloads deliberately carry no code, no diffs, and no tool arguments — only
  * enough to get you to the right screen. Notifications surface on a lock screen.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import webpush from 'web-push';
 import { CONFIG_DIR } from './auth.ts';
+import { ensureConfigDir } from './config-dir.ts';
 import type { RcEvent } from './events.ts';
 
 const KEYS_PATH = join(CONFIG_DIR, 'vapid.json');
@@ -85,7 +86,7 @@ export class PushService {
   /** Generate VAPID keys on first run and reuse them thereafter. */
   async load(): Promise<void> {
     if (this.#loaded) return;
-    await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    await ensureConfigDir();
 
     try {
       this.#keys = JSON.parse(await readFile(KEYS_PATH, 'utf8')) as VapidKeys;
@@ -151,7 +152,7 @@ export class PushService {
   }
 
   async #save(): Promise<void> {
-    await mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    await ensureConfigDir();
     await writeFile(SUBS_PATH, JSON.stringify(this.#subs, null, 2), { mode: 0o600 });
   }
 

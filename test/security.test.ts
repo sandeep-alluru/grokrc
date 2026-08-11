@@ -65,8 +65,13 @@ test('observe rejects a relative cwd', async () => {
 test('resume refuses a session that does not exist on disk', async () => {
   // Bounds the spawn directory to somewhere grok has actually run, instead of
   // letting a client name any directory on the machine.
+  //
+  // The directory must EXIST, or resume rejects earlier with "working directory
+  // no longer exists" and this measures the wrong guard. It was `/etc`, which
+  // does not exist on Windows — so the test passed there for the wrong reason
+  // and would have kept passing with the persisted-session check deleted.
   await assert.rejects(
-    () => sessions.resume('019fcd7a-035c-7ab0-8999-a4c62160a35e', '/etc'),
+    () => sessions.resume('019fcd7a-035c-7ab0-8999-a4c62160a35e', tmpdir()),
     /no persisted session/i
   );
 });

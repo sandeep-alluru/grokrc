@@ -31,10 +31,16 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
-const SM = resolve(import.meta.dirname, '../src/daemon/session-manager.ts');
+// A URL, not a path. This string is interpolated into a child process's
+// `import()`, and on Windows an absolute path there is read as a URL scheme:
+// ERR_UNSUPPORTED_ESM_URL_SCHEME. The child then died on startup and the test
+// read that as "the daemon process died instead of reporting the failure" —
+// the exact symptom it exists to detect, reported for the wrong reason.
+const SM = pathToFileURL(resolve(import.meta.dirname, '../src/daemon/session-manager.ts')).href;
 
 /**
  * Run a scenario in a REAL child process.

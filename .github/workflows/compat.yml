@@ -110,7 +110,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # Windows runs the FULL suite, not five CLI smoke steps. Until it did,
+        # "Windows support" was a reading of the code: the first real run found
+        # 169 failures, including two defects that made the product unusable
+        # there — every absolute path refused, and the daemon 403'ing every
+        # asset of its own PWA. Neither was visible to a matrix that only ran
+        # `--help`. See docs/WINDOWS-HANDOVER.md.
+        os: [ubuntu-latest, macos-latest, windows-latest]
         node: ['22', '24']
     steps:
       - uses: actions/checkout@v4
@@ -119,8 +125,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # `--with-deps` installs system libraries and is Ubuntu-only; passing it
+      # elsewhere is at best a no-op and at worst an error.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
       - run: npm run build
       # `grok` is absent on a runner; tests that need it skip themselves.
       - run: npm test

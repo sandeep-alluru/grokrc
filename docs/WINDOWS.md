@@ -1,12 +1,12 @@
 # Windows support
 
-grokrc is developed on Linux and fully supported there and on macOS. Windows
-support is **partial**: the packaged CLI is covered by continuous integration,
-but the full test suite has not yet been run on Windows and several features are
-known not to work.
+grokrc is developed on Linux and supported on Linux, macOS and Windows. On
+Windows the **full test suite runs in continuous integration**, alongside the
+packaged CLI, on every push.
 
-This page states exactly what is covered, what is not, and what is needed to
-finish the port. If you want to help, it is a well-defined piece of work.
+This page states what is covered, what differs from Unix, and what is still
+unmeasured. Where a limitation remains it is described directly rather than
+implied.
 
 ---
 
@@ -16,7 +16,7 @@ finish the port. If you want to help, it is a well-defined piece of work.
 | ----------- | ------------ | --------------- | ---------------- | --------- |
 | **Linux**   | Node 20–24   | Node 22, 24     | systemd unit     | Supported |
 | **macOS**   | Node 20–24   | Node 22, 24     | none supplied    | Supported |
-| **Windows** | Node 20–24   | not yet run     | none supplied    | Partial   |
+| **Windows** | Node 20–24   | Node 22, 24     | Scheduled Task   | Supported |
 
 Every entry above corresponds to a job in `.github/workflows/compat.yml` that
 runs on each push.
@@ -25,62 +25,99 @@ runs on each push.
 
 ## What works on Windows
 
-Continuous integration runs the compiled package on Windows against Node 20, 21,
-22 and 24, covering:
+Everything the product does: creating and resuming sessions, observing a session
+started by hand, one-tap approvals, taking over a terminal session, `grokrc
+term`, relay mode, and the PWA.
 
-- the CLI loads and runs
-- `grokrc doctor` reports a missing agent cleanly
-- `grokrc config` reads and prints settings
-- `grokrc up` refuses to start when no agent is installed, and says why
-- the declared Node version floor is satisfiable
-
-The control channel between the CLI and a running daemon has a Windows
-implementation. Windows has no Unix domain sockets, so grokrc uses a named pipe
+The control channel between the CLI and a running daemon uses a named pipe
 (`\\.\pipe\grokrc-<id>`), derived per user account so two people on one machine
-do not collide.
+do not collide — Windows has no Unix domain sockets. If that channel fails to
+start, the daemon still runs and still serves phones; only `grokrc pair`,
+`devices`, `revoke` and live configuration reload need it.
 
-If that channel fails to start, the daemon still runs and still serves phones —
-only `grokrc pair`, `devices`, `revoke` and live configuration reload need it.
+**Autostart** is a Scheduled Task rather than a service — see
+[Running as a service](#running-as-a-service).
+
+### Two defects worth knowing about, because they were invisible for a while
+
+Until the suite ran here, Windows CI consisted of five CLI smoke steps, and they
+were green throughout a period when the product could not work at all:
+
+- **Every absolute path was refused.** The check for "is this absolute?" was
+  `startsWith('/')`, which is true only on POSIX. Every `C:\...` path failed, so
+  no session could be created, resumed, observed or taken over — and
+  `grokrc config set defaultCwd C:\code`, the one required setting, was rejected.
+- **The daemon returned 403 for every asset of its own PWA.** Path containment
+  was tested as `startsWith(root + '/')`, and `resolve()` returns `C:\...`, so
+  the check refused everything. The phone client could not load.
+
+Both failed *closed* — refusing legitimate work rather than allowing anything
+unsafe. A smoke test that never requests an asset cannot notice that every asset
+is refused, which is why `windows-latest` now runs the whole suite.
 
 ---
 
-## What does not work yet
+## What differs from Unix
 
-### Taking over a terminal session
+### File permissions
 
-Before stopping a process, grokrc confirms that the process really is a Grok
-agent, so that a stale entry can never cause an unrelated program to be killed.
-That check reads the process command line using `ps`, which does not exist on
-Windows.
+On Linux and macOS grokrc restricts its configuration directory and files with
+POSIX modes (`0700` / `0600`). Windows ignores those, so the directory is
+hardened explicitly with an ACL: inherited entries are dropped and a single
+grant is made to your account.
 
-grokrc detects this and refuses the takeover with an explanatory message. It
-does not guess. Everything else — creating sessions, prompting, approvals,
-resuming — is unaffected.
+This matters more than "tokens are hashed" suggests — `~/.grokrc` also holds
+`vapid.json`, a Web Push **private key**, and `term-token`, a **plaintext**
+bearer token for `grokrc term`.
 
-### Running as a background service
+### The control channel
 
-The repository ships a systemd unit, which is Linux-only. On Windows, run
-`grokrc up` in a terminal, or configure a Scheduled Task at logon.
-
-### File permission hardening
-
-On Linux and macOS, grokrc restricts its configuration directory and files to
-the owner. Windows ignores these POSIX permissions. Device tokens are stored
-hashed rather than in plain text, so this is not a credential disclosure, but the
-configuration directory is less protected than on Unix. See
+Weaker on Windows, and stated rather than glossed. On Unix the channel is a
+socket file in your own directory, `chmod 0600` — access is filesystem
+permissions. A Windows named pipe is machine-global and Node exposes no way to
+set an ACL on one, so the name is *unguessable* rather than *protected*. See
 [SECURITY.md](../SECURITY.md).
 
 ### Shutdown signals
 
-Windows has no POSIX signals. Node terminates the target process immediately
-rather than asking it to stop, so an agent shut down by grokrc may not get the
-chance to flush its final output. The practical impact has not been measured.
+Windows has no POSIX signals; Node terminates the target process immediately
+rather than asking it to stop. The concern was that an agent stopped this way
+would lose the tail of its turn.
+
+**Measured, and it does not.** `tools/midturn-check.mjs` closes an agent
+mid-turn and resumes the session: the recovery path restores events the agent
+never persisted, and the last streamed line survives. It runs as part of
+`npm test`.
+
+### Taking over a terminal session
+
+Before stopping a process, grokrc confirms it really is a Grok agent, so a stale
+registry entry can never cause an unrelated program to be killed. On Unix that
+reads the command line with `ps`. Windows has no `ps`, so it reads the
+executable path from the process table with `Get-CimInstance Win32_Process`.
+
+The identity check is deliberately different on each platform. A POSIX command
+line is matched on `argv[0]`; a Windows executable path is matched whole,
+without word-splitting, because install paths routinely contain spaces
+(`C:\Program Files\grok\grok.exe`). One predicate accepting both shapes would
+also accept `vim /home/me/grok`, which is precisely what the check exists to
+prevent.
 
 ---
 
 ## Getting started on Windows
 
 Requires Node 20 or newer and [Grok Build](https://x.ai/cli) on your `PATH`.
+
+Grok Build ships a native Windows binary. Its installer is a shell script — run
+it from Git Bash, and note that on Windows it does **not** add itself to your
+`PATH`:
+
+```bash
+curl -fsSL https://x.ai/cli/install.sh | bash
+```
+
+Then add `%USERPROFILE%\.grok\bin` to your `PATH` and sign in with `grok login`.
 
 ```powershell
 git clone https://github.com/sandeep-alluru/grokrc
@@ -110,41 +147,63 @@ platform-independent.
 
 ---
 
-## Completing the port
+## Running as a service
 
-Four pieces of work, in dependency order.
-
-**1. Run the test suite and record what fails.**
-
-```powershell
-npm test
-```
-
-This has never been run on Windows, so the failure list is unknown. Likely
-candidates are tests that invoke shell utilities and tests that assert POSIX
-path formats. Capture the full output before changing anything.
-
-**2. Implement process inspection for Windows.**
-
-`processArgs()` in `src/daemon/session-manager.ts` needs a Windows branch. It
-must return the executable path **on its own**, without arguments:
+A Scheduled Task, deliberately shaped like the systemd **user** unit rather than
+a Windows Service: it runs as you, needs no administrator, starts automatically
+and restarts on failure. A Service was rejected because services run as SYSTEM
+or need a stored password, and a coding agent running as SYSTEM is the wrong
+answer to every question.
 
 ```powershell
-Get-CimInstance Win32_Process -Filter "ProcessId=<pid>" |
-  Select-Object -ExpandProperty ExecutablePath
+packaging\windows\install.ps1
+packaging\windows\install.ps1 -DaemonArgs '--lan'
+packaging\windows\install-watchdog.ps1 -BindHost 127.0.0.1   # optional
 ```
 
-Returning a full command line will not work: the identity check derives the
-executable name from the string, and Windows install paths routinely contain
-spaces (`C:\Program Files\...`). Widening the match to search the whole string
-would let unrelated processes match, which defeats the purpose of the check.
+```powershell
+Get-ScheduledTask grokrc
+Get-Content "$env:LOCALAPPDATA\grokrc\grokrc.log" -Wait -Tail 40
+Stop-ScheduledTask -TaskName grokrc; Start-ScheduledTask -TaskName grokrc
+packaging\windows\uninstall.ps1          # keeps your pairings
+```
 
-**3. Add a service integration.** A Scheduled Task at logon is the smallest
-approach that survives a reboot.
+Two differences from systemd, both deliberate:
 
-**4. Add Windows to the suite matrix.** Once the tests pass, add
-`windows-latest` to the `suite` job in `.github/workflows/compat.yml`. Until then
-Windows support remains partial by definition.
+- It starts at **logon**, not at boot. Starting earlier means "run whether the
+  user is logged on or not", which requires storing your password. Pass
+  `-RunWhetherLoggedOn` if you want that trade.
+- Task Scheduler captures no output, so stdout goes to
+  `%LOCALAPPDATA%\grokrc\grokrc.log`. That file is the equivalent of
+  `journalctl --user -u grokrc -f`.
+
+If you give the daemon a specific `--host`, give the watchdog the **same** one. A
+daemon bound to one address does not answer on loopback, and a watchdog probing
+the wrong address will restart a healthy daemon on every run.
+
+---
+
+## Still unmeasured on Windows
+
+Three things are not known to be broken — they are simply untested here, and
+saying so is more useful than implying coverage that does not exist.
+
+- **First-run experience.** `npm run check:stranger` installs the package into a
+  sandboxed HOME to test what a new user meets. It is a bash script with no
+  Windows equivalent, which is unfortunate precisely because first-run is where
+  Windows differs most: the agent installer adds nothing to `PATH`, and
+  `grok login` has not happened yet.
+- **The permission option shape.** The conformance run reports that the agent
+  did not ask permission on that turn, because the isolated test home runs with
+  prompting disabled. Nothing indicates a problem; it is unexercised.
+  `tools/e2e-drive.mjs` is the tool that would close it.
+- **Web Push from a Windows-hosted daemon.** Delivery to an iPhone is verified
+  from Linux. Whether a Windows host behaves identically has not been run.
+
+Line endings are worth one note for contributors: git's Windows default
+(`core.autocrlf=true`) checks the tree out as CRLF. `.gitattributes` pins
+everything to LF, so a fresh clone is correct; an older clone may need
+`git add --renormalize .` once.
 
 ---
 

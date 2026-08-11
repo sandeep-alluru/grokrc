@@ -59,6 +59,29 @@ Pre-1.0. Only the current `main` receives fixes. There are no backports.
 | Malformed frames crashing the daemon  | Per-message shape validation before dispatch                                |
 | Path traversal via session `cwd`      | `cwd` must be an existing absolute directory; validated on create and resume |
 | Unbounded memory from a hostile agent | NDJSON lines capped at 8 MiB; live sessions capped at 12                    |
+| Another local account reading `~/.grokrc` | POSIX: directory `0700`, files `0600`. Windows: an ACL granting only your account, with inherited entries dropped |
+
+### Platform differences, stated rather than assumed
+
+Two defences are genuinely weaker on Windows. Both are recorded here because a
+threat model that only describes the strongest platform is not a threat model.
+
+- **The control channel.** On Unix it is a socket file in your own directory,
+  `chmod 0600` — access is filesystem permissions, and anyone who can open it
+  already has your shell. Windows has no Unix domain sockets, so it is a named
+  pipe; pipes are machine-global and Node exposes no way to set an ACL on one.
+  The name is a SHA-256 of your config directory, so it is *unguessable* rather
+  than *protected*. That is a real difference in kind.
+
+- **`~/.grokrc` permissions.** POSIX modes are ignored on Windows, so the
+  `mode: 0o700` the code asks for did nothing there and the directory simply
+  inherited its parent's ACL. It is now hardened explicitly with `icacls`
+  (`/inheritance:r` then a single grant to your account), and
+  `test/config-dir.test.ts` proves it by giving a parent an inheritable grant to
+  `BUILTIN\Users` and asserting the child does not keep it. In practice a
+  Windows user profile is already restricted, so this was a weakened defence
+  rather than an open door — but "probably fine by inheritance" and "owner-only"
+  are different claims, and only one of them was true.
 
 ### What grokrc does **not** defend against
 
