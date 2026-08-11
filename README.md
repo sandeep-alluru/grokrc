@@ -14,8 +14,8 @@ phone — over the agent's own protocol, not a screen scrape.
 
 **[Setup](SETUP.md)** · **[User Guide](docs/USER-GUIDE.md)** ·
 **[Troubleshooting](docs/TROUBLESHOOTING.md)** · **[FAQ](docs/FAQ.md)** ·
-**[Architecture](docs/01-architecture.md)** · **[Security](SECURITY.md)** ·
-**[Contributing](CONTRIBUTING.md)**
+**[Architecture](docs/01-architecture.md)** · **[Handoff](docs/HANDOFF.md)** ·
+**[Security](SECURITY.md)** · **[Contributing](CONTRIBUTING.md)**
 
 | Platform    | Status    | Notes                                                              |
 | ----------- | --------- | ------------------------------------------------------------------ |

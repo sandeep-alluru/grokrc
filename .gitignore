@@ -12,6 +12,9 @@ push-subscriptions.json
 .env.*
 !.env.example
 
+# Owner-local takeover dumps (session extracts, backup pointers) — not for publish
+.handoff/
+
 .DS_Store
 *.log
 .idea/
