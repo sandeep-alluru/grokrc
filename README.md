@@ -145,9 +145,10 @@ grokrc up --lan                       # reachable on your LAN
 ## 📱 Reach your phone
 
 1. **LAN** — `grokrc up --lan` on a trusted Wi‑Fi only  
-2. **Tailscale (recommended)** — install Tailscale on PC + phone, then  
-   `tailscale serve --bg https / http://127.0.0.1:4319` and open the  
-   `https://….ts.net` URL from anywhere on your tailnet  
+2. **Tailscale (recommended)** — install Tailscale on PC + phone, then:  
+   `sudo tailscale set --operator=$USER`  
+   `tailscale serve --bg http://127.0.0.1:4319`  
+   Open the printed `https://your-machine.tail-xxxx.ts.net` URL (sample shape only)  
 3. **Relay** — daemon dials **out** to a VPS you control  
 
 Step-by-step Tailscale setup (install, Serve, pair, persist, troubleshooting):  

@@ -224,40 +224,69 @@ Using raw `100.x.x.x:4319` works on many phones but is **HTTP**. For iOS push an
 
 #### 3. Publish HTTPS with `tailscale serve`
 
-On the **same machine** as the daemon, reverse-proxy HTTPS from your tailnet to local grokrc:
+On the **same machine** as the daemon, reverse-proxy **HTTPS** from your tailnet to local grokrc.  
+`grokrc` should already be listening on `127.0.0.1:4319` (`grokrc up`).
+
+**Allow your user to run Serve without `sudo` every time** (Linux; run once):
 
 ```bash
-# grokrc must already be listening on 127.0.0.1:4319
+sudo tailscale set --operator=$USER
+```
+
+**Point Serve at grokrc** (background, survives the shell closing):
+
+```bash
+tailscale serve --bg http://127.0.0.1:4319
+```
+
+Some Tailscale versions also accept an explicit path form:
+
+```bash
 tailscale serve --bg https / http://127.0.0.1:4319
 ```
 
-Check what was published:
+Either is fine if `serve status` shows a proxy to `127.0.0.1:4319`.
+
+**Confirm:**
 
 ```bash
 tailscale serve status
 ```
 
-You should see something like:
+Example output (names are **samples** — yours will differ):
 
 ```text
-https://my-laptop.tail-xxxxxx.ts.net (tailnet only)
+https://dev-laptop.tail-abc123.ts.net (tailnet only)
 |-- / proxy http://127.0.0.1:4319
 ```
 
-**Use that `https://….ts.net` URL on the phone** — not the LAN `http://192.168.…` URL.
+**Phone URL** = that HTTPS hostname, for example:
 
-MagicDNS name (optional, easier to remember):
+```text
+https://dev-laptop.tail-abc123.ts.net
+```
+
+Not the LAN address (`http://192.168.…`). Not a public Funnel URL.
+
+| Placeholder | Meaning |
+|---|---|
+| `dev-laptop` | Your machine’s MagicDNS name (set in the Tailscale admin console or hostname) |
+| `tail-abc123` | Your tailnet’s DNS suffix (unique per account/org) |
+
+Find your real hostname with:
 
 ```bash
-tailscale status --json | head   # or: Settings → DNS in the admin console
-# Open: https://<machine-name>.<tailnet-name>.ts.net/
+tailscale status
+# or
+tailscale serve status
 ```
 
 #### 4. Pair from the phone
 
-1. Phone: Tailscale app **on** and connected  
-2. Open `https://<your-machine>.….ts.net/` in Safari (iOS) or Chrome (Android)  
-3. Enter the pairing code from the machine (`grokrc pair` if you need a new one)  
+1. Phone: Tailscale app **on** and connected to the **same** tailnet  
+2. Open your Serve URL, e.g. `https://dev-laptop.tail-abc123.ts.net`  
+   (use **your** name from `tailscale serve status`, not this sample)  
+3. Enter the pairing code (`grokrc pair` on the machine if you need a new one)  
 4. **Add to Home Screen** (required for iOS notifications)
 
 You can now leave home Wi‑Fi; as long as both devices are on the tailnet, the phone keeps working.
@@ -291,6 +320,8 @@ Do **not** enable Funnel for grokrc.
 | Works on Wi‑Fi, dies on cellular | Phone Tailscale disconnected or battery optimization killed the VPN app |
 | iOS push still broken | Must be **Home Screen** PWA over **HTTPS** (Serve). Tab Safari is not enough |
 | Certificate warnings | Use the MagicDNS / Serve hostname Tailscale issued; don’t invent hostnames |
+| `tailscale serve` needs root / permission denied | Run once: `sudo tailscale set --operator=$USER`, then retry `serve` |
+| `serve status` empty after reboot | Tailscale up? Re-run `tailscale serve --bg http://127.0.0.1:4319` |
 
 ```bash
 # Machine-side health
