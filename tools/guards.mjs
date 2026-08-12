@@ -293,10 +293,13 @@ export const GUARDS = [
   },
   {
     id: 'live-events-are-capped',
-    why: 'trimEvent was wired into history only. A live tool_call_update carrying a whole file went to the phone whole — the crash the owner hit happened while READING a session, not opening one.',
+    why: 'trimEvent was wired into history only. A live tool_call_update carrying a whole file went to the phone whole — the crash the owner hit happened while READING a session, not opening one. Live path now goes through prepareClientEvent (quiet + trim); disabling only the size cap keeps the quiet filter so the test still measures the ceiling, not the metadata flood.',
     file: 'src/daemon/server.ts',
-    find: '      const payload = trimEvent(ev);',
-    replace: '      const payload = ev;',
+    // Was `const payload = trimEvent(ev)` before quiet-client work folded both
+    // steps into prepareClientEvent. Pattern must match production exactly or
+    // verify-guards reports drift (and the suite fails the registry self-check).
+    find: '  return trimEvent(compactForClient(ev));',
+    replace: '  return compactForClient(ev);',
     test: 'test/live-event-size.test.ts',
   },
   {

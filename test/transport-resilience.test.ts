@@ -15,12 +15,12 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { StdioTransport, NdjsonDecoder } from '../src/acp/transport.ts';
 import type { JsonRpcMessage } from '../src/acp/protocol.ts';
 
 /**
- * A real process that exits immediately, and a directory that exists.
+ * Stand-in agent binary for transport tests.
  *
  * Both tests below used `true` / `sh -c 'exit 0'` in `/tmp`. Neither exists on
  * Windows, so `spawn` failed on the CWD before any child ran and the EPIPE race
@@ -29,11 +29,19 @@ import type { JsonRpcMessage } from '../src/acp/protocol.ts';
  * there: `verify-guards` removed the handler and the tests still passed,
  * reporting a control that could not be shown to be doing any work.
  *
- * `process.execPath` is the one executable guaranteed to be present on every
- * platform this runs on, and it can be told to exit immediately.
+ * `StdioTransport` always prepends grok flags (`--permission-mode default`,
+ * `agent`, `stdio`) before any extra args. Spawning `process.execPath` with
+ * `-e '…'` therefore becomes `node --permission-mode default agent stdio -e …`,
+ * which Node rejects as a bad option. The stand-in must be the **command**
+ * itself so those argv slots are ignored by our script rather than by Node.
  */
-const EXIT_NOW = { command: process.execPath, args: ['-e', 'process.exit(0)'] };
-const WORKDIR = tmpdir();
+async function writeStandIn(source: string): Promise<{ dir: string; command: string }> {
+  const dir = await mkdtemp(join(tmpdir(), 'grokrc-epipe-'));
+  const command = join(dir, 'agent-standin');
+  await writeFile(command, `#!/usr/bin/env node\n${source}`);
+  await chmod(command, 0o755);
+  return { dir, command };
+}
 
 /** Wait for a condition, or give up. */
 async function until(fn: () => boolean, ms = 4000): Promise<boolean> {
@@ -47,7 +55,8 @@ async function until(fn: () => boolean, ms = 4000): Promise<boolean> {
 
 test('writing to a dead agent surfaces an error event, and does not throw', async () => {
   // A process that exits immediately — the agent is gone before we ever write.
-  const t = new StdioTransport({ command: EXIT_NOW.command, args: EXIT_NOW.args, cwd: WORKDIR });
+  const { dir, command } = await writeStandIn('process.exit(0);\n');
+  const t = new StdioTransport({ command, cwd: dir });
   const errors: Error[] = [];
   t.on('error', (e) => errors.push(e));
 
@@ -65,39 +74,30 @@ test('writing to a dead agent surfaces an error event, and does not throw', asyn
 
   await until(() => errors.length > 0, 1500);
   t.close();
+  await rm(dir, { recursive: true, force: true });
 });
 
 /**
  * A stand-in agent that closes its own stdin and then STAYS ALIVE.
  *
- * Two things make the EPIPE deterministic here, and both were missing before.
- *
- * 1. IT ACTUALLY RUNS. `StdioTransport` always injects `agent stdio` ahead of
- *    any args, so `{command: node, args: ['-e', '...']}` really spawned
- *    `node agent stdio -e ...` — Node looked for a FILE called `agent`, failed
- *    to find it, and exited. The child never executed the code the test named.
- *    Writing a real file called `agent` into the working directory is what makes
- *    the injected argv run something on purpose.
+ * 1. IT IS THE COMMAND. `StdioTransport` always spawns
+ *    `<command> --permission-mode default agent stdio …`. If `command` is Node
+ *    and the script is a cwd file named `agent`, Node never reaches that file —
+ *    it dies on the unknown `--permission-mode` flag first (measured 2026-08-12
+ *    after the Windows permission-mode default landed). The stand-in is
+ *    therefore the executable itself and ignores the grok-shaped argv.
  *
  * 2. IT STAYS ALIVE. Racing a dying process cannot work: `send()` checks
  *    `stdin.writable` first, and once a child has exited that flag is already
- *    false, so the write never reaches the pipe. Measured, the racing version
- *    proved the control on 1 run in 8. With the child alive, the parent's write
- *    end stays writable while the read end is gone — exactly the kernel
- *    condition for EPIPE, and it does not depend on timing at all.
+ *    false, so the write never reaches the pipe. With the child alive, the
+ *    parent's write end stays writable while the read end is gone — exactly
+ *    the kernel condition for EPIPE.
  */
 const AGENT_SRC =
   'require("fs").closeSync(0);\n' +
   'process.stdout.write(JSON.stringify({jsonrpc:"2.0",method:"ready"})+"\\n");\n' +
   // Bounded, not immortal: the child must never be able to outlive the test.
   'setTimeout(()=>process.exit(0),10000);\n';
-
-async function agentThatClosedItsStdin(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'grokrc-epipe-'));
-  // Named `agent` because that is the argv the transport injects.
-  await writeFile(join(dir, 'agent'), AGENT_SRC);
-  return dir;
-}
 
 test('an EPIPE on agent stdin becomes an error event, not a crash', async (t) => {
   // Measured on Windows: even with a child that closed fd 0 and stayed alive,
@@ -112,8 +112,8 @@ test('an EPIPE on agent stdin becomes an error event, not a crash', async (t) =>
     return;
   }
 
-  const dir = await agentThatClosedItsStdin();
-  const transport = new StdioTransport({ command: process.execPath, cwd: dir });
+  const { dir, command } = await writeStandIn(AGENT_SRC);
+  const transport = new StdioTransport({ command, cwd: dir });
 
   const errors: Error[] = [];
   let ready = false;
