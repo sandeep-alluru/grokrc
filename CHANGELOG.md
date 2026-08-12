@@ -9,48 +9,42 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-12
+
+First multi-platform release after 0.1.2. Full suite green on Linux, macOS, and Windows
+in CI. Hand-back can open a **new** OS terminal with `grok -r` instead of only showing
+a copy-paste command.
+
 ### Added
 
-- **Take over a terminal session from your phone.** A session started with plain `grok`
-  was visible but read-only, and taking it over meant stopping the TUI by hand — which
-  is impossible when the point is that you are away from the machine. **Take over** now
-  terminates the owning process and resumes the session with its history intact.
-  Guarded: only a pid Grok's registry names as this session's owner, only if its
-  `argv[0]` is actually `grok` (pids get recycled), never the daemon itself, and
-  `SIGTERM` only — `SIGKILL` risks an unflushed `updates.jsonl`. Two taps to confirm.
-- **Hand back to terminal.** Closes the session daemon-side and shows the exact
-  `cd <cwd> && grok -r <id>` to reopen it in Grok's TUI. Usually unnecessary —
-  `grokrc term --session <id>` drives the same session with nobody giving anything up.
-- **Control socket** (`src/daemon/control.ts`) — a Unix domain socket at
-  `~/.grokrc/control.sock` (mode `0600`) letting the CLI talk to the running daemon.
-  `grokrc pair` issues a code without a restart; `grokrc devices` shows who is connected
-  right now; `grokrc revoke` closes the revoked device's socket immediately instead of at
-  its next reconnect. All three fall back to the on-disk store when no daemon is running.
-  A stale socket left by a crashed daemon is reclaimed; a live one is never stolen.
-- **Public repository packaging** — `LICENSE` (MIT), `CONTRIBUTING.md`,
-  `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue and pull-request templates, Dependabot.
-- **`docs/USER-GUIDE.md`** — task-oriented guide for daily use.
-- **`docs/TROUBLESHOOTING.md`** and **`docs/FAQ.md`**.
-- **Push prompt row** — a tappable row in the session list that both requests
-  notification permission (satisfying iOS's user-gesture requirement) and explains
-  why push is unavailable when it is.
+- **Windows support** — full test suite in CI, Scheduled Task installer scripts, named-pipe
+  control channel (no Unix sockets), Windows-specific packaging under `packaging/windows/`.
+- **Hand-back auto-relaunch** — after Give back, the daemon opens a new terminal running
+  `grok -r <session>` (Windows CMD path, macOS Terminal.app, Linux `gnome-terminal` and
+  other emulators). Phone shows a sticky release card with bash / PowerShell / `grokrc term`
+  fallbacks when auto-open fails.
+- **Quiet live events** — client-facing stream filters Grok 1.0 metadata noise and caps
+  string sizes so long sessions do not crash mobile Safari.
+- **Daemon resilience** — survives device-store / subscription write failures; reloads when
+  `dist/` is newer than the running process (watchdog helpers).
+- **Docs** — root `SETUP.md` with platform blocks, `docs/WINDOWS.md`, handoff / megasession
+  notes, bug-spec tracker for Windows hand-back.
 
 ### Fixed
 
-- **Push notifications could never be enabled on iOS.** `setupPush()` ran during page
-  load, where `Notification.requestPermission()` is silently ignored on iOS. Permission
-  stayed `default` and the app never subscribed, with no error anywhere.
-- **A browser without `PushManager` was told nothing.** `renderPushPrompt()` returned
-  early when the API was absent — which is every iOS Safari **tab**, since Apple exposes
-  push only in home-screen apps. The row now always renders and names the fix.
-  Regression test: `test/push-prompt.test.ts`.
-- **The push prompt claimed to be a session.** It carried `class="session"`, so
-  `page.click('.session')` in the real-stack resume check opened the notification row
-  instead of a session and timed out. It is now `.notice`, with an assertion preventing
-  recurrence.
-- **`browser.test.ts` "turn completes" was flaky (~1 run in 2).** It waited for the tool
-  card to turn green, then asserted on the agent's closing message — two different
-  events. It now waits for the text it asserts on. Verified across five consecutive runs.
+- **Linux hand-back did not open a terminal** — stale daemon never loaded relaunch code;
+  Linux path now prefers `gnome-terminal`, requires a graphical session env, and waits for
+  a confirmed spawn instead of reporting success on the first `spawn()` return.
+- **Take over / hand-back** on Windows (blank CMD, title-token pitfalls, process identity).
+- Pairing codes no longer cancel each other; long-session crash (event size); mid-turn
+  tail loss; live tool rows losing filenames; config reload testability; CI without `grok`
+  on PATH; EPIPE / transport stand-in after default `--permission-mode`.
+
+### Changed
+
+- Default agent spawn includes `--permission-mode default` so remote approval has a chance
+  when Grok user config allows it (still requires `support_permission` / non-auto UI mode
+  in `~/.grok/config.toml`).
 
 ## [0.1.2] — 2026-08-10
 
@@ -136,7 +130,8 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.1.2...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.0
 [0.1.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.0
