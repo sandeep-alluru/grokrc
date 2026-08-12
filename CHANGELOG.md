@@ -9,6 +9,12 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ## [Unreleased]
 
+### Changed
+
+- **Documentation rewrite** — single user guide (`docs/GUIDE.md`), short architecture
+  page, and a top-level README modeled on clear public OSS landings. Removed redundant
+  SETUP / FAQ / troubleshooting / Windows / research / handoff duplicates.
+
 ## [0.2.0] — 2026-08-12
 
 First multi-platform release after 0.1.2. Full suite green on Linux, macOS, and Windows
