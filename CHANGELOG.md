@@ -9,6 +9,8 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-12
+
 ### Changed
 
 - **Documentation rewrite** — single user guide (`docs/GUIDE.md`), short architecture
@@ -136,7 +138,8 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.1
 [0.2.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.0
 [0.1.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.1
