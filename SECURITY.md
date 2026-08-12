@@ -11,7 +11,7 @@ actually guarantees, what it does not, and how to report a problem.
 Use GitHub's private reporting:
 [**Report a vulnerability**](https://github.com/sandeep-alluru/grokrc/security/advisories/new)
 
-If that is unavailable, email **onepuncchh@gmail.com** with `grokrc security` in the
+If that is unavailable, email **salluru.work@gmail.com** with `grokrc security` in the
 subject line.
 
 Please include:
