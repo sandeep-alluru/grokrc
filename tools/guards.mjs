@@ -232,7 +232,8 @@ export const GUARDS = [
   },
   {
     id: 'stdin-error-handler',
-    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon. POSIX-ONLY PROOF: the control is detected by the process CRASHING on an unhandled stream error, which needs a write to land in flight. Measured on Windows — 40/40 sends took the `stdin.writable === false` path in send() and stdin.write was never reached, so no EPIPE, no error event, and verify-guards reports this UNPROVEN there. The control still matters: the daemon runs on Linux under systemd',
+    onlyOn: 'posix',
+    why: 'an unhandled EPIPE on the agent’s stdin took down the entire daemon. POSIX-ONLY PROOF: the control is detected by the process CRASHING on an unhandled stream error, which needs a write to land in flight. Measured on Windows — send() takes the stdin.writable === false path and never reaches stdin.write, so no EPIPE event fires and the proof cannot run. The control still matters: the daemon runs on Linux under systemd',
     file: 'src/acp/transport.ts',
     find: "    this.#child.stdin.on('error', (err: NodeJS.ErrnoException) => {",
     replace: "    this.#child.stdin.on('__disabled', (err: NodeJS.ErrnoException) => {",

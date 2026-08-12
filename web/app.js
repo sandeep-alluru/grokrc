@@ -109,6 +109,8 @@ const el = {
   conn: $('conn'),
   title: $('title'),
   back: $('back'),
+  unreachable: $('unreachable'),
+  unreachableRetry: $('unreachable-retry'),
   vPair: $('v-pair'),
   vList: $('v-list'),
   vSession: $('v-session'),
@@ -140,6 +142,8 @@ const state = {
   leaderMode: false,
   /** The Resume button awaiting a reply, so a refusal can restore it. */
   pendingResume: null,
+  /** Last successful hand-back — shown on the list until dismissed. */
+  lastRelease: null,
 };
 
 /* ─── views ──────────────────────────────────────────────────────────────── */
@@ -177,7 +181,68 @@ function setBusy(v) {
 
 function setConn(cls) {
   el.conn.className = 'dot' + (cls ? ' ' + cls : '');
+  // Red dot alone was easy to miss when Tailnet was down and the list looked
+  // empty — surface a full banner with a Tailscale/Tailnet recovery hint.
+  if (cls === 'err') showUnreachableBanner();
+  else if (cls === 'live') hideUnreachableBanner();
 }
+
+/**
+ * Shown when the WebSocket is down or the browser is offline.
+ * Owner path: phone on cellular / Tailnet off → “no sessions” looked like a
+ * product bug; the real fix was bring Tailscale up.
+ */
+function showUnreachableBanner() {
+  if (!el.unreachable) return;
+  // Pairing screen has its own flow; don't stack this on top of the code form
+  // before a token exists (except offline, which still matters).
+  if (!state.token && navigator.onLine !== false) return;
+  el.unreachable.hidden = false;
+}
+
+function hideUnreachableBanner() {
+  if (!el.unreachable) return;
+  el.unreachable.hidden = true;
+}
+
+el.unreachableRetry?.addEventListener('click', () => {
+  // Keep label visible if a previous handler cleared it.
+  if (el.unreachableRetry && !el.unreachableRetry.textContent.trim()) {
+    el.unreachableRetry.textContent = 'Retry connection';
+  }
+  el.unreachableRetry.disabled = true;
+  const prev = el.unreachableRetry.textContent;
+  el.unreachableRetry.textContent = 'Connecting…';
+  state.backoff = 500;
+  if (state.ws && state.ws.readyState < 2) {
+    try {
+      state.ws.close();
+    } catch {
+      /* */
+    }
+  }
+  if (state.token) connect();
+  else show(el.vPair);
+  // Re-enable after a beat so a failed open is still tappable.
+  setTimeout(() => {
+    if (!el.unreachableRetry) return;
+    el.unreachableRetry.disabled = false;
+    if (state.ws?.readyState !== 1) {
+      el.unreachableRetry.textContent = prev || 'Retry connection';
+    }
+  }, 1500);
+});
+
+window.addEventListener('offline', () => {
+  setConn('err');
+  showUnreachableBanner();
+});
+window.addEventListener('online', () => {
+  if (state.token) {
+    state.backoff = 500;
+    connect();
+  }
+});
 
 /* ─── pairing ────────────────────────────────────────────────────────────── */
 
@@ -225,7 +290,11 @@ function connect() {
 
   ws.addEventListener('open', () => {
     state.backoff = 500;
-    setConn('live');
+    setConn('live'); // also hides unreachable banner
+    if (el.unreachableRetry) {
+      el.unreachableRetry.disabled = false;
+      el.unreachableRetry.textContent = 'Retry connection';
+    }
     sendMsg({ t: 'hello', token: state.token, assetVersion: ASSET_VERSION });
   });
 
@@ -240,7 +309,19 @@ function connect() {
       } catch {
         return;
       }
-      handle(msg);
+      // One bad event must not tear down the whole transcript. Mobile Safari
+      // already dies hard under a flood; a thrown handler then leaves a blank
+      // main view with no way back except a full reload.
+      try {
+        handle(msg);
+      } catch (err) {
+        console.error('handle failed', err);
+        try {
+          appendError(`UI error: ${err?.message ?? err}`);
+        } catch {
+          /* last resort — keep the socket alive */
+        }
+      }
     });
   });
 
@@ -258,6 +339,22 @@ function connect() {
 
   ws.addEventListener('error', () => setConn('err'));
 }
+
+/**
+ * Re-pull the session list when the PWA is focused again.
+ *
+ * A local `grok` TUI does not notify the daemon; the server now polls, but iOS
+ * may also freeze the WS. Asking for `sessions` on focus closes the gap where a
+ * new terminal session never appeared until a full reconnect.
+ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.token) {
+    sendMsg({ t: 'sessions' });
+  }
+});
+window.addEventListener('focus', () => {
+  if (state.token) sendMsg({ t: 'sessions' });
+});
 
 // Outbound frames are sealed in relay mode. Chained for the same ordering
 // reason as inbound — an approval answer must not overtake the prompt.
@@ -317,6 +414,7 @@ function handle(msg) {
     case 'sessions':
       state.sessions = msg.sessions;
       renderList();
+      if (state.lastRelease) renderReleasedCard(state.lastRelease);
       break;
     case 'created':
       openSession(msg.session);
@@ -327,10 +425,20 @@ function handle(msg) {
       state.current = msg.session;
       el.title.textContent = msg.session.title;
       el.composer.hidden = false;
+      // After take-over/resume the daemon always hands back an idle session;
+      // any leftover busy flag from a prior observed stream would pin Stop and
+      // make the next send cancel instead of prompt.
       setBusy(msg.session.state === 'working' || msg.session.state === 'thinking');
       el.vSession.querySelector('[data-resume]')?.remove();
       break;
     case 'history':
+      // Fresh transcript from the daemon — clear any stuck busy from events that
+      // raced in before this frame (or from a previous observed turn).
+      if (state.current && msg.sessionId === state.current.id) {
+        setBusy(
+          state.current.state === 'working' || state.current.state === 'thinking'
+        );
+      }
       renderTranscript(msg.events);
       break;
     case 'event':
@@ -342,30 +450,36 @@ function handle(msg) {
       applyEvent(msg.event);
       break;
     case 'released': {
-      // Show the exact command rather than making the user rebuild it from a
-      // session id and a path they cannot see.
-      const bar = el.vSession.querySelector('[data-handback]');
-      if (bar) bar.remove();
-      appendBubble(
-        'agent',
-        msg.command
-          ? `Released. In your terminal:\n\n${msg.command}`
-          : 'Released. Reopen it with: grok -r ' + msg.sessionId
-      );
+      // Hand-back used to append a bubble at the BOTTOM of a long transcript
+      // (no scroll) while clearing current — the bar vanished and the commands
+      // were never seen. That looked identical to "hand back does nothing" on
+      // Linux and Windows. Land on the list with a sticky success card instead.
+      state.pendingResume = null;
       state.current = null;
+      el.composer.hidden = true;
+      state.lastRelease = msg;
+      show(el.vList);
+      el.title.textContent = 'Sessions';
       sendMsg({ t: 'sessions' });
+      // sessions reply re-renders the list; card is re-attached there too.
+      // Paint immediately so a slow list refresh still shows the commands.
+      renderReleasedCard(msg);
       return;
     }
 
     case 'error':
       appendError(msg.message);
-      // Restore a Resume button left mid-flight, or it reads 'Resuming…' forever
-      // with no way to retry.
+      // Restore a Resume / Hand-back button left mid-flight, or it reads
+      // "Resuming…" / "Handing back…" forever with no way to retry.
       if (state.pendingResume) {
         state.pendingResume.disabled = false;
-        state.pendingResume.textContent = state.current?.externallyActive
-          ? 'Take control'
-          : 'Resume session';
+        const isHandback = state.pendingResume.closest?.('[data-handback]');
+        state.pendingResume.textContent = isHandback
+          ? '\u21c4 Hand back to terminal'
+          : state.current?.externallyActive
+            ? 'Take control'
+            : 'Resume session';
+        state.pendingResume.classList?.remove?.('danger');
         state.pendingResume = null;
       }
       break;
@@ -634,27 +748,128 @@ function renderHandBackBar(s) {
   const label = document.createElement('div');
   label.className = 'sub';
   label.style.marginTop = '6px';
-  label.textContent = 'Closes it here so Grok\u2019s TUI can reopen it.';
+  label.textContent =
+    'Stops phone control and opens Grok in a NEW terminal on the machine (the old window stays dead after Take over). Prefer: grokrc term if you want both live.';
 
   let armed = false;
   btn.addEventListener('click', () => {
     if (!armed) {
       armed = true;
-      btn.textContent = 'Tap again to close it here';
+      btn.textContent = 'Tap again to hand back';
+      btn.classList.add('danger');
       setTimeout(() => {
         if (!armed) return;
         armed = false;
         btn.textContent = '\u21c4 Hand back to terminal';
+        btn.classList.remove('danger');
       }, 5000);
       return;
     }
     armed = false;
     btn.disabled = true;
-    sendMsg({ t: 'release', sessionId: s.id });
+    btn.textContent = 'Handing back\u2026';
+    btn.classList.remove('danger');
+    // Prefer live state id (post-takeover) over a stale closed-over session.
+    const id = state.current?.id ?? s.id;
+    state.pendingResume = btn;
+    sendMsg({ t: 'release', sessionId: id });
   });
 
   bar.append(btn, label);
   el.vSession.prepend(bar);
+}
+
+/**
+ * Sticky card on the session list after a successful hand-back.
+ * Must not be buried at the bottom of a transcript (that was the silent failure).
+ */
+function renderReleasedCard(msg) {
+  // One card only.
+  el.vList.querySelector('[data-released-card]')?.remove();
+
+  const card = document.createElement('div');
+  card.className = 'release-card';
+  card.dataset.releasedCard = '1';
+
+  const relaunch = msg.relaunch;
+  const relaunchOk = relaunch && relaunch.ok;
+
+  const title = document.createElement('div');
+  title.className = 'name';
+  title.textContent = relaunchOk
+    ? 'Handed back — new terminal requested'
+    : 'Handed back — run this on the machine';
+
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+  if (relaunchOk) {
+    sub.textContent =
+      'Take over had killed the old Grok window (that is normal). A NEW terminal should open on the PC. If none appears, copy a command below.';
+  } else {
+    sub.textContent =
+      'Session is free. The old terminal window cannot be revived — open a new one and run:';
+  }
+  if (relaunch && !relaunch.ok && relaunch.detail) {
+    const why = document.createElement('div');
+    why.className = 'sub';
+    why.style.marginTop = '4px';
+    why.textContent = `Auto-open: ${relaunch.detail}`;
+    card.append(title, sub, why);
+  } else {
+    card.append(title, sub);
+  }
+
+  const cmds = msg.commands ?? {};
+  const bash = cmds.bash || msg.command || (msg.sessionId ? `grok -r ${msg.sessionId}` : '');
+  const powershell =
+    cmds.powershell ||
+    (msg.cwd && msg.sessionId
+      ? `Set-Location '${msg.cwd}'; grok -r ${msg.sessionId}`
+      : bash);
+  const term = cmds.term || (msg.sessionId ? `grokrc term --session ${msg.sessionId}` : '');
+
+  const addCmd = (label, command) => {
+    if (!command) return;
+    const block = document.createElement('div');
+    block.className = 'release-cmd';
+    const lab = document.createElement('div');
+    lab.className = 'sub';
+    lab.textContent = label;
+    const pre = document.createElement('pre');
+    pre.textContent = command;
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'btn-ghost';
+    copy.textContent = 'Copy';
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(command);
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1500);
+      } catch {
+        copy.textContent = 'Select & copy';
+      }
+    });
+    block.append(lab, pre, copy);
+    card.append(block);
+  };
+
+  addCmd('Windows (PowerShell)', powershell);
+  addCmd('Linux / macOS', bash);
+  addCmd('Phone + terminal together (no kill)', term);
+
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'btn-ghost';
+  dismiss.textContent = 'Dismiss';
+  dismiss.addEventListener('click', () => {
+    state.lastRelease = null;
+    card.remove();
+  });
+  card.append(dismiss);
+
+  // Top of the list, above "+ New session".
+  el.vList.prepend(card);
 }
 
 /** Drop the placeholder as soon as there is anything real to show. */
@@ -687,17 +902,25 @@ function applyEvent(ev, replaying = false) {
     }
 
     case 'thinking': {
-      // Thinking streams token-by-token. A new node per chunk turned every
-      // single word into its own bordered block — accumulate into one instead.
+      // Quiet by design: Grok's reasoning can be thousands of tokens and the
+      // terminal TUI barely shows it. Only the finished block is useful, and
+      // even that is collapsed so the answer stays on screen.
+      if (!ev.final) break;
+      const text = (ev.text ?? '').trim();
+      if (!text) break;
       if (!state.thinkingNode) {
-        state.thinkingNode = document.createElement('div');
-        state.thinkingNode.className = 'thinking';
-        el.vSession.append(state.thinkingNode);
+        const wrap = document.createElement('details');
+        wrap.className = 'thinking';
+        const sum = document.createElement('summary');
+        sum.textContent = 'Reasoning';
+        const body = document.createElement('div');
+        body.className = 'thinking-body';
+        wrap.append(sum, body);
+        el.vSession.append(wrap);
+        state.thinkingNode = body;
       }
-      // `final` carries the whole coalesced block — REPLACE what we streamed,
-      // don't append, or the reasoning renders twice.
-      if (ev.final) state.thinkingNode.textContent = ev.text;
-      else state.thinkingNode.textContent += ev.text;
+      state.thinkingNode.textContent =
+        text.length > 1200 ? text.slice(0, 1200) + '\n…' : text;
       break;
     }
 
@@ -736,6 +959,9 @@ function applyEvent(ev, replaying = false) {
     case 'error':
       appendError(ev.message);
       break;
+
+    // commands / mode / raw: deliberately ignored — metadata Grok's TUI does
+    // not paint, and the daemon no longer ships them on the wire.
   }
   if (!replaying) scrollDown();
 }
@@ -763,6 +989,8 @@ function upsertTool(ev) {
   let node = state.toolNodes.get(ev.toolId);
   if (!node) {
     node = document.createElement('div');
+    // One-line row, matching `grokrc term` / the interactive TUI — not a dump
+    // of every tool I/O payload (those can be whole files).
     node.innerHTML = '<div class="hd"><span class="nm"></span><span class="st"></span></div>';
     state.toolNodes.set(ev.toolId, node);
     el.vSession.append(node);
@@ -772,17 +1000,11 @@ function upsertTool(ev) {
   node.dataset.label = label.text;
   node.dataset.rank = String(label.rank);
   node.querySelector('.nm').textContent = label.text;
-  node.querySelector('.st').textContent = ev.status;
-
-  const body = ev.output ?? ev.input;
-  if (body !== undefined && body !== null) {
-    let pre = node.querySelector('pre');
-    if (!pre) {
-      pre = document.createElement('pre');
-      node.append(pre);
-    }
-    pre.textContent = readableToolBody(body);
-  }
+  const st =
+    ev.status === 'ok' ? '✓' : ev.status === 'error' ? '✗' : ev.status === 'running' ? '…' : '•';
+  node.querySelector('.st').textContent = st;
+  // Drop any body left from an older client build after reconnect.
+  node.querySelector('pre')?.remove();
 }
 
 /**

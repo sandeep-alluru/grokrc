@@ -56,10 +56,19 @@ node --experimental-strip-types src/cli.ts doctor
 
 ## 2. Running the tests
 
+**Real tests only (directive 03).** A product claim is proven by a real run of
+the real stack — real `grok`, real daemon, real browser, real filesystem. Mocks
+and scripted transports may exist for speed, but they are **debt** and must
+never be cited as proof that production works. The default `npm test` ends in
+`test:real`, which is the gate that counts.
+
 ```bash
-npm test              # everything: mock suite → build → real-stack checks
-npm run test:mock     # Node test runner over test/*.test.ts
-npm run test:real     # drives a REAL grok process through the real PWA
+npm test                 # suite → build → real-stack checks (the bar)
+npm run test:suite       # node:test files (includes mock-backed UI tests — not product proof)
+npm run test:real        # REAL grok + real PWA: live-ui, resume, midturn, acp-conformance
+npm run check:approval   # REAL remote approval path (e2e-drive) — must see session/request_permission
+npm run check:stranger   # REAL first-run install into a sandboxed home
+npm run check:live       # REAL browser against the daemon that is already running
 npm run typecheck
 npm run lint
 npm run format:check
@@ -101,10 +110,37 @@ socket and walks the real flows against the live daemon; run it after deploying.
 
 This is the part that actually matters, and it is stricter than most projects.
 
+### Spec first — [docs/BUG-SPEC.md](docs/BUG-SPEC.md)
+
+**If you can reproduce a bug, you must write it into `docs/BUG-SPEC.md` and fix
+only against that checklist.** No code-first fixes. No “document later.”
+
+For every defect (or “I think this is broken”):
+
+1. **Reproduce** (or attach owner evidence: log path, capture). If you cannot
+   reproduce and have no evidence, do not ship a “bug fix” — hardening only.
+2. **Add a row** (`B#`) to the **index** in `docs/BUG-SPEC.md` **before coding**.
+3. **Pre-fix** — numbered reproduce steps, expected vs actual, evidence,
+   **Done when** (one observable sentence).
+4. **Real-bug?** — product · upstream agent · by design · not a bug. If by design
+   / not a bug: document and stop.
+5. **Implement** only that ID, in **execution order** (do not skip ahead).
+6. **Post-fix** — re-run the same path or a named test; residual; evidence class
+   (VERIFIED / PARTIAL / UNVERIFIED / BLOCKED). Update index + execution log.
+7. **Local browser before phone** — for any UI or phone-path bug, prove the fix
+   with Playwright/Chromium against a local daemon first (see
+   `test/handback-e2e.test.ts`, `test/browser.test.ts`). **Do not ask the owner
+   to re-test on their phone until that local browser proof is green.**
+
+Windows measurement gaps still live in [docs/WINDOWS-GAPS.md](docs/WINDOWS-GAPS.md);
+product defects from live use go in **BUG-SPEC**. Historical ledger:
+[docs/BACKLOG.md](docs/BACKLOG.md).
+
 **A bug found by reading code is a hypothesis, not a bug.** Before you claim something
 is broken:
 
-1. **Reproduce it.** Write a test that fails against current `main`.
+1. **Reproduce it.** Write a test that fails against current `main` (and log it under
+   Pre-fix in BUG-SPEC).
 2. **Show the transition.** The test must fail before your fix and pass after. A test
    that passes both ways proves nothing — it may exercise nothing.
 3. **Isolate the control.** If your fix changes more than one thing, disable the part

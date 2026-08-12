@@ -141,7 +141,14 @@ test('--leader and --leader-socket precede the subcommand', () => {
   t.close();
 
   const stdioAt = argv.indexOf('stdio');
+  const agentAt = argv.indexOf('agent');
   assert.ok(stdioAt > 0, 'stdio subcommand must be present');
+  assert.ok(agentAt >= 0, 'agent command must be present');
+  // --permission-mode is top-level grok, before agent.
+  assert.ok(
+    argv.indexOf('--permission-mode') < agentAt,
+    '--permission-mode must precede agent'
+  );
   assert.ok(argv.indexOf('--leader') < stdioAt, '--leader must precede stdio');
   assert.ok(argv.indexOf('--leader-socket') < stdioAt, '--leader-socket must precede stdio');
   // --model is a stdio-level flag and must come after.
@@ -153,7 +160,8 @@ test('argv is unchanged when leader mode is off', () => {
   t.on('error', () => {}); // see above: async spawn ENOENT, no `true` on Windows
   const argv = t.args;
   t.close();
-  assert.deepEqual(argv, ['agent', 'stdio']);
+  // Top-level --permission-mode precedes `agent` (Grok 1.0 CLI). Leader flags off.
+  assert.deepEqual(argv, ['--permission-mode', 'default', 'agent', 'stdio']);
 });
 
 test('two independent clients attach to one shared backend', async (t) => {

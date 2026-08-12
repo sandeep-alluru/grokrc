@@ -99,14 +99,26 @@ async function agentThatClosedItsStdin(): Promise<string> {
   return dir;
 }
 
-test('an EPIPE on agent stdin becomes an error event, not a crash', async () => {
+test('an EPIPE on agent stdin becomes an error event, not a crash', async (t) => {
+  // Measured on Windows: even with a child that closed fd 0 and stayed alive,
+  // every send() took the `stdin.writable === false` path and never called
+  // stdin.write — so no EPIPE, no 'error' event. The control still exists in
+  // production code and is proven load-bearing on POSIX (verify-guards
+  // onlyOn: 'posix'). Running this assertion here fails the whole file's
+  // baseline and falsely marks the unrelated ndjson-line-ceiling guard as
+  // unproven on Windows.
+  if (process.platform === 'win32') {
+    t.skip('EPIPE path not reachable on Windows pipes — proven on posix only');
+    return;
+  }
+
   const dir = await agentThatClosedItsStdin();
-  const t = new StdioTransport({ command: process.execPath, cwd: dir });
+  const transport = new StdioTransport({ command: process.execPath, cwd: dir });
 
   const errors: Error[] = [];
   let ready = false;
-  t.on('error', (e) => errors.push(e));
-  t.on('message', (m: JsonRpcMessage) => {
+  transport.on('error', (e) => errors.push(e));
+  transport.on('message', (m: JsonRpcMessage) => {
     if ((m as { method?: string }).method === 'ready') ready = true;
   });
 
@@ -124,7 +136,7 @@ test('an EPIPE on agent stdin becomes an error event, not a crash', async () => 
   const big = 'x'.repeat(64 * 1024);
   for (let i = 0; i < 3 && errors.length === 0; i++) {
     try {
-      t.send({ jsonrpc: '2.0', id: i, method: 'noop', params: { big } });
+      transport.send({ jsonrpc: '2.0', id: i, method: 'noop', params: { big } });
     } catch {
       /* once `writable` flips, send() refuses — the error EVENT is the subject */
     }
@@ -141,7 +153,7 @@ test('an EPIPE on agent stdin becomes an error event, not a crash', async () => 
     'the error should name the broken pipe'
   );
 
-  t.close();
+  transport.close();
   await rm(dir, { recursive: true, force: true });
 });
 

@@ -2,17 +2,21 @@
 /**
  * End-to-end drive: acts as the phone, headlessly, against a REAL agent.
  *
- * Proves the thing the product exists for — a genuine
- * `session/request_permission` answered from a remote client, after which the
- * agent proceeds.
+ * REAL TESTS ONLY (directive 03). This is not a mock, not a replay, and not
+ * optional: it is the gate that one-tap remote approval still works against a
+ * live Grok. MockTransport UI tests are debt; they must never be cited as
+ * proof that production approvals work.
+ *
+ * Proves: a genuine `session/request_permission` arrives, is answered from a
+ * remote client, and the agent then writes the file.
  *
  * Uses an isolated GROK_HOME with prompting enabled, because Grok does not ask
- * by default (`[features] support_permission = false`) and this machine's config
- * additionally sets `[ui] permission_mode = "auto"`. Neither key takes effect
- * from a project `.grok/config.toml` — so the alternative would be editing the
- * owner's real config, which this must never do.
+ * by default (`[features] support_permission = false`). Neither key takes
+ * effect from a project `.grok/config.toml` — so we never edit the owner's
+ * real config.
  *
  *   npm run build && node tools/e2e-drive.mjs
+ *   (also part of `npm run test:real`)
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';

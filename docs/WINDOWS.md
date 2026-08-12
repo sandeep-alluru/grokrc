@@ -185,20 +185,32 @@ the wrong address will restart a healthy daemon on every run.
 
 ## Still unmeasured on Windows
 
-Three things are not known to be broken — they are simply untested here, and
-saying so is more useful than implying coverage that does not exist.
+Living checklist with steps and evidence: [WINDOWS-GAPS.md](WINDOWS-GAPS.md).
 
-- **First-run experience.** `npm run check:stranger` installs the package into a
-  sandboxed HOME to test what a new user meets. It is a bash script with no
-  Windows equivalent, which is unfortunate precisely because first-run is where
-  Windows differs most: the agent installer adds nothing to `PATH`, and
-  `grok login` has not happened yet.
-- **The permission option shape.** The conformance run reports that the agent
-  did not ask permission on that turn, because the isolated test home runs with
-  prompting disabled. Nothing indicates a problem; it is unexercised.
-  `tools/e2e-drive.mjs` is the tool that would close it.
-- **Web Push from a Windows-hosted daemon.** Delivery to an iPhone is verified
-  from Linux. Whether a Windows host behaves identically has not been run.
+What was closed on a real Windows laptop (2026-08-11):
+
+- **First-run experience.** `npm run check:stranger` is now
+  `node tools/stranger-check.mjs` (portable). Measured on Windows against a
+  packed local tarball: 15/0 — doctor names missing grok, up refuses cleanly,
+  config persists `defaultCwd` under a fresh HOME.
+- **Mid-turn kill / no POSIX SIGTERM.** `midturn-check` ALL CLEAR on three
+  consecutive Windows runs (see also above under Shutdown signals).
+- **Scheduled Task + watchdog.** Tasks present, health ok, watchdog exit 0
+  against a live bind.
+
+What remains open or partial:
+
+- **The permission option shape (live agent).** `e2e-drive` and a direct ACP
+  probe with `support_permission = true` completed turns and ran tools, but
+  Grok 1.0.0 never emitted `session/request_permission` (0 requests). Remote
+  approval plumbing in grokrc still works against mocks; the live agent is not
+  asking. Not specific to Windows path handling — see WINDOWS-GAPS G2.
+- **Web Push delivery to a real phone from a Windows host.** HTTPS + service
+  worker + VAPID are verified from this machine over Tailscale. Headless
+  Chromium cannot create a PushSubscription. A physical iPhone notification
+  from this host has not been confirmed.
+- **Phone end-to-end approval** against a Windows-hosted daemon (needs a human
+  and a working permission ask from the agent).
 
 ### Line endings, if you cloned before `.gitattributes` existed
 

@@ -31,13 +31,36 @@ export interface PermissionRequest {
   respond(outcome: PermissionOutcome): void;
 }
 
+/**
+ * Client-side filesystem methods the agent may call.
+ *
+ * **writeTextFile defaults to off.** Advertising it makes the agent write via
+ * `fs/write_text_file`, which this client would serve itself — never sending
+ * `session/request_permission`. That is exactly how one-tap remote approval
+ * dies while the suite still looks green (tools complete, no approval card).
+ * Measured against grok 1.0.0: with write advertised, permission kinds were
+ * empty and the phone never got a say; with write off, the agent uses tools
+ * that go through the permission path.
+ *
+ * readTextFile stays on so the agent can inspect files without a human tap.
+ */
+export interface FsCapability {
+  readTextFile?: boolean;
+  writeTextFile?: boolean;
+}
+
 export interface AcpClientOptions {
   transport: Transport;
   /** How long to wait for a response before rejecting. Prompts get their own, longer, budget. */
   requestTimeoutMs?: number;
   promptTimeoutMs?: number;
-  /** Serve `fs/read_text_file` and `fs/write_text_file` on the agent's behalf. */
-  fsCapability?: boolean;
+  /**
+   * Filesystem methods to advertise and serve.
+   * - `true`  → read + write (legacy; write bypasses remote approval)
+   * - `false` → neither
+   * - object  → per-method (default: `{ readTextFile: true, writeTextFile: false }`)
+   */
+  fsCapability?: boolean | FsCapability;
 }
 
 interface Pending {
@@ -47,13 +70,23 @@ interface Pending {
   method: string;
 }
 
+function resolveFs(cap: boolean | FsCapability | undefined): Required<FsCapability> {
+  if (cap === true) return { readTextFile: true, writeTextFile: true };
+  if (cap === false) return { readTextFile: false, writeTextFile: false };
+  return {
+    readTextFile: cap?.readTextFile ?? true,
+    // Default OFF — see FsCapability doc. Remote approval is the product.
+    writeTextFile: cap?.writeTextFile ?? false,
+  };
+}
+
 export class AcpClient extends EventEmitter {
   #transport: Transport;
   #nextId = 1;
   #pending = new Map<number | string, Pending>();
   #requestTimeoutMs: number;
   #promptTimeoutMs: number;
-  #fsCapability: boolean;
+  #fs: Required<FsCapability>;
   #initialized: InitializeResult | null = null;
   #closed = false;
 
@@ -64,7 +97,7 @@ export class AcpClient extends EventEmitter {
     // Agent turns routinely run for many minutes. A 60s timeout here would kill
     // real work, so prompts get an explicitly generous budget.
     this.#promptTimeoutMs = opts.promptTimeoutMs ?? 30 * 60_000;
-    this.#fsCapability = opts.fsCapability ?? true;
+    this.#fs = resolveFs(opts.fsCapability);
 
     this.#transport.on('message', (m) => this.#onMessage(m));
     this.#transport.on('error', (e) => {
@@ -98,6 +131,15 @@ export class AcpClient extends EventEmitter {
 
   get capabilities(): InitializeResult['agentCapabilities'] | undefined {
     return this.#initialized?.agentCapabilities;
+  }
+
+  /**
+   * OS pid of the agent process, when the transport is a local stdio child.
+   * Used by hand-back: the TUI cannot reclaim a session until this pid is gone.
+   */
+  get pid(): number | undefined {
+    const t = this.#transport as { pid?: number };
+    return typeof t.pid === 'number' ? t.pid : undefined;
   }
 
   /* ─── outbound ────────────────────────────────────────────────────────── */
@@ -146,7 +188,10 @@ export class AcpClient extends EventEmitter {
     const result = await this.request<InitializeResult>('initialize', {
       protocolVersion: ACP_PROTOCOL_VERSION,
       clientCapabilities: {
-        fs: { readTextFile: this.#fsCapability, writeTextFile: this.#fsCapability },
+        fs: {
+          readTextFile: this.#fs.readTextFile,
+          writeTextFile: this.#fs.writeTextFile,
+        },
       },
     });
     this.#initialized = result;
@@ -267,7 +312,7 @@ export class AcpClient extends EventEmitter {
       }
 
       case 'fs/read_text_file': {
-        if (!this.#fsCapability) return fail(-32601, 'fs capability disabled');
+        if (!this.#fs.readTextFile) return fail(-32601, 'fs capability disabled');
         try {
           const { readFile } = await import('node:fs/promises');
           const { path, line, limit } = params as { path: string; line?: number; limit?: number };
@@ -287,7 +332,8 @@ export class AcpClient extends EventEmitter {
       }
 
       case 'fs/write_text_file': {
-        if (!this.#fsCapability) return fail(-32601, 'fs capability disabled');
+        // Must stay gated: serving writes here is a silent remote-approval bypass.
+        if (!this.#fs.writeTextFile) return fail(-32601, 'fs write capability disabled');
         try {
           const { writeFile, mkdir } = await import('node:fs/promises');
           const { dirname } = await import('node:path');

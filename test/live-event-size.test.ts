@@ -73,7 +73,9 @@ async function watcher(sessionId: string) {
 
 const HUGE = 200_000;
 
-test('a live tool event carrying a huge payload is capped before it is sent', async () => {
+test('a live tool event carrying a huge payload does not ship the body', async () => {
+  // Stronger than a 4KB cap: tool I/O is stripped entirely for clients. The
+  // interactive TUI never paints bash dumps; neither does the phone.
   const sessionId = 'live-size-1';
   const { sock, frames } = await watcher(sessionId);
 
@@ -82,43 +84,37 @@ test('a live tool event carrying a huge payload is capped before it is sent', as
     sessionId,
     toolId: 't1',
     name: 'bash',
-    status: 'completed',
+    status: 'ok',
+    title: 'run something',
     output: 'x'.repeat(HUGE),
+    input: 'y'.repeat(HUGE),
   });
 
   const frame = await frames.waitFor((m) => m.t === 'event' && m.event?.toolId === 't1');
-  const out = frame.event.output as string;
-
-  assert.ok(
-    out.length < HUGE,
-    `the daemon forwarded ${out.length} characters unchanged — a live event is not trimmed`
-  );
-  assert.match(out, /more characters not shown/, 'a trimmed event must say what was cut');
+  assert.equal(frame.event.output, undefined, 'tool output must not cross the wire');
+  assert.equal(frame.event.input, undefined, 'tool input must not cross the wire');
+  assert.equal(frame.event.title, 'run something');
+  assert.ok(JSON.stringify(frame.event).length < 500, 'tool frame must stay tiny');
   sock.close();
 });
 
-test('the cap reaches nested payloads, not just the top level', async () => {
-  // The bulk of a real tool result is nested — content[].newText, rawOutput,
-  // _meta.details. An earlier version of the history trim walked only `.text`
-  // and changed the measured payload by exactly nothing.
+test('the cap still walks nested strings on non-tool events', async () => {
+  // Tool bodies are stripped; huge agent text / error payloads still need the
+  // character ceiling so a single frame cannot bury the phone.
   const sessionId = 'live-size-2';
   const { sock, frames } = await watcher(sessionId);
 
   sessions.emit('event', {
-    k: 'tool',
+    k: 'error',
     sessionId,
-    toolId: 't2',
-    name: 'edit',
-    status: 'completed',
-    output: { content: [{ newText: 'y'.repeat(HUGE) }], _meta: { details: 'z'.repeat(HUGE) } },
+    message: 'y'.repeat(HUGE),
+    fatal: false,
   });
 
-  const frame = await frames.waitFor((m) => m.t === 'event' && m.event?.toolId === 't2');
-  const whole = JSON.stringify(frame.event);
-  assert.ok(
-    whole.length < HUGE,
-    `nested payload survived at ${whole.length} characters — the walk is not reaching it`
-  );
+  const frame = await frames.waitFor((m) => m.t === 'event' && m.event?.k === 'error');
+  const msg = frame.event.message as string;
+  assert.ok(msg.length < HUGE, `error message not capped (${msg.length})`);
+  assert.match(msg, /more characters not shown/);
   sock.close();
 });
 

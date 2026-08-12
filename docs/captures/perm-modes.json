@@ -1,0 +1,133 @@
+{
+  "when": "2026-08-11T22:31:36.912Z",
+  "grok": "1.0.0",
+  "results": [
+    {
+      "mode": "default",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    },
+    {
+      "mode": "acceptEdits",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    },
+    {
+      "mode": "auto",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    },
+    {
+      "mode": "dontAsk",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    },
+    {
+      "mode": "bypassPermissions",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    },
+    {
+      "mode": "plan",
+      "sawPermissionRpc": false,
+      "agentRequests": [],
+      "vendor": [
+        {
+          "su": "pending_interaction",
+          "kind": "permission"
+        },
+        {
+          "su": "interaction_resolved"
+        }
+      ],
+      "settingsPermission": {
+        "permission_mode": null,
+        "auto_permission_mode_enabled": null
+      },
+      "stopReason": "end_turn",
+      "fileWritten": true,
+      "error": null
+    }
+  ],
+  "anyPermissionRpc": false
+}

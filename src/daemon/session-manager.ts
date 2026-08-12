@@ -23,6 +23,7 @@ import {
   type RcEvent,
   type SessionState,
 } from './events.ts';
+import { relaunchGrokTui, type RelaunchResult } from './relaunch-tui.ts';
 
 const GROK_HOME = process.env.GROK_HOME ?? join(homedir(), '.grok');
 
@@ -308,6 +309,16 @@ interface LiveSession {
    * the kind is what keeps them from merging into each other.
    */
   stream: { kind: 'text' | 'thinking'; text: string } | null;
+  /**
+   * True while `session/load` is replaying history into the log.
+   *
+   * Observed mode already suppresses catch-up broadcasts; owned resume did not.
+   * Without this, every token of a long transcript is pushed live to the phone
+   * *before* the trimmed `history` frame — megabytes of WebSocket frames that
+   * crash Mobile Safari into a blank page. Take over is the common path: the
+   * client is already watching when load begins.
+   */
+  loading: boolean;
 }
 
 interface ObservedSession {
@@ -583,6 +594,7 @@ export class SessionManager extends EventEmitter {
       log: [],
       approvals: new Map(),
       stream: null,
+      loading: false,
     };
     this.#sessions.set(id, session);
     this.#wire(session);
@@ -635,6 +647,10 @@ export class SessionManager extends EventEmitter {
 
     // Stop mirroring — we're about to own it.
     const obs = this.#observed.get(id);
+    // Seed for mid-turn recovery only. Do NOT pre-fill `log` with this: loadSession
+    // replays the full transcript, and seeding would double every message — which
+    // on a long session is enough to bury the phone after takeover.
+    const seedLog = obs?.log ? [...obs.log] : [];
     if (obs) {
       obs.observer.stop();
       this.#observed.delete(id);
@@ -672,21 +688,33 @@ export class SessionManager extends EventEmitter {
         pendingApprovals: 0,
       },
       client,
-      // Keep anything already mirrored so the transcript doesn't blank out.
-      log: obs?.log ?? [],
+      // Empty on purpose: loadSession is the source of truth for history.
+      // Mid-turn tails the agent never flushed are merged back from seed/retained.
+      log: [],
       approvals: new Map(),
       stream: null,
+      loading: true,
     };
     this.#sessions.set(id, session);
     this.#wire(session); // before load, so the replayed history is captured
 
     try {
       await client.loadSession(id, cwd);
+      this.#flush(session);
       // Grok writes a turn to updates.jsonl when the turn COMPLETES. An agent
       // stopped mid-flight never writes its tail, so the replay above can be
       // missing text the user already watched arrive — and Take over stops the
       // agent mid-flight by design. Put back only what is genuinely absent;
       // duplicating a transcript would be worse than losing its tail.
+      //
+      // Seed = observed stream (takeover path). Retained = daemon-owned close.
+      const fromSeed = this.#missingTextEvents(seedLog, session.log);
+      if (fromSeed.length) {
+        session.log.unshift(...fromSeed);
+        console.log(
+          `  recovered ${fromSeed.length} event(s) from the observed stream (${id})`
+        );
+      }
       const lost = this.#recoverLostTail(id, session.log);
       if (lost.length) {
         session.log.unshift(...lost);
@@ -697,9 +725,12 @@ export class SessionManager extends EventEmitter {
       this.#sessions.delete(id);
       client.close();
       throw err;
+    } finally {
+      // Always clear: even a failed load must not leave a half-wired session
+      // permanently silent if it somehow stays in the map (defensive).
+      session.loading = false;
     }
 
-    this.#flush(session);
     this.emit('session-list-changed');
     return { ...session.info };
   }
@@ -759,6 +790,88 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
+   * Hand a daemon-owned session back so Grok's own TUI (or another client) can
+   * reopen it with `grok -r`.
+   *
+   * Closes our agent and WAITS for the process to exit. Returning the resume
+   * command while our pid is still alive is why hand-back looked broken on both
+   * Linux and Windows: `grok -r` refuses a session that still has a live owner.
+   */
+  async release(
+    id: string,
+    opts: { waitMs?: number; relaunch?: boolean } = {}
+  ): Promise<{
+    sessionId: string;
+    cwd: string;
+    commands: { bash: string; powershell: string; term: string };
+    relaunch: RelaunchResult;
+  }> {
+    assertSafeSessionId(id);
+    const s = this.#sessions.get(id);
+    if (!s) {
+      throw new Error(
+        `session ${id} is not owned by this daemon — nothing to hand back ` +
+          `(it may already be closed, or only mirrored as read-only)`
+      );
+    }
+    const sessionId = s.info.id;
+    const cwd = s.info.cwd;
+    const pid = s.client.pid;
+
+    this.close(id);
+
+    if (pid != null) {
+      const deadline = Date.now() + (opts.waitMs ?? 8_000);
+      while (Date.now() < deadline) {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          break; // gone — safe for the TUI to reclaim
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      // If it is still alive we still return the commands — the user can retry —
+      // but log loudly so a wedged agent is visible on the machine.
+      try {
+        process.kill(pid, 0);
+        console.warn(
+          `  hand-back: agent pid ${pid} still alive after wait — ` +
+            `grok -r may refuse until it exits`
+        );
+      } catch {
+        /* exited */
+      }
+    }
+
+    // Default ON: owners expect the terminal back, not only a copy-paste line.
+    // The original TUI process is already dead from Take over — we open a new one.
+    // Brief pause so Grok's active_sessions registry can drop our pid before a
+    // new TUI tries to load the same session id.
+    if (opts.relaunch !== false) {
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    const doRelaunch = opts.relaunch !== false;
+    const relaunch = doRelaunch
+      ? relaunchGrokTui(cwd, sessionId)
+      : { ok: false, detail: 'relaunch skipped' };
+    if (doRelaunch) {
+      console.log(
+        `  hand-back relaunch: ${relaunch.ok ? 'ok' : 'failed'} — ${relaunch.detail}`
+      );
+      if (relaunch.methods?.length) {
+        console.log(`  hand-back methods: ${relaunch.methods.join(' | ')}`);
+      }
+    }
+
+    return {
+      sessionId,
+      cwd,
+      commands: resumeCommands(cwd, sessionId),
+      relaunch,
+    };
+  }
+
+  /**
    * Events witnessed for a session that is no longer live, kept so a resume can
    * recover a turn the agent never persisted. Bounded: this is a short-lived
    * safety net, not a second transcript store.
@@ -777,19 +890,25 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
-   * Agent text the replay is missing but we watched arrive.
+   * Agent text present in `candidate` but not already in `replayed`.
    *
    * Only genuinely-absent content is returned: if `loadSession` replayed the
    * turn properly there is nothing to add, and adding it anyway would duplicate
    * the transcript — a worse bug than the one being fixed.
    */
-  #recoverLostTail(id: string, replayed: RcEvent[]): RcEvent[] {
-    const retained = this.#retained.get(id);
-    if (!retained?.length) return [];
+  #missingTextEvents(candidate: RcEvent[], replayed: RcEvent[]): RcEvent[] {
+    if (!candidate.length) return [];
     const seen = new Set(
       replayed.filter((e) => e.k === 'text').map((e) => (e as { text?: string }).text ?? '')
     );
-    return retained.filter((e) => e.k === 'text' && !seen.has((e as { text?: string }).text ?? ''));
+    return candidate.filter(
+      (e) => e.k === 'text' && !seen.has((e as { text?: string }).text ?? '')
+    );
+  }
+
+  /** Mid-turn tails kept when a daemon-owned session was closed mid-flight. */
+  #recoverLostTail(id: string, replayed: RcEvent[]): RcEvent[] {
+    return this.#missingTextEvents(this.#retained.get(id) ?? [], replayed);
   }
 
   closeAll(): void {
@@ -853,7 +972,16 @@ export class SessionManager extends EventEmitter {
         }
       }
     }
-    return out.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+    // Live-in-terminal first, then recency. A busy past project must not push a
+    // brand-new external session off a short historyLimit window.
+    return out
+      .sort((a, b) => {
+        if (a.externallyActive !== b.externallyActive) {
+          return a.externallyActive ? -1 : 1;
+        }
+        return b.updatedAt - a.updatedAt;
+      })
+      .slice(0, limit);
   }
 
   /**
@@ -1017,7 +1145,14 @@ export class SessionManager extends EventEmitter {
         if (streamKind) {
           if (s.stream && s.stream.kind !== streamKind) this.#flush(s);
           s.stream = { kind: streamKind, text: (s.stream?.text ?? '') + chunk };
-          this.emit('event', ev); // live clients still get the token stream
+          // Do not fan out live thinking/text tokens. Thinking tokens drown the
+          // phone; agent text is re-emitted as one final block on flush so the
+          // client still sees the full reply without a token storm. (Partial
+          // text still streams live below — only thinking is fully held.)
+          //
+          // Exception: agent message chunks stream live so the answer appears
+          // as it is generated. Thinking does not.
+          if (!s.loading && streamKind === 'text') this.emit('event', ev);
           s.info.updatedAt = Date.now();
           continue;
         }
@@ -1038,6 +1173,11 @@ export class SessionManager extends EventEmitter {
       this.#push(s, normalizePermission(requestId, req.params));
       this.#setState(s, 'awaiting-approval');
     });
+
+    // Vendor `_x.ai/session_notification` (pending_interaction, hooks, …) is
+    // intentionally not pushed into the client transcript — it is the bulk of
+    // the phone noise that never appears in Grok's own TUI. Real approvals still
+    // arrive as `session/request_permission` → the `permission` event above.
 
     s.client.on('error', (err: Error) => {
       this.#push(s, { k: 'error', sessionId: s.info.id, message: err.message, fatal: false });
@@ -1081,7 +1221,8 @@ export class SessionManager extends EventEmitter {
     s.log.push(ev);
     if (s.log.length > EVENT_LOG_LIMIT) s.log.splice(0, s.log.length - EVENT_LOG_LIMIT);
     s.info.updatedAt = Date.now();
-    this.emit('event', ev);
+    // See LiveSession.loading — accumulate for the history frame, stay quiet live.
+    if (!s.loading) this.emit('event', ev);
   }
 
   #setState(s: LiveSession, state: SessionState): void {
@@ -1102,8 +1243,23 @@ interface SummaryFile {
 }
 
 function defaultTitle(cwd: string): string {
-  const parts = cwd.split('/').filter(Boolean);
+  const parts = cwd.split(/[/\\]/).filter(Boolean);
   return parts[parts.length - 1] ?? cwd;
+}
+
+/** Shell commands that reopen a released session in Grok's TUI / grokrc term. */
+export function resumeCommands(
+  cwd: string,
+  sessionId: string
+): { bash: string; powershell: string; term: string } {
+  const bashCwd = `'${cwd.replace(/'/g, `'\\''`)}'`;
+  const psCwd = `'${cwd.replace(/'/g, "''")}'`;
+  return {
+    bash: `cd ${bashCwd} && grok -r ${sessionId}`,
+    powershell: `Set-Location ${psCwd}; grok -r ${sessionId}`,
+    // Same-backend terminal — no TUI hand-off required.
+    term: `grokrc term --session ${sessionId}`,
+  };
 }
 
 function safeDecode(s: string): string {

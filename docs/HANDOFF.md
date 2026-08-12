@@ -13,6 +13,8 @@ Related files:
 | Doc | Role |
 | --- | --- |
 | [BACKLOG.md](BACKLOG.md) | Open/closed items with evidence (generated from `tools/backlog.mjs`) |
+| [BUG-SPEC.md](BUG-SPEC.md) | **Defect process + ordered checklist** (pre-fix / post-fix / real-bug?) — use before implementing fixes |
+| [WINDOWS-GAPS.md](WINDOWS-GAPS.md) | Windows measurement matrix (G1–G8) |
 | [01-architecture.md](01-architecture.md) | Topology, ACP, session modes, security model |
 | [MEGASESSION.md](MEGASESSION.md) | Deep analysis of the Claude build session |
 | [USER-GUIDE.md](USER-GUIDE.md) · [SETUP.md](../SETUP.md) · [WINDOWS.md](WINDOWS.md) | Operator docs |

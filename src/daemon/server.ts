@@ -12,7 +12,11 @@ import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { AuthStore, type Device } from './auth.ts';
-import type { RcEvent } from './events.ts';
+import {
+  compactForClient,
+  shouldSendToClient,
+  type RcEvent,
+} from './events.ts';
 import type { PushService } from './push.ts';
 import { SessionManager } from './session-manager.ts';
 import { readBody } from '../http-body.ts';
@@ -140,19 +144,34 @@ function trimEvent(ev: RcEvent): RcEvent {
   return walk(ev) as RcEvent;
 }
 
+/**
+ * Shape an event for the phone / term client: drop noise kinds, strip tool I/O,
+ * then cap string sizes. Returns null when the event should not cross the wire.
+ */
+function prepareClientEvent(ev: RcEvent): RcEvent | null {
+  if (!shouldSendToClient(ev)) return null;
+  return trimEvent(compactForClient(ev));
+}
+
 /** The tail of a transcript, plus a marker when anything was left behind. */
 function trimHistory(events: RcEvent[]): RcEvent[] {
-  if (events.length <= HISTORY_EVENT_LIMIT) return events.map(trimEvent);
-  const dropped = events.length - HISTORY_EVENT_LIMIT;
+  // Filter first so a log full of commands/raw/thinking-tokens does not crowd
+  // out the actual messages in the last-N window.
+  const useful = events.map(prepareClientEvent).filter((e): e is RcEvent => e !== null);
+  if (useful.length <= HISTORY_EVENT_LIMIT) return useful;
+  const dropped = useful.length - HISTORY_EVENT_LIMIT;
   const head: RcEvent = {
     k: 'text',
-    sessionId: events[0]?.sessionId ?? '',
+    sessionId: useful[0]?.sessionId ?? events[0]?.sessionId ?? '',
     role: 'agent',
     text: `— ${dropped} earlier event(s) not shown —`,
     final: true,
   };
-  return [head, ...events.slice(-HISTORY_EVENT_LIMIT).map(trimEvent)];
+  return [head, ...useful.slice(-HISTORY_EVENT_LIMIT)];
 }
+
+/** How often to re-read Grok's session registry for external (TUI) sessions. */
+const EXTERNAL_DISCOVERY_MS = 2_000;
 
 export class RemoteControlServer {
   #http: Server;
@@ -161,6 +180,9 @@ export class RemoteControlServer {
   #opts: Required<Pick<ServerOptions, 'host' | 'port'>> & ServerOptions;
   #relayLink: import('ws').WebSocket | null = null;
   #closed = false;
+  /** Signature of the last external+owned list we broadcast — skip no-ops. */
+  #lastSessionSig = '';
+  #discoveryTimer: NodeJS.Timeout | null = null;
 
   constructor(opts: ServerOptions) {
     this.#opts = { host: opts.host ?? '127.0.0.1', port: opts.port ?? 4319, ...opts };
@@ -189,21 +211,25 @@ export class RemoteControlServer {
     this.#opts.sessions.on('event', (ev: RcEvent) => {
       const sid = 'sessionId' in ev ? ev.sessionId : undefined;
 
-      // Cap the LIVE event, not just replayed history. `trimEvent` was wired
-      // into trimHistory when a long session crashed the owner's phone, which
-      // fixed opening a session and left the worse case untouched: the crash
-      // happened while READING one, and a tool_call_update carrying a whole
-      // file arrives on the live path. Trimming once here — not once per
-      // client — also covers `grokrc term` and every relay-attached phone,
-      // because this loop is the only fan-out in the daemon.
+      // Cap and quiet the LIVE event, not just replayed history. `trimEvent`
+      // was wired into trimHistory when a long session crashed the owner's
+      // phone; `shouldSendToClient` / `compactForClient` drop the Grok 1.0
+      // metadata flood (commands, raw vendor kinds, thinking tokens, tool I/O
+      // dumps) that the interactive TUI never paints. Applied once here so
+      // every phone and `grokrc term` stay quiet without each client filtering.
       //
-      // `trimEvent` returns a new object and never mutates, so the session's
-      // stored history keeps the full text; only what crosses the wire is cut.
-      const payload = trimEvent(ev);
-      for (const c of this.#clients) {
-        if (!c.device) continue;
-        if (sid && !c.watching.has(sid)) continue;
-        send(c.ws, { t: 'event', event: payload });
+      // The session's stored history still keeps the full log for recovery;
+      // only what crosses the wire is filtered and cut.
+      const payload = prepareClientEvent(ev);
+      if (!payload) {
+        // Still fire push on approvals/done even if the event itself is noise
+        // for the transcript — those branches read `ev` below, not payload.
+      } else {
+        for (const c of this.#clients) {
+          if (!c.device) continue;
+          if (sid && !c.watching.has(sid)) continue;
+          send(c.ws, { t: 'event', event: payload });
+        }
       }
 
       // Push regardless of connected sockets: a live socket means the app is
@@ -228,6 +254,15 @@ export class RemoteControlServer {
     this.#opts.sessions.on('session-list-changed', () => {
       background('broadcasting the session list', this.#broadcastSessions());
     });
+
+    // Grok's own TUI writes `active_sessions.json` and session dirs without
+    // telling us. Without a poll, a phone that opened the list before you
+    // started `grok` never sees that session until reconnect — USER-GUIDE
+    // promises "within a second or two". Cheap: readdir + one JSON read.
+    this.#discoveryTimer = setInterval(() => {
+      void this.#pollExternalSessions();
+    }, EXTERNAL_DISCOVERY_MS);
+    this.#discoveryTimer.unref?.();
   }
 
   /**
@@ -419,7 +454,11 @@ export class RemoteControlServer {
   }
 
   async close(): Promise<void> {
-    this.#closed = true; // stops the relay reconnect loop
+    this.#closed = true; // stops the relay reconnect loop + discovery poll
+    if (this.#discoveryTimer) {
+      clearInterval(this.#discoveryTimer);
+      this.#discoveryTimer = null;
+    }
     this.#relayLink?.close();
     this.#relayLink = null;
     for (const c of this.#clients) c.ws.close();
@@ -733,18 +772,27 @@ export class RemoteControlServer {
         case 'release': {
           // Hand the session back to a terminal. The daemon must let go first —
           // two agents on one conversation is what externallyActive prevents.
+          // Waits for the agent pid to exit so `grok -r` is not refused.
           console.log(
             `  release requested: session ${msg.sessionId} by device ${client.device?.id ?? '?'}`
           );
-          const info = sessions.list().find((s) => s.id === msg.sessionId);
-          sessions.close(msg.sessionId);
+          const result = await sessions.release(msg.sessionId);
           client.watching.delete(msg.sessionId);
+          client.observing.delete(msg.sessionId);
+          console.log(
+            `  release succeeded: session ${result.sessionId} free — TUI can reclaim` +
+              (result.relaunch.ok
+                ? ` (relaunch: ${result.relaunch.detail})`
+                : ` (relaunch not started: ${result.relaunch.detail})`)
+          );
           send(client.ws, {
             t: 'released',
-            sessionId: msg.sessionId,
-            // The exact command to get it back in the TUI, so the user does not
-            // have to reconstruct it from a session id and a path.
-            command: info ? `cd ${info.cwd} && grok -r ${msg.sessionId}` : null,
+            sessionId: result.sessionId,
+            cwd: result.cwd,
+            // Platform-specific resume lines. `command` kept for older clients.
+            command: result.commands.bash,
+            commands: result.commands,
+            relaunch: result.relaunch,
           });
           background('broadcasting the session list', this.#broadcastSessions());
           return;
@@ -813,20 +861,67 @@ export class RemoteControlServer {
   }
 
   async #sendSessions(client: Client): Promise<void> {
-    const live = this.#opts.sessions.list();
-    const limit = this.#opts.historyLimit ?? 10;
-    const onDisk = await this.#opts.sessions.discoverOnDisk(limit);
-    const liveIds = new Set(live.map((s) => s.id));
-    // Live sessions always appear; history is capped to the most recent.
-    send(client.ws, {
-      t: 'sessions',
-      sessions: [...live, ...onDisk.filter((s) => !liveIds.has(s.id)).slice(0, limit)],
-    });
+    const payload = await this.#sessionListPayload();
+    this.#lastSessionSig = payload.sig;
+    send(client.ws, { t: 'sessions', sessions: payload.sessions });
   }
 
   async #broadcastSessions(): Promise<void> {
+    const payload = await this.#sessionListPayload();
+    this.#lastSessionSig = payload.sig;
     for (const c of this.#clients) {
-      if (c.device) await this.#sendSessions(c);
+      if (c.device) send(c.ws, { t: 'sessions', sessions: payload.sessions });
+    }
+  }
+
+  /**
+   * Owned + on-disk list the phone renders. External live sessions are never
+   * dropped by historyLimit (they sort first in discoverOnDisk).
+   */
+  async #sessionListPayload(): Promise<{ sessions: unknown[]; sig: string }> {
+    const live = this.#opts.sessions.list();
+    const limit = this.#opts.historyLimit ?? 10;
+    const onDisk = await this.#opts.sessions.discoverOnDisk(Math.max(limit, 50));
+    const liveIds = new Set(live.map((s) => s.id));
+    const external = onDisk.filter((s) => !liveIds.has(s.id));
+    // Keep all currently live-in-terminal rows, then fill the rest with history.
+    const externalLive = external.filter((s) => s.externallyActive);
+    const externalPast = external.filter((s) => !s.externallyActive);
+    const pastRoom = Math.max(0, limit - externalLive.length);
+    const sessions = [...live, ...externalLive, ...externalPast.slice(0, pastRoom)];
+    const sig = sessions
+      .map(
+        (s) =>
+          `${s.id}:${s.mode}:${s.externallyActive ? 1 : 0}:${s.updatedAt}:${s.pendingApprovals}`
+      )
+      .join('|');
+    return { sessions, sig };
+  }
+
+  /**
+   * Detect Grok TUI sessions that appeared or ended without our involvement.
+   * No-ops when nobody is connected (no need to wake disk for zero phones).
+   */
+  async #pollExternalSessions(): Promise<void> {
+    if (this.#closed) return;
+    let hasDevice = false;
+    for (const c of this.#clients) {
+      if (c.device) {
+        hasDevice = true;
+        break;
+      }
+    }
+    if (!hasDevice) return;
+    try {
+      const payload = await this.#sessionListPayload();
+      if (payload.sig === this.#lastSessionSig) return;
+      this.#lastSessionSig = payload.sig;
+      for (const c of this.#clients) {
+        if (c.device) send(c.ws, { t: 'sessions', sessions: payload.sessions });
+      }
+    } catch (err) {
+      // Discovery is best-effort — a transient read must not take down the daemon.
+      console.warn(`  ⚠ external session discovery: ${(err as Error).message}`);
     }
   }
 }

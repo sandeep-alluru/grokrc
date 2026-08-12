@@ -176,3 +176,59 @@ export function normalizePermission(requestId: string, p: RequestPermissionParam
     })),
   };
 }
+
+/**
+ * What a phone (or `grokrc term`) should actually see.
+ *
+ * Grok 1.0 floods the wire with metadata the interactive TUI never paints:
+ * slash-command lists, mode ticks, vendor `raw` kinds (hooks, session_info,
+ * pending_interaction), and every reasoning token. Shipping that to a 390px
+ * screen is noise, not product. The daemon still *logs* those events for
+ * recovery; this gate only decides what crosses the WebSocket.
+ *
+ * Keep: user/agent text, finished thinking, tools, plans, approvals, status
+ * (busy indicator), errors.
+ */
+export function shouldSendToClient(ev: RcEvent): boolean {
+  switch (ev.k) {
+    case 'commands':
+    case 'mode':
+    case 'raw':
+      return false;
+    case 'thinking':
+      // Live tokens drown the answer. Only the coalesced final block is useful,
+      // and even that is rendered collapsed on the phone.
+      return ev.final === true;
+    case 'text':
+    case 'tool':
+    case 'plan':
+    case 'approval':
+    case 'approval-resolved':
+    case 'status':
+    case 'error':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Drop tool I/O bodies before they hit the wire.
+ *
+ * A single `tool_call_update` can carry a whole file (measured up to 100KB+).
+ * The terminal client only prints a one-line label; the phone matches that —
+ * expand-in-UI can return later if we store bodies server-side for on-demand
+ * fetch. Approvals keep `input` so the user still sees what they are granting.
+ */
+export function compactForClient(ev: RcEvent): RcEvent {
+  if (ev.k !== 'tool') return ev;
+  return {
+    k: 'tool',
+    sessionId: ev.sessionId,
+    toolId: ev.toolId,
+    name: ev.name,
+    status: ev.status,
+    title: ev.title,
+    locations: ev.locations,
+  };
+}

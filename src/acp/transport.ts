@@ -101,6 +101,20 @@ export interface StdioTransportOptions {
   leaderSocket?: string;
   /** Model override, e.g. `grok-build`. */
   model?: string;
+  /**
+   * Grok top-level `--permission-mode`. Default `"default"` so remote one-tap
+   * approval has a chance. Note: as of Grok 1.0.0, headless `agent stdio` still
+   * often auto-resolves tools without emitting `session/request_permission`
+   * (see tools/perm-probe.mjs) — this flag is necessary but not sufficient.
+   */
+  permissionMode?:
+    | 'default'
+    | 'acceptEdits'
+    | 'auto'
+    | 'dontAsk'
+    | 'bypassPermissions'
+    | 'plan'
+    | string;
 }
 
 export class StdioTransport extends EventEmitter implements Transport {
@@ -112,10 +126,16 @@ export class StdioTransport extends EventEmitter implements Transport {
 
   constructor(opts: StdioTransportOptions = {}) {
     super();
+    // `--permission-mode` is a top-level `grok` flag (before `agent`).
     // `--leader` and `--leader-socket` belong to `grok agent`, NOT to the
     // `stdio` subcommand — placing them after `stdio` makes grok exit with
     // "unexpected argument". Verified with tools/leader-probe.mjs.
-    const args = ['agent'];
+    const args: string[] = [];
+    const permissionMode = opts.permissionMode ?? 'default';
+    if (permissionMode) {
+      args.push('--permission-mode', permissionMode);
+    }
+    args.push('agent');
     if (opts.useLeader) args.push('--leader');
     if (opts.leaderSocket) args.push('--leader-socket', opts.leaderSocket);
     args.push('stdio');

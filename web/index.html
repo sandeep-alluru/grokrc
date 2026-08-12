@@ -96,28 +96,33 @@
     text-align: left; white-space: pre-wrap; word-wrap: break-word;
   }
   .msg.agent .bubble { white-space: pre-wrap; word-wrap: break-word; }
-  /* Reasoning can run to thousands of words and would otherwise push the actual
-     answer off-screen. Cap it and let it scroll in place. `pre-wrap` matters:
-     without it the streamed text collapses oddly on reflow. */
+  /* Reasoning is opt-in: collapsed by default so the answer stays on screen. */
   .thinking {
-    color: var(--dim); font-style: italic; font-size: 13px;
-    border-left: 2px solid var(--line); padding-left: 10px; margin-bottom: 12px;
-    white-space: pre-wrap; word-wrap: break-word;
-    max-height: 9.5em; overflow-y: auto;
+    color: var(--dim); font-size: 13px;
+    border-left: 2px solid var(--line); padding: 4px 0 4px 10px; margin-bottom: 10px;
+  }
+  .thinking summary {
+    cursor: pointer; font-style: italic; user-select: none;
+    list-style: none;
+  }
+  .thinking summary::-webkit-details-marker { display: none; }
+  .thinking summary::before { content: "▸ "; opacity: .7; }
+  .thinking[open] summary::before { content: "▾ "; }
+  .thinking-body {
+    font-style: italic; white-space: pre-wrap; word-wrap: break-word;
+    max-height: 8em; overflow-y: auto; margin-top: 6px; opacity: .9;
   }
 
   .tool {
     background: var(--panel); border: 1px solid var(--line); border-left-width: 3px;
-    border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; font-size: 13px;
+    border-radius: 10px; padding: 7px 12px; margin-bottom: 8px; font-size: 13px;
   }
   .tool.running { border-left-color: var(--accent); }
   .tool.ok      { border-left-color: var(--ok); }
   .tool.error   { border-left-color: var(--err); }
   .tool .hd { display: flex; gap: 8px; align-items: center; }
-  .tool .nm { font-weight: 600; }
-  .tool .st { color: var(--dim); font-size: 11px; margin-left: auto; }
-  .tool pre { margin: 8px 0 0; padding: 8px; background: var(--bg);
-    border-radius: 6px; overflow-x: auto; max-height: 260px; }
+  .tool .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tool .st { color: var(--dim); font-size: 12px; margin-left: auto; flex: none; }
 
   .plan { background: var(--panel); border: 1px solid var(--line);
     border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
@@ -170,12 +175,45 @@
     color: var(--dim); font-weight: 600; font-size: 13px;
   }
   .btn-ghost:disabled { opacity: .5; }
+  .btn-ghost.danger { border-color: var(--err); color: var(--err); }
+
+  /* Post hand-back: must be on the list, not buried in a long transcript. */
+  .release-card {
+    background: var(--panel); border: 1px solid var(--ok); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 12px;
+  }
+  .release-card .name { font-weight: 650; margin-bottom: 4px; color: var(--ok); }
+  .release-cmd { margin-top: 10px; }
+  .release-cmd pre {
+    margin: 4px 0 6px; padding: 10px; background: var(--bg); border-radius: 8px;
+    white-space: pre-wrap; word-break: break-all; font-size: 12px;
+  }
+  .release-cmd .btn-ghost { margin-top: 0; padding: 8px; font-size: 12px; }
 
   /* Loud on purpose: a stale client makes a fixed daemon look broken. */
   .stale-bar {
     position: sticky; top: 0; z-index: 50; padding: 10px 14px;
     background: var(--warn); color: #1a1200; font-weight: 650; font-size: 13px;
     text-align: center;
+  }
+
+  /* Daemon / Tailnet unreachable — distinct from stale-asset yellow. */
+  .unreachable-bar {
+    position: sticky; top: 0; z-index: 49; padding: 12px 14px;
+    background: #3d1515; border-bottom: 1px solid var(--err);
+    color: #ffc9c9; font-size: 13px; line-height: 1.45;
+  }
+  .unreachable-bar[hidden] { display: none !important; }
+  .unreachable-bar strong { display: block; color: #fff; font-weight: 700; margin-bottom: 4px; }
+  .unreachable-bar .hint { color: #f0a0a0; font-size: 12px; margin-top: 6px; }
+  /* High contrast: dark-on-coral looked like a blank pill on some phones (B11). */
+  .unreachable-bar button,
+  .unreachable-bar #unreachable-retry {
+    margin-top: 10px; width: 100%; min-height: 48px; padding: 12px 14px;
+    border: 2px solid #fff; border-radius: 10px;
+    background: #c42b2b; color: #ffffff !important;
+    font-weight: 700; font-size: 15px; line-height: 1.2;
+    -webkit-text-fill-color: #ffffff;
   }
 
   .err-line { color: var(--err); font-size: 13px; margin-bottom: 10px; }
@@ -212,6 +250,13 @@
   <span class="title" id="title">grokrc</span>
   <button id="back" hidden>Sessions</button>
 </header>
+
+<div class="unreachable-bar" id="unreachable" hidden role="alert">
+  <strong>Can&rsquo;t reach the machine</strong>
+  <div>grokrc is offline from this phone. Start Tailscale (Tailnet) on the PC and this device, then retry.</div>
+  <div class="hint">Also check: daemon running (<code>grokrc up</code>), same Tailnet, Serve/HTTPS URL if you use it.</div>
+  <button type="button" id="unreachable-retry" aria-label="Retry connection">Retry connection</button>
+</div>
 
 <main>
   <section class="view on" id="v-pair">

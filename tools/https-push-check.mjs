@@ -100,7 +100,27 @@ try {
 } catch (err) {
   problems.push(`FAILED: ${err.message}`);
 } finally {
+  // Headless Chromium cannot create a real PushSubscription (no push service /
+  // incognito). That is an environment limit, not a product defect — strip it
+  // from the exit decision so a green CI/laptop run is not a lie, while still
+  // printing it above so operators see the boundary.
+  const blocking = problems.filter(
+    (p) =>
+      !/PushSubscription failed/i.test(p) &&
+      !/no console errors/i.test(p) // console noise often accompanies the above
+  );
+  // Re-add console-error failures only when they are not the known push/incognito note.
+  const productProblems = problems.filter((p) => {
+    if (/PushSubscription failed/i.test(p)) return false;
+    if (/no console errors/i.test(p) && consoleErrors.every((e) => /incognito|Push API/i.test(e)))
+      return false;
+    return true;
+  });
   console.log(`\n─── ${problems.length ? problems.length + ' issue(s)' : 'ALL CLEAR'} ───`);
+  if (productProblems.length === 0 && problems.length > 0) {
+    console.log('  (remaining issues are headless/environment limits — product path OK)');
+  }
   await browser.close();
-  process.exit(0);
+  process.exit(productProblems.length === 0 ? 0 : 1);
+  void blocking;
 }
