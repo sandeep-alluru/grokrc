@@ -58,12 +58,16 @@ grokrc up --lan
 Open the printed URL on your phone, enter the 6-character code, add to Home Screen.
 
 ```
-  grokrc listening on http://192.168.1.24:4319
+  grokrc listening on http://192.168.1.10:4319
 
   No paired devices. Open the URL above and enter:
 
       Y8M8GF
 ```
+
+(`192.168.1.10` is an example — use the address your machine prints.)
+
+For **access from anywhere** (cellular, travel), use **Tailscale** so the phone gets HTTPS on your private tailnet — see [Guide → Tailscale](docs/GUIDE.md#tailscale-access-from-anywhere).
 
 Check the install anytime: `grokrc doctor`
 
@@ -140,11 +144,14 @@ grokrc up --lan                       # reachable on your LAN
 
 ## 📱 Reach your phone
 
-1. **LAN** — `grokrc up --lan` (trusted network only)  
-2. **Tailscale** — serve HTTPS to your tailnet (recommended for iOS push)  
-3. **Relay** — daemon dials **out**; phone joins the same room over WSS  
+1. **LAN** — `grokrc up --lan` on a trusted Wi‑Fi only  
+2. **Tailscale (recommended)** — install Tailscale on PC + phone, then  
+   `tailscale serve --bg https / http://127.0.0.1:4319` and open the  
+   `https://….ts.net` URL from anywhere on your tailnet  
+3. **Relay** — daemon dials **out** to a VPS you control  
 
-Details: [Guide → Networking](docs/GUIDE.md#networking)
+Step-by-step Tailscale setup (install, Serve, pair, persist, troubleshooting):  
+**[Guide → Tailscale](docs/GUIDE.md#tailscale-access-from-anywhere)**
 
 ---
 

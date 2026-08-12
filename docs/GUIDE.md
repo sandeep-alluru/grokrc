@@ -148,39 +148,174 @@ Useful `up` flags: `--port`, `--host`, `--lan`, `--pair`, `--relay <url>`, `--ro
 
 ## Networking
 
-### LAN
+Pick one path. **Tailscale is the recommended way to use grokrc from anywhere** (cellular, coffee shop, travel) without opening ports on your router.
+
+| Path | When to use | Phone URL shape |
+|---|---|---|
+| **Loopback only** | Desktop browser on the same machine | `http://127.0.0.1:4319` |
+| **LAN** | Phone on the same Wi‑Fi, trusted network | `http://192.168.x.x:4319` |
+| **Tailscale** | Phone anywhere on your tailnet (recommended) | `https://your-machine.….ts.net` |
+| **Relay** | You control a VPS; daemon dials **out** | Relay room URL (see below) |
+
+### LAN (same Wi‑Fi only)
 
 ```bash
 grokrc up --lan
 ```
 
-Use only on a trusted network. Prefer Tailscale for anything beyond home lab.
+The daemon binds `0.0.0.0` and prints a URL using a local address, for example:
 
-### Tailscale (recommended for phones)
-
-Serve HTTPS to your tailnet so the PWA and push work cleanly:
-
-```bash
-# example — adapt to your tailscale serve setup
-tailscale serve https / http://127.0.0.1:4319
+```text
+  grokrc listening on http://192.168.1.10:4319
+  ⚠ bound to all interfaces — keep this on a trusted network or a Tailnet.
 ```
 
-Open the `https://…ts.net` URL on the phone.
+- Replace `192.168.1.10` with whatever address **your** machine prints (any `192.168.x.x`, `10.x.x.x`, or `172.16–31.x.x` is fine).
+- Only devices on that private network can reach it.
+- Do **not** port-forward this to the public internet.
 
-### Relay (outbound)
+---
 
-When you cannot open inbound ports:
+### Tailscale (access from anywhere)
+
+Tailscale puts your PC and phone on a private mesh VPN ([tailnet](https://tailscale.com/kb/1136/tailnet)). The phone can reach your machine on cellular; you do **not** open inbound ports on your home router.
+
+This is the best default for real phone use: **HTTPS**, works off-LAN, and satisfies browser requirements for **Web Push** and a stable PWA install.
+
+#### 1. Install and sign in
+
+**On the machine that runs grokrc**
+
+- Linux / macOS / Windows: install from [tailscale.com/download](https://tailscale.com/download)
+- Sign in with the same account (or an account invited to the same tailnet)
 
 ```bash
-# on a VPS
+# Linux example (package managers also work — see Tailscale docs)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+tailscale status
+```
+
+**On the phone**
+
+- Install the **Tailscale** app (iOS App Store / Google Play)
+- Sign in to the **same** tailnet
+- Leave Tailscale **connected** when you use grokrc away from home Wi‑Fi
+
+#### 2. Start grokrc on the machine
+
+Prefer loopback + Serve (nothing exposed on LAN):
+
+```bash
+grokrc up
+# listens on 127.0.0.1:4319 by default
+```
+
+Or bind only the Tailscale interface if you prefer not to use Serve (HTTP, no TLS from Tailscale):
+
+```bash
+# Your Tailscale IP looks like 100.x.x.x — get it with:
+tailscale ip -4
+
+grokrc up --host 100.x.x.x --port 4319
+```
+
+Using raw `100.x.x.x:4319` works on many phones but is **HTTP**. For iOS push and a clean PWA install, use **Serve** (next step).
+
+#### 3. Publish HTTPS with `tailscale serve`
+
+On the **same machine** as the daemon, reverse-proxy HTTPS from your tailnet to local grokrc:
+
+```bash
+# grokrc must already be listening on 127.0.0.1:4319
+tailscale serve --bg https / http://127.0.0.1:4319
+```
+
+Check what was published:
+
+```bash
+tailscale serve status
+```
+
+You should see something like:
+
+```text
+https://my-laptop.tail-xxxxxx.ts.net (tailnet only)
+|-- / proxy http://127.0.0.1:4319
+```
+
+**Use that `https://….ts.net` URL on the phone** — not the LAN `http://192.168.…` URL.
+
+MagicDNS name (optional, easier to remember):
+
+```bash
+tailscale status --json | head   # or: Settings → DNS in the admin console
+# Open: https://<machine-name>.<tailnet-name>.ts.net/
+```
+
+#### 4. Pair from the phone
+
+1. Phone: Tailscale app **on** and connected  
+2. Open `https://<your-machine>.….ts.net/` in Safari (iOS) or Chrome (Android)  
+3. Enter the pairing code from the machine (`grokrc pair` if you need a new one)  
+4. **Add to Home Screen** (required for iOS notifications)
+
+You can now leave home Wi‑Fi; as long as both devices are on the tailnet, the phone keeps working.
+
+#### 5. Persist across reboot
+
+| Piece | How |
+|---|---|
+| grokrc | Linux: systemd user unit — [Run as a service](#run-as-a-service). Windows: Scheduled Task scripts under `packaging/windows/`. |
+| `tailscale serve` | `--bg` keeps the serve config; Tailscale usually restores it after reboot once the client is up. Re-run the `tailscale serve` command if `serve status` is empty after an upgrade. |
+
+Order after reboot: Tailscale online → grokrc listening → Serve still points at `http://127.0.0.1:4319`.
+
+#### Serve vs Funnel
+
+| | `tailscale serve` | `tailscale funnel` |
+|---|---|---|
+| Who can connect | **Only your tailnet** | Public internet |
+| For grokrc? | **Yes — use this** | **No** — remote control of a coding agent must not be public |
+
+Do **not** enable Funnel for grokrc.
+
+#### Tailscale troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| Phone can’t load the page | Tailscale connected on **both** devices; same tailnet; `tailscale status` shows the machine online |
+| Connection refused | `grokrc` running? `curl -sS http://127.0.0.1:4319/api/health` on the machine |
+| Serve 502 / bad gateway | Daemon not on `127.0.0.1:4319` — start `grokrc up` (not only Serve) |
+| Wrong URL on phone | Use the **`https://….ts.net`** Serve URL, not an old LAN `http://192.168.…` bookmark |
+| Works on Wi‑Fi, dies on cellular | Phone Tailscale disconnected or battery optimization killed the VPN app |
+| iOS push still broken | Must be **Home Screen** PWA over **HTTPS** (Serve). Tab Safari is not enough |
+| Certificate warnings | Use the MagicDNS / Serve hostname Tailscale issued; don’t invent hostnames |
+
+```bash
+# Machine-side health
+grokrc doctor
+curl -sS http://127.0.0.1:4319/api/health
+tailscale status
+tailscale serve status
+```
+
+---
+
+### Relay (outbound, no Tailscale)
+
+When you run a small VPS and the daemon must dial **out** (no inbound ports, no Tailscale):
+
+```bash
+# on a VPS you control
 grokrc relay --port 8080
 
 # on the dev machine
-grokrc up --relay wss://your-vps:8080
+grokrc up --relay wss://relay.example.com:8080
 ```
 
-The daemon dials **out**. Frames are encrypted; the room key travels in the URL fragment (not sent to the server).  
-For pure transport with no JS from the relay: `grokrc relay --no-client`.
+The daemon dials out. Frames are encrypted; the room key travels in the URL fragment (browsers do not send fragments to the server).  
+Pure transport with no JS from the relay: `grokrc relay --no-client` (install the PWA from the daemon origin first when you can).
 
 ---
 
