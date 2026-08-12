@@ -179,19 +179,37 @@ function setBusy(v) {
   el.send.classList.toggle('stop', v);
 }
 
+/** Debounce so brief WS reconnects (daemon restart) don't scream "Tailnet". */
+let unreachableTimer = null;
+
 function setConn(cls) {
   el.conn.className = 'dot' + (cls ? ' ' + cls : '');
-  // Red dot alone was easy to miss when Tailnet was down and the list looked
-  // empty — surface a full banner with a Tailscale/Tailnet recovery hint.
-  if (cls === 'err') showUnreachableBanner();
-  else if (cls === 'live') hideUnreachableBanner();
+  // Red dot alone was easy to miss when the list looked empty — but every WS
+  // close used to open a banner that *only* said "Start Tailnet", even when
+  // Tailnet was fine and the daemon had simply stopped (B16).
+  if (cls === 'err') scheduleUnreachableBanner();
+  else if (cls === 'live') {
+    if (unreachableTimer) {
+      clearTimeout(unreachableTimer);
+      unreachableTimer = null;
+    }
+    hideUnreachableBanner();
+  }
 }
 
 /**
- * Shown when the WebSocket is down or the browser is offline.
- * Owner path: phone on cellular / Tailnet off → “no sessions” looked like a
- * product bug; the real fix was bring Tailscale up.
+ * Shown when the WebSocket stays down or the browser is offline.
+ * Message is refined via /api/health so we don't always blame Tailscale.
  */
+function scheduleUnreachableBanner() {
+  if (unreachableTimer) return;
+  unreachableTimer = setTimeout(() => {
+    unreachableTimer = null;
+    if (state.ws?.readyState === 1) return; // already recovered
+    void refreshUnreachableBanner();
+  }, 1200);
+}
+
 function showUnreachableBanner() {
   if (!el.unreachable) return;
   // Pairing screen has its own flow; don't stack this on top of the code form
@@ -203,6 +221,65 @@ function showUnreachableBanner() {
 function hideUnreachableBanner() {
   if (!el.unreachable) return;
   el.unreachable.hidden = true;
+}
+
+/**
+ * Probe same-origin /api/health to separate:
+ *  phone offline | host reachable but WS flapping | host truly unreachable
+ *  (daemon down, Tailnet/Serve path broken, wrong URL).
+ */
+async function refreshUnreachableBanner() {
+  if (!el.unreachable) return;
+  if (!state.token && navigator.onLine !== false) return;
+
+  const titleEl = $('unreachable-title');
+  const detailEl = $('unreachable-detail');
+  const hintEl = $('unreachable-hint');
+
+  const setCopy = (title, detail, hint) => {
+    if (titleEl) titleEl.textContent = title;
+    if (detailEl) detailEl.textContent = detail;
+    if (hintEl) hintEl.textContent = hint;
+  };
+
+  if (navigator.onLine === false) {
+    setCopy(
+      'Phone is offline',
+      'This device has no network right now.',
+      'Reconnect Wi‑Fi or cellular, confirm Tailscale is connected, then tap Retry.'
+    );
+    showUnreachableBanner();
+    return;
+  }
+
+  let httpOk = false;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 2500);
+    const r = await fetch(`${location.origin}/api/health`, {
+      cache: 'no-store',
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    httpOk = r.ok;
+  } catch {
+    httpOk = false;
+  }
+
+  if (httpOk) {
+    setCopy(
+      'Reconnecting to grokrc…',
+      'The PC answered HTTP, but the live socket dropped. Retrying automatically.',
+      'If this sticks, tap Retry. Usually a brief daemon restart — not Tailnet.'
+    );
+  } else {
+    setCopy(
+      "Can't reach grokrc on the PC",
+      'This phone cannot open the grokrc URL (HTTP failed). Tailnet can be "up" while the daemon is still stopped.',
+      'On the PC: check Scheduled Task grokrc / run grokrc up. Then Tailscale on both devices, same Tailnet, Serve/HTTPS URL if you use it.'
+    );
+  }
+  showUnreachableBanner();
 }
 
 el.unreachableRetry?.addEventListener('click', () => {
@@ -235,7 +312,12 @@ el.unreachableRetry?.addEventListener('click', () => {
 
 window.addEventListener('offline', () => {
   setConn('err');
-  showUnreachableBanner();
+  // Offline is certain — show immediately with the right copy.
+  if (unreachableTimer) {
+    clearTimeout(unreachableTimer);
+    unreachableTimer = null;
+  }
+  void refreshUnreachableBanner();
 });
 window.addEventListener('online', () => {
   if (state.token) {

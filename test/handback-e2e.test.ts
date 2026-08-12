@@ -144,9 +144,11 @@ test('browser: create session then hand back shows released card with commands',
 });
 
 test('browser: unreachable retry button has visible non-empty label', async () => {
-  // Force disconnect UI without killing the server — close the socket from the page.
+  // Offline is a definite failure (B16): banner shows immediately with non-Tailnet-only copy.
+  // Closing the WS alone is not enough — with the daemon still up the client reconnects
+  // inside the debounce window and correctly keeps the banner hidden.
   await page.evaluate(() => {
-    (globalThis as unknown as { __rcws?: WebSocket }).__rcws?.close(4000, 'e2e-drop');
+    window.dispatchEvent(new Event('offline'));
   });
   await page.waitForFunction(
     () => {
@@ -154,7 +156,7 @@ test('browser: unreachable retry button has visible non-empty label', async () =
       return el && !el.hidden;
     },
     undefined,
-    { timeout: 10_000 }
+    { timeout: 5_000 }
   );
   const btnText = ((await page.textContent('#unreachable-retry')) ?? '').trim();
   assert.ok(btnText.length > 0, 'Retry button must not be blank');
@@ -163,6 +165,15 @@ test('browser: unreachable retry button has visible non-empty label', async () =
   const color = await page.$eval('#unreachable-retry', (el) => getComputedStyle(el).color);
   // rgb white-ish
   assert.ok(color.includes('255') || color === 'white' || color === '#ffffff', `color=${color}`);
+  const title = ((await page.textContent('#unreachable-title')) ?? '').trim();
+  const detail = ((await page.textContent('#unreachable-detail')) ?? '').trim();
+  assert.match(title, /offline|Can.?t reach|Reconnecting/i, title);
+  assert.ok(detail.length > 0, 'detail must not be blank');
+  // Must not use the old Tailnet-only scare as the only explanation.
+  assert.ok(
+    !/^grokrc is offline from this phone\. Start Tailscale/i.test(detail),
+    `must not lead with Tailnet-only scare: ${detail}`
+  );
 });
 
 test('Windows relaunch actually starts the fake grok process', async (t) => {

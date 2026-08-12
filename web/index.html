@@ -252,9 +252,9 @@
 </header>
 
 <div class="unreachable-bar" id="unreachable" hidden role="alert">
-  <strong>Can&rsquo;t reach the machine</strong>
-  <div>grokrc is offline from this phone. Start Tailscale (Tailnet) on the PC and this device, then retry.</div>
-  <div class="hint">Also check: daemon running (<code>grokrc up</code>), same Tailnet, Serve/HTTPS URL if you use it.</div>
+  <strong id="unreachable-title">Can&rsquo;t reach grokrc</strong>
+  <div id="unreachable-detail">Connection dropped. Retrying…</div>
+  <div class="hint" id="unreachable-hint">Common causes: daemon stopped on the PC, Tailscale/Tailnet down, or Serve/HTTPS URL stale. Tailnet being &ldquo;up&rdquo; is not enough if <code>grokrc</code> is not running.</div>
   <button type="button" id="unreachable-retry" aria-label="Retry connection">Retry connection</button>
 </div>
 

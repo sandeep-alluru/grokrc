@@ -104,7 +104,8 @@ for local proof.
 | 13 | **B13** | Hand-back: Windows cannot find `grokrc-handback-….cmd` | win | **Yes** | **VERIFIED** (unit) |
 | 14 | **B14** | Hand-back still no TUI after “relaunch ok” | win | **Yes** | **VERIFIED** (code) |
 | 15 | **B15** | Hand-back always opens blank CMD (script never runs) | win | **Yes** | **VERIFIED** (unit + live smoke) · residual: daemon restart + owner |
-| — | B16+ | *(add before any new fix)* | | | OPEN |
+| 16 | **B16** | Unreachable banner blames Tailnet when daemon is down / WS blip | win (seen), all | **Yes** (UX) | **VERIFIED** (browser e2e) · residual: owner hard-refresh PWA |
+| — | B17+ | *(add before any new fix)* | | | OPEN |
 
 **Next to execute:** **B5** only after B4 unblocks (needs human phone).  
 **No further product code for B4** until Grok emits `session/request_permission` (or documents a client RPC for `pending_interaction`).
@@ -382,7 +383,41 @@ Documented only. No code change required for “kill terminal on take over.”
 | 2026-08-11 pass 10 | B14 | Spec’d → multi-method relaunch (spawn+Start-Process+cmd+explorer) |
 | 2026-08-11 process | — | Gate: no phone-test asks until local browser E2E is green |
 | 2026-08-11 pass 11 | B15 | Root cause: unquoted `start Grok` treats Grok as program; fix quoted title + pure argv |
+| 2026-08-12 pass 12 | B16 | Banner blamed Tailnet on any WS drop; daemon was actually stopped |
 | — | B5 | Waiting on B4 (upstream); phone only after local proof where applicable |
+
+---
+
+## B16 · Unreachable banner blames Tailnet when daemon is down
+
+| | |
+| -- | -- |
+| **Status** | **VERIFIED** (browser e2e) · residual: owner hard-refresh PWA |
+| **Platforms** | all (owner: Windows + phone over Tailnet) |
+| **Real bug?** | **Yes** (UX false cause) |
+| **Reproduce class** | owner: “machine not connecting start tailnet but it was up” |
+
+### Pre-fix
+
+| | |
+| -- | -- |
+| **Symptom** | Phone shows “Start Tailscale (Tailnet)” while Tailnet is connected |
+| **Actual** | Any WS `close`/`error` called `setConn('err')` → banner with Tailnet-first copy. Real causes also include **daemon stopped** (Scheduled Task Ready / health refused) and brief reconnects |
+| **Evidence** | Owner report; host: task Ready, `/api/health` connection refused while Tailnet up |
+| **Done when** | Banner debounced; copy refined via `/api/health` (offline vs host down vs reconnecting); does not lead with Tailnet-only when HTTP still works |
+
+### Fix
+
+- Debounce unreachable banner ~1.2s  
+- `fetch(/api/health)` to choose copy  
+- Restart daemon when task is dead  
+
+### Post-fix
+
+| | |
+| -- | -- |
+| **Verified how** | Daemon restarted healthy; Playwright unreachable test expects non-Tailnet-only copy when HTTP ok |
+| **Residual** | Owner hard-refresh PWA after deploy; confirm banner text on next drop |
 
 ---
 
