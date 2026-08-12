@@ -852,7 +852,7 @@ export class SessionManager extends EventEmitter {
     }
     const doRelaunch = opts.relaunch !== false;
     const relaunch = doRelaunch
-      ? relaunchGrokTui(cwd, sessionId)
+      ? await relaunchGrokTui(cwd, sessionId)
       : { ok: false, detail: 'relaunch skipped' };
     if (doRelaunch) {
       console.log(

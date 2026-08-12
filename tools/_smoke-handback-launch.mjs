@@ -70,13 +70,13 @@ for (let i = 0; i < 40; i++) {
 if (!flagOk) {
   console.error('FAIL: handback .cmd never wrote marker (blank/failed window)');
   // Still report production API shape for debugging
-  const r0 = relaunchGrokTui(process.cwd(), marker);
+  const r0 = await relaunchGrokTui(process.cwd(), marker);
   console.error('relaunch would be:', r0);
   process.exit(1);
 }
 console.log('OK: marker written — .cmd body ran (not blank)');
 
-const r = relaunchGrokTui(process.cwd(), marker);
+const r = await relaunchGrokTui(process.cwd(), marker);
 console.log('relaunch:', JSON.stringify(r, null, 2));
 if (!r.ok || !r.methods?.includes('cmd-start-script')) {
   console.error('FAIL expected cmd-start-script', r);

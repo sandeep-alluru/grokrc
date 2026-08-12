@@ -52,12 +52,19 @@ export function resolveGrokBinary(): string {
   return named;
 }
 
-export function relaunchGrokTui(cwd: string, sessionId: string): RelaunchResult {
+/**
+ * Open a new terminal with `grok -r`. Async so Linux can wait for a real spawn
+ * (ENOENT / missing DISPLAY are async on Node — a sync "ok" lied).
+ */
+export async function relaunchGrokTui(
+  cwd: string,
+  sessionId: string
+): Promise<RelaunchResult> {
   const os = platform();
   try {
     if (os === 'win32') return relaunchWindows(cwd, sessionId);
     if (os === 'darwin') return relaunchMac(cwd, sessionId);
-    return relaunchLinux(cwd, sessionId);
+    return await relaunchLinux(cwd, sessionId);
   } catch (err) {
     return { ok: false, detail: (err as Error).message };
   }
@@ -285,7 +292,77 @@ function relaunchMac(cwd: string, sessionId: string): RelaunchResult {
   return { ok: true, detail: 'requested Terminal.app' };
 }
 
-function relaunchLinux(cwd: string, sessionId: string): RelaunchResult {
+/** True if `cmd` resolves on PATH (or is an absolute existing path). */
+function commandOnPath(cmd: string): boolean {
+  if (!cmd) return false;
+  if (cmd.includes('/') || cmd.includes('\\')) return existsSync(cmd);
+  const pathEnv = process.env.PATH ?? '';
+  const sep = platform() === 'win32' ? ';' : ':';
+  for (const dir of pathEnv.split(sep)) {
+    if (!dir) continue;
+    if (existsSync(join(dir, cmd))) return true;
+  }
+  return false;
+}
+
+/**
+ * Spawn detached and wait until Node confirms the process started — or fails.
+ * Returning ok:true the moment spawn() returns is a lie: missing binaries and
+ * bad DISPLAY surface on the async `error` event, which we used to ignore.
+ */
+function spawnDetached(
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv }
+): Promise<{ ok: true } | { ok: false; err: string }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (r: { ok: true } | { ok: false; err: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(r);
+    };
+    let child: ChildProcess;
+    try {
+      child = spawn(cmd, args, {
+        detached: true,
+        stdio: 'ignore',
+        cwd: opts.cwd,
+        env: opts.env ?? process.env,
+      });
+    } catch (err) {
+      finish({ ok: false, err: (err as Error).message });
+      return;
+    }
+    child.once('error', (err) => finish({ ok: false, err: err.message }));
+    child.once('spawn', () => {
+      ignoreChild(child);
+      finish({ ok: true });
+    });
+    // Older Node without a reliable 'spawn' event: pid set ⇒ launched.
+    setTimeout(() => {
+      if (settled) return;
+      if (child.pid != null) {
+        ignoreChild(child);
+        finish({ ok: true });
+      } else {
+        finish({ ok: false, err: `${cmd}: no pid after spawn` });
+      }
+    }, 250);
+  });
+}
+
+async function relaunchLinux(cwd: string, sessionId: string): Promise<RelaunchResult> {
+  // systemd user units often start without a graphical session; refuse clearly
+  // instead of claiming success when no window can appear.
+  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    return {
+      ok: false,
+      detail:
+        'no DISPLAY or WAYLAND_DISPLAY in the daemon environment — cannot open a graphical terminal; use the copy-paste command',
+    };
+  }
+
   const bin = resolveGrokBinary();
   const shellCmd = `cd ${JSON.stringify(cwd)} && exec ${JSON.stringify(bin)} -r ${sessionId}; exec bash`;
   const candidates: { cmd: string; args: string[] }[] = [];
@@ -295,28 +372,36 @@ function relaunchLinux(cwd: string, sessionId: string): RelaunchResult {
       args: ['-e', 'bash', '-lc', shellCmd],
     });
   }
+  // Prefer a real emulator over the Debian alternatives wrapper: on Ubuntu
+  // x-terminal-emulator → gnome-terminal.wrapper, which has failed silently
+  // for some hand-backs. gnome-terminal's `--` form is the reliable one.
   candidates.push(
-    { cmd: 'x-terminal-emulator', args: ['-e', 'bash', '-lc', shellCmd] },
     { cmd: 'gnome-terminal', args: ['--', 'bash', '-lc', shellCmd] },
+    { cmd: 'x-terminal-emulator', args: ['-e', 'bash', '-lc', shellCmd] },
     { cmd: 'konsole', args: ['-e', 'bash', '-lc', shellCmd] },
     { cmd: 'xfce4-terminal', args: ['-e', `bash -lc ${JSON.stringify(shellCmd)}`] },
     { cmd: 'xterm', args: ['-e', 'bash', '-lc', shellCmd] }
   );
 
-  let lastErr = 'no terminal emulator found';
+  const tried: string[] = [];
   for (const c of candidates) {
-    try {
-      const child = spawn(c.cmd, c.args, {
-        detached: true,
-        stdio: 'ignore',
-        cwd,
-        env: process.env,
-      });
-      ignoreChild(child);
-      return { ok: true, detail: `requested ${c.cmd}` };
-    } catch (err) {
-      lastErr = (err as Error).message;
+    if (!commandOnPath(c.cmd)) {
+      tried.push(`${c.cmd}: not on PATH`);
+      continue;
     }
+    const result = await spawnDetached(c.cmd, c.args, { cwd, env: process.env });
+    if (result.ok) {
+      return {
+        ok: true,
+        detail: `opened ${c.cmd}`,
+        methods: tried.concat([c.cmd]),
+      };
+    }
+    tried.push(`${c.cmd}: ${result.err}`);
   }
-  return { ok: false, detail: lastErr };
+  return {
+    ok: false,
+    detail: `could not open a terminal (${tried.join('; ') || 'none available'})`,
+    methods: tried,
+  };
 }

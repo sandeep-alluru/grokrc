@@ -19,8 +19,8 @@ import {
   writeWindowsRelaunchPs1,
 } from '../src/daemon/relaunch-tui.ts';
 
-test('relaunchGrokTui returns a result object and does not throw', () => {
-  const r = relaunchGrokTui(process.cwd(), '019fabcd-0000-7000-8000-00000000rl');
+test('relaunchGrokTui returns a result object and does not throw', async () => {
+  const r = await relaunchGrokTui(process.cwd(), '019fabcd-0000-7000-8000-00000000rl');
   assert.equal(typeof r.ok, 'boolean');
   assert.equal(typeof r.detail, 'string');
   assert.ok(r.detail.length > 0);
@@ -39,8 +39,8 @@ test('B13: windows start with script uses NON-empty title so path is not the tit
   assert.equal(args[3], script);
 });
 
-test('B14: Windows relaunch uses a single primary path (no multi-spawn storm)', () => {
-  const r = relaunchGrokTui(process.cwd(), '019fabcd-0000-7000-8000-00000000b14');
+test('B14: Windows relaunch uses a single primary path (no multi-spawn storm)', async () => {
+  const r = await relaunchGrokTui(process.cwd(), '019fabcd-0000-7000-8000-00000000b14');
   assert.equal(typeof r.ok, 'boolean');
   if (process.platform === 'win32') {
     assert.ok(Array.isArray(r.methods) && r.methods.length >= 1, String(r.methods));

@@ -184,7 +184,7 @@ test('Windows relaunch actually starts the fake grok process', async (t) => {
     encoding: 'utf8',
   });
 
-  const r = relaunchGrokTui(tmp, '019fabcd-0000-7000-8000-00000000e2e');
+  const r = await relaunchGrokTui(tmp, '019fabcd-0000-7000-8000-00000000e2e');
   assert.equal(r.ok, true, r.detail);
   assert.ok(r.methods && r.methods.length >= 1, String(r.methods));
   assert.ok(
