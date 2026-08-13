@@ -252,7 +252,7 @@ async function refreshUnreachableBanner() {
     return;
   }
 
-  let httpOk = false;
+  let httpOk;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 2500);
@@ -1128,32 +1128,6 @@ function toolLabel(ev, prevText, prevRank) {
   // A later, vaguer event must not erase a better label.
   if (prevText && rank < prevRank) return { text: prevText, rank: prevRank };
   return { text, rank };
-}
-
-/**
- * Grok's tool results wrap the useful text in structure — a Bash result carries
- * `output` as an array of BYTE VALUES plus a human-readable `output_for_prompt`.
- * Dumping the raw object showed a wall of numbers, so prefer whichever field is
- * actually meant to be read.
- */
-function readableToolBody(body) {
-  if (typeof body === 'string') return body;
-  if (body && typeof body === 'object') {
-    for (const key of ['output_for_prompt', 'output_text', 'stdout', 'content', 'text']) {
-      if (typeof body[key] === 'string' && body[key].trim()) return body[key];
-    }
-    // Byte arrays are noise; drop them and show the rest.
-    const trimmed = {};
-    for (const [k, v] of Object.entries(body)) {
-      const isByteArray =
-        Array.isArray(v) &&
-        v.length > 4 &&
-        v.every((n) => typeof n === 'number' && n >= 0 && n < 256);
-      if (!isByteArray) trimmed[k] = v;
-    }
-    return JSON.stringify(trimmed, null, 2);
-  }
-  return String(body);
 }
 
 function upsertPlan(ev) {
