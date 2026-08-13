@@ -137,9 +137,7 @@ test('browser: create session then hand back shows released card with commands',
   assert.match(cardText, /grok -r|Set-Location|grokrc term/i, cardText);
 
   // Retry / unreachable must NOT be the only UI (connection should still be live).
-  const unreachableHidden = await page.$eval('#unreachable', (el) =>
-    (el as HTMLElement).hidden
-  );
+  const unreachableHidden = await page.$eval('#unreachable', (el) => (el as HTMLElement).hidden);
   assert.equal(unreachableHidden, true, 'hand-back must not drop the websocket');
 });
 

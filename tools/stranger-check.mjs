@@ -21,7 +21,17 @@
  *   node tools/stranger-check.mjs --pkg ./file.tgz
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, symlinkSync, copyFileSync, readdirSync, chmodSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  rmSync,
+  readFileSync,
+  existsSync,
+  symlinkSync,
+  copyFileSync,
+  readdirSync,
+  chmodSync,
+} from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { dirname, join, resolve, delimiter, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,7 +98,10 @@ function whichGrokOnRealMachine() {
     encoding: 'utf8',
     shell: false,
   });
-  const line = (r.stdout ?? '').split(/\r?\n/).map((s) => s.trim()).find(Boolean);
+  const line = (r.stdout ?? '')
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .find(Boolean);
   return line && existsSync(line) ? line : null;
 }
 
@@ -126,8 +139,8 @@ const nodeDir = dirname(process.execPath);
 const npmPath = run(IS_WIN ? 'where.exe' : 'command', IS_WIN ? ['npm'] : ['-v', 'npm'], {
   ...process.env,
   PATH: process.env.PATH,
-}).out
-  .split(/\r?\n/)
+})
+  .out.split(/\r?\n/)
   .map((s) => s.trim())
   .find(Boolean);
 const npmDir = npmPath ? dirname(npmPath) : nodeDir;
@@ -140,8 +153,11 @@ console.log('');
 
 // ── the machine really is bare ──────────────────────────────────────────────
 const grokLeak = run(IS_WIN ? 'where.exe' : 'command', IS_WIN ? ['grok'] : ['-v', 'grok'], env);
-const foundGrok = (grokLeak.out || '').split(/\r?\n/).map((s) => s.trim()).find(Boolean);
-if (!foundGrok || grokLeak.code !== 0) ok('grok is NOT installed (as a stranger\'s would be)');
+const foundGrok = (grokLeak.out || '')
+  .split(/\r?\n/)
+  .map((s) => s.trim())
+  .find(Boolean);
+if (!foundGrok || grokLeak.code !== 0) ok("grok is NOT installed (as a stranger's would be)");
 else bad('grok leaked into the sandbox PATH', foundGrok);
 
 if (!existsSync(join(sandbox, '.grok'))) ok('no Grok credentials in HOME');
@@ -230,7 +246,10 @@ if (installTarget) {
   console.log(head(doc.out));
   if (/not found|no grok|install/i.test(doc.out)) ok('doctor names the missing dependency');
   else bad('doctor does not tell a stranger that grok is missing', doc.out);
-  if (/Error:|ERR_[A-Z]+|Cannot find module|at Object\./.test(doc.out) && !/grok not found/i.test(doc.out)) {
+  if (
+    /Error:|ERR_[A-Z]+|Cannot find module|at Object\./.test(doc.out) &&
+    !/grok not found/i.test(doc.out)
+  ) {
     bad('doctor leaked a stack trace instead of a message');
   } else {
     ok('doctor fails cleanly, no stack trace');
@@ -288,7 +307,7 @@ if (installTarget) {
       // Credentials may have been found via something other than HOME — report honestly
       ok('doctor reaches the agent (credentials available outside sandbox HOME — noted)');
     } else {
-      bad('doctor passes the agent\'s raw auth error through without saying what to do', doc2.out);
+      bad("doctor passes the agent's raw auth error through without saying what to do", doc2.out);
     }
   } else {
     console.log('      (no grok binary on the real machine — skipped login checks)');
@@ -310,12 +329,17 @@ if (installTarget) {
   const cfgPath = join(sandbox, '.grokrc', 'config.json');
   try {
     const body = readFileSync(cfgPath, 'utf8');
-    if (body.includes('projects') || body.includes(projects.replace(/\\/g, '\\\\')) || body.includes(projects)) {
+    if (
+      body.includes('projects') ||
+      body.includes(projects.replace(/\\/g, '\\\\')) ||
+      body.includes(projects)
+    ) {
       ok('the setting persisted to a fresh HOME');
     } else {
       // Windows paths in JSON use backslashes escaped
       const normalized = body.replace(/\\\\/g, '\\');
-      if (normalized.includes(projects) || /projects/i.test(body)) ok('the setting persisted to a fresh HOME');
+      if (normalized.includes(projects) || /projects/i.test(body))
+        ok('the setting persisted to a fresh HOME');
       else bad('config did not persist', body);
     }
   } catch (err) {

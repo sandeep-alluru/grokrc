@@ -93,9 +93,7 @@ test('phone path: create session then release returns bash+powershell+term', asy
 
 test('release of a non-owned session returns a clear error (not silent)', async () => {
   const { sock, frames } = await pairAndConnect();
-  sock.send(
-    JSON.stringify({ t: 'release', sessionId: '019fabcd-0000-7000-8000-00000000zzz' })
-  );
+  sock.send(JSON.stringify({ t: 'release', sessionId: '019fabcd-0000-7000-8000-00000000zzz' }));
   const err = await frames.waitFor((m) => m.t === 'error' || m.t === 'released');
   assert.equal(err.t, 'error', 'must not pretend release succeeded');
   assert.match(String(err.message), /not owned|hand back/i);

@@ -108,13 +108,7 @@ export interface StdioTransportOptions {
    * (see tools/perm-probe.mjs) — this flag is necessary but not sufficient.
    */
   permissionMode?:
-    | 'default'
-    | 'acceptEdits'
-    | 'auto'
-    | 'dontAsk'
-    | 'bypassPermissions'
-    | 'plan'
-    | string;
+    'default' | 'acceptEdits' | 'auto' | 'dontAsk' | 'bypassPermissions' | 'plan' | string;
 }
 
 export class StdioTransport extends EventEmitter implements Transport {

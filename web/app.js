@@ -517,9 +517,7 @@ function handle(msg) {
       // Fresh transcript from the daemon — clear any stuck busy from events that
       // raced in before this frame (or from a previous observed turn).
       if (state.current && msg.sessionId === state.current.id) {
-        setBusy(
-          state.current.state === 'working' || state.current.state === 'thinking'
-        );
+        setBusy(state.current.state === 'working' || state.current.state === 'thinking');
       }
       renderTranscript(msg.events);
       break;
@@ -905,9 +903,7 @@ function renderReleasedCard(msg) {
   const bash = cmds.bash || msg.command || (msg.sessionId ? `grok -r ${msg.sessionId}` : '');
   const powershell =
     cmds.powershell ||
-    (msg.cwd && msg.sessionId
-      ? `Set-Location '${msg.cwd}'; grok -r ${msg.sessionId}`
-      : bash);
+    (msg.cwd && msg.sessionId ? `Set-Location '${msg.cwd}'; grok -r ${msg.sessionId}` : bash);
   const term = cmds.term || (msg.sessionId ? `grokrc term --session ${msg.sessionId}` : '');
 
   const addCmd = (label, command) => {
@@ -1001,8 +997,7 @@ function applyEvent(ev, replaying = false) {
         el.vSession.append(wrap);
         state.thinkingNode = body;
       }
-      state.thinkingNode.textContent =
-        text.length > 1200 ? text.slice(0, 1200) + '\n…' : text;
+      state.thinkingNode.textContent = text.length > 1200 ? text.slice(0, 1200) + '\n…' : text;
       break;
     }
 

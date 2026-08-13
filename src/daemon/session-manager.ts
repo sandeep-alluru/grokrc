@@ -711,9 +711,7 @@ export class SessionManager extends EventEmitter {
       const fromSeed = this.#missingTextEvents(seedLog, session.log);
       if (fromSeed.length) {
         session.log.unshift(...fromSeed);
-        console.log(
-          `  recovered ${fromSeed.length} event(s) from the observed stream (${id})`
-        );
+        console.log(`  recovered ${fromSeed.length} event(s) from the observed stream (${id})`);
       }
       const lost = this.#recoverLostTail(id, session.log);
       if (lost.length) {
@@ -855,9 +853,7 @@ export class SessionManager extends EventEmitter {
       ? await relaunchGrokTui(cwd, sessionId)
       : { ok: false, detail: 'relaunch skipped' };
     if (doRelaunch) {
-      console.log(
-        `  hand-back relaunch: ${relaunch.ok ? 'ok' : 'failed'} — ${relaunch.detail}`
-      );
+      console.log(`  hand-back relaunch: ${relaunch.ok ? 'ok' : 'failed'} — ${relaunch.detail}`);
       if (relaunch.methods?.length) {
         console.log(`  hand-back methods: ${relaunch.methods.join(' | ')}`);
       }

@@ -145,10 +145,7 @@ test('--leader and --leader-socket precede the subcommand', () => {
   assert.ok(stdioAt > 0, 'stdio subcommand must be present');
   assert.ok(agentAt >= 0, 'agent command must be present');
   // --permission-mode is top-level grok, before agent.
-  assert.ok(
-    argv.indexOf('--permission-mode') < agentAt,
-    '--permission-mode must precede agent'
-  );
+  assert.ok(argv.indexOf('--permission-mode') < agentAt, '--permission-mode must precede agent');
   assert.ok(argv.indexOf('--leader') < stdioAt, '--leader must precede stdio');
   assert.ok(argv.indexOf('--leader-socket') < stdioAt, '--leader-socket must precede stdio');
   // --model is a stdio-level flag and must come after.

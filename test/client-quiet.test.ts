@@ -3,17 +3,10 @@
  */
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import {
-  shouldSendToClient,
-  compactForClient,
-  type RcEvent,
-} from '../src/daemon/events.ts';
+import { shouldSendToClient, compactForClient, type RcEvent } from '../src/daemon/events.ts';
 
 test('commands, mode, and raw vendor kinds stay off the wire', () => {
-  assert.equal(
-    shouldSendToClient({ k: 'commands', sessionId: 's', commands: [] }),
-    false
-  );
+  assert.equal(shouldSendToClient({ k: 'commands', sessionId: 's', commands: [] }), false);
   assert.equal(shouldSendToClient({ k: 'mode', sessionId: 's', modeId: 'default' }), false);
   assert.equal(
     shouldSendToClient({ k: 'raw', sessionId: 's', kind: 'pending_interaction', payload: {} }),
