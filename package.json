@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.2.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",
     "eslint": "^10.8.0",
