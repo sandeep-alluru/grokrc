@@ -41,11 +41,9 @@ function ignoreChild(child: ChildProcess): void {
 export function resolveGrokBinary(): string {
   const win = platform() === 'win32';
   const named = win ? 'grok.exe' : 'grok';
-  const candidates = [
-    process.env.GROK_BIN,
-    join(homedir(), '.grok', 'bin', named),
-    named,
-  ].filter((x): x is string => typeof x === 'string' && x.length > 0);
+  const candidates = [process.env.GROK_BIN, join(homedir(), '.grok', 'bin', named), named].filter(
+    (x): x is string => typeof x === 'string' && x.length > 0
+  );
   for (const c of candidates) {
     if (c === named || existsSync(c)) return c;
   }
@@ -56,10 +54,7 @@ export function resolveGrokBinary(): string {
  * Open a new terminal with `grok -r`. Async so Linux can wait for a real spawn
  * (ENOENT / missing DISPLAY are async on Node — a sync "ok" lied).
  */
-export async function relaunchGrokTui(
-  cwd: string,
-  sessionId: string
-): Promise<RelaunchResult> {
+export async function relaunchGrokTui(cwd: string, sessionId: string): Promise<RelaunchResult> {
   const os = platform();
   try {
     if (os === 'win32') return relaunchWindows(cwd, sessionId);
@@ -79,11 +74,7 @@ function safeSessionFileId(sessionId: string): string {
  * PowerShell launcher — only single quotes, safe to embed in -Command or -File.
  * Prints a banner immediately so a blank window is never "silent success".
  */
-export function writeWindowsRelaunchPs1(
-  cwd: string,
-  sessionId: string,
-  grokBin?: string
-): string {
+export function writeWindowsRelaunchPs1(cwd: string, sessionId: string, grokBin?: string): string {
   const bin = grokBin ?? resolveGrokBinary();
   const ps1 = join(tmpdir(), `grokrc-handback-${safeSessionFileId(sessionId)}.ps1`);
   const body = [
@@ -217,9 +208,7 @@ export function windowsStartArgs(
     return ['/c', 'start', title, scriptPath];
   }
   const bin = grokBin ?? resolveGrokBinary();
-  const run = /[\s"]/.test(bin)
-    ? `${quoteCmd(bin)} -r ${sessionId}`
-    : `${bin} -r ${sessionId}`;
+  const run = /[\s"]/.test(bin) ? `${quoteCmd(bin)} -r ${sessionId}` : `${bin} -r ${sessionId}`;
   return ['/c', 'start', title, '/D', cwd, 'cmd.exe', '/k', run];
 }
 

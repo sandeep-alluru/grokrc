@@ -53,10 +53,7 @@ test('release refuses a session the daemon does not own', async () => {
   const sessions = new SessionManager({
     transportFactory: () => new QuietTransport() as never,
   });
-  await assert.rejects(
-    () => sessions.release('019fabcd-0000-7000-8000-00000000nope'),
-    /not owned/
-  );
+  await assert.rejects(() => sessions.release('019fabcd-0000-7000-8000-00000000nope'), /not owned/);
 });
 
 test('release closes an owned session and returns resume commands', async () => {

@@ -60,7 +60,10 @@ test('no doc claims Android push is verified while item 8 is open', async () => 
   const banned = /push is straightforward/i;
   for (const f of ['docs/GUIDE.md', 'README.md']) {
     const src = await read(f).catch(() => '');
-    assert.ok(!banned.test(src), `${f} asserts Android push works, but item 8 records it as untested`);
+    assert.ok(
+      !banned.test(src),
+      `${f} asserts Android push works, but item 8 records it as untested`
+    );
   }
 });
 
