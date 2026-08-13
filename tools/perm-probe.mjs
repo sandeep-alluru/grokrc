@@ -84,8 +84,7 @@ child.stdout.on('data', (chunk) => {
       if (msg.method === 'session/request_permission') {
         const opts = msg.params?.options ?? [];
         console.log('  options:', JSON.stringify(opts).slice(0, 400));
-        const allow =
-          opts.find((o) => /allow/i.test(o.optionId || o.name || '')) ?? opts[0];
+        const allow = opts.find((o) => /allow/i.test(o.optionId || o.name || '')) ?? opts[0];
         respond(msg.id, {
           outcome: { outcome: 'selected', optionId: allow?.optionId },
         });

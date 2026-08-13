@@ -31,11 +31,11 @@ function aliveMatching(needle) {
 
 // A: direct spawn -File windowsHide false
 {
-  const c = spawn(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1],
-    { detached: true, stdio: 'ignore', windowsHide: false }
-  );
+  const c = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+  });
   console.log('A spawn-ps1-file pid', c.pid);
   c.unref();
   await sleep(2000);
@@ -50,11 +50,11 @@ function aliveMatching(needle) {
     `-ArgumentList @('-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-File',${quoted}) ` +
     `-WindowStyle Normal`;
   console.log('B cmd', cmd);
-  const c = spawn(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
-    { detached: true, stdio: 'ignore', windowsHide: true }
-  );
+  const c = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
   console.log('B helper pid', c.pid);
   c.unref();
   await sleep(2500);
@@ -65,7 +65,18 @@ function aliveMatching(needle) {
 {
   const c = spawn(
     'cmd.exe',
-    ['/c', 'start', 'GrokHandback', 'powershell.exe', '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1],
+    [
+      '/c',
+      'start',
+      'GrokHandback',
+      'powershell.exe',
+      '-NoExit',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      ps1,
+    ],
     { detached: true, stdio: 'ignore', windowsHide: true }
   );
   console.log('C cmd-start pid', c.pid);

@@ -12,9 +12,13 @@ try {
 }
 writeFileSync(
   bat,
-  ['@echo off', 'title Grok hand-back', `echo alive>"${flag}"`, 'timeout /t 4 /nobreak >nul', ''].join(
-    '\r\n'
-  )
+  [
+    '@echo off',
+    'title Grok hand-back',
+    `echo alive>"${flag}"`,
+    'timeout /t 4 /nobreak >nul',
+    '',
+  ].join('\r\n')
 );
 
 function sleep(ms) {

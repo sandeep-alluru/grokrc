@@ -82,8 +82,7 @@ yolo = false
         agentReqs.push(msg.method);
         if (msg.method === 'session/request_permission') {
           const opts = msg.params?.options ?? [];
-          const allow =
-            opts.find((o) => /allow/i.test(o.optionId || o.name || '')) ?? opts[0];
+          const allow = opts.find((o) => /allow/i.test(o.optionId || o.name || '')) ?? opts[0];
           respond(msg.id, {
             outcome: { outcome: 'selected', optionId: allow?.optionId },
           });

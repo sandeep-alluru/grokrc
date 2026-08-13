@@ -105,9 +105,7 @@ try {
   // from the exit decision so a green CI/laptop run is not a lie, while still
   // printing it above so operators see the boundary.
   const blocking = problems.filter(
-    (p) =>
-      !/PushSubscription failed/i.test(p) &&
-      !/no console errors/i.test(p) // console noise often accompanies the above
+    (p) => !/PushSubscription failed/i.test(p) && !/no console errors/i.test(p) // console noise often accompanies the above
   );
   // Re-add console-error failures only when they are not the known push/incognito note.
   const productProblems = problems.filter((p) => {

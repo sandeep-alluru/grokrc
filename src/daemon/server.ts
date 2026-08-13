@@ -12,11 +12,7 @@ import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { AuthStore, type Device } from './auth.ts';
-import {
-  compactForClient,
-  shouldSendToClient,
-  type RcEvent,
-} from './events.ts';
+import { compactForClient, shouldSendToClient, type RcEvent } from './events.ts';
 import type { PushService } from './push.ts';
 import { SessionManager } from './session-manager.ts';
 import { readBody } from '../http-body.ts';
