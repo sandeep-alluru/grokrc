@@ -257,7 +257,7 @@ export class RemoteControlServer {
 
     // Grok's own TUI writes `active_sessions.json` and session dirs without
     // telling us. Without a poll, a phone that opened the list before you
-    // started `grok` never sees that session until reconnect — USER-GUIDE
+    // started `grok` never sees that session until reconnect
     // promises "within a second or two". Cheap: readdir + one JSON read.
     this.#discoveryTimer = setInterval(() => {
       void this.#pollExternalSessions();
