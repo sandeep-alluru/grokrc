@@ -1,0 +1,27 @@
+=== G3 format ===
+
+> grokrc@0.2.1 format:check
+> prettier --check "{src,test,tools,web}/**/*.{ts,js,mjs}" "*.{json,js}"
+
+Checking formatting...
+[warn] src/acp/transport.ts
+[warn] src/daemon/relaunch-tui.ts
+[warn] src/daemon/server.ts
+[warn] src/daemon/session-manager.ts
+[warn] test/client-quiet.test.ts
+[warn] test/docs.test.ts
+[warn] test/handback-e2e.test.ts
+[warn] test/leader.test.ts
+[warn] test/release-ws.test.ts
+[warn] test/release.test.ts
+[warn] tools/_discover-check.mjs
+[warn] tools/_probe-spawn.mjs
+[warn] tools/_probe-start.mjs
+[warn] tools/https-push-check.mjs
+[warn] tools/perm-probe-flag.mjs
+[warn] tools/perm-probe-modes.mjs
+[warn] tools/perm-probe.mjs
+[warn] tools/stranger-check.mjs
+[warn] web/app.js
+[warn] Code style issues found in 19 files. Run Prettier with --write to fix.
+EXIT:1

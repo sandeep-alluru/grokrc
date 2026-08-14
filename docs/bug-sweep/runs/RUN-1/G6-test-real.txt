@@ -1,0 +1,135 @@
+=== G6 test:real ===
+
+> grokrc@0.2.1 test:real
+> node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs && node tools/isolated-test.mjs tools/acp-conformance.mjs
+
+file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:174
+    throw new Error(
+          ^
+
+Error: dist/ is 77s older than src/ — you are about to test the PREVIOUS build. Run `npm run build` first. (This exact trap produced six false results on #19.)
+    at assertBuildIsFresh (file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:174:11)
+    at async bootDaemon (file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:209:26)
+    at async file:///home/clawer-samurai-1/AgentHub/grokrc/tools/live-ui-check.mjs:32:16
+
+Node.js v22.22.2
+EXIT:1
+=== G6 retry after build ===
+
+> grokrc@0.2.1 test:real
+> node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs && node tools/isolated-test.mjs tools/acp-conformance.mjs
+
+
+prompt sent: "hi, how are you?"
+waiting for the agent…
+
+  ✓ prompt appears exactly once (found 1)
+  ✓ thinking rendered as 1 block(s), not one per word
+  ✓ thinking blocks hold full text (largest 22 words)
+  ✓ no thinking block repeats itself (0 duplicated)
+  ✓ tool output is readable, not a raw byte array (0 dumps)
+  ✓ agent replied (1 message block(s))
+  ✓ no duplicated agent message blocks
+  ✓ reply not fragmented (1 bubbles for 0 tool call(s))
+  ✓ no horizontal overflow at phone width
+  ✓ thinking blocks are height-capped
+
+  reply preview:
+    "Doing well — thanks for asking.
+
+What can I help you with today?"
+
+─── ALL CLEAR ───
+
+screenshot -> docs/screenshots/live-turn.png
+  ✓ session created (019ffcb9-2a55-75a3-9beb-37c52631d4a4)
+  · planted codeword, closing the session…
+  ✓ past session opens read-only (composer hidden)
+  ✓ a Resume affordance is offered
+  recovered 1 event(s) from the observed stream (019ffcb9-2a55-75a3-9beb-37c52631d4a4)
+  recovered 1 event(s) the agent never persisted (019ffcb9-2a55-75a3-9beb-37c52631d4a4)
+  ✓ composer returns after resuming
+  ✓ resume bar disappears once live
+  ✓ agent recalled the codeword across the resume (PURPLE-ELEPHANT-77)
+  ✓ send button resets to "Send" once the turn ends
+
+─── ALL CLEAR ───
+  ✓ session created (019ffcb9-4882-7d62-92f6-0b5ad39b050f)
+  ✓ turn is streaming (74 chars captured)
+  ✓ agent closed mid-turn (owned in-process)
+  [agent error] agent process exited
+  [agent error] agent exited (code 143) while awaiting session/prompt
+  recovered 2 event(s) the agent never persisted (019ffcb9-4882-7d62-92f6-0b5ad39b050f)
+  resumed history: 5 event(s), kinds: {"text":2,"commands":2,"thinking":1}
+  streamed kinds during the turn: {"text":76,"status":2,"thinking":1,"error":2,"commands":1}
+  ✓ resumed history is not empty (74 chars)
+  ✓ the last streamed line ("28") survived the resume
+
+─── ALL CLEAR ───
+
+  ─── what MockTransport claims about the agent ───
+  session/update kinds : agent_thought_chunk, agent_message_chunk, plan, tool_call, tool_call_update, turn_completed
+  notify methods       : session/update
+  request methods      : session/request_permission
+  tool_call fields     : toolCallId, title, kind, status, rawInput, rawOutput
+  permission kinds     : allow_always, allow_once, reject_once
+  ✓ mock asserts 6 session/update kind(s)
+  ✓ real grok session created (019ffcb9-6ec4-7000-af31-3d99ff5e5983)
+
+  ─── what grok actually sent ───
+  agent under test     : grok 1.0.3 (1a29d5bc12)
+  update agent_message_chunk          x29
+  update agent_thought_chunk          x70
+  update available_commands_update    x4
+  update hook_execution               x4
+  update interaction_resolved         x1
+  update last_turn_summary            x1
+  update model_changed                x1
+  update pending_interaction          x1
+  update response_completed           x2
+  update session_info_update          x1
+  update session_summary_generated    x1
+  update tool_call                    x1
+  update tool_call_delta_chunk        x2
+  update tool_call_update             x2
+  update turn_completed               x1
+  update user_message_chunk           x1
+  method _x.ai/announcements/update   x3
+  method _x.ai/mcp/init_progress      x11
+  method _x.ai/mcp/server_status      x12
+  method _x.ai/mcp/servers_updated    x1
+  method _x.ai/mcp/tools_changed      x1
+  method _x.ai/mcp_initialized        x1
+  method _x.ai/models/update          x3
+  method _x.ai/queue/changed          x3
+  method _x.ai/session/prompt_complete x1
+  method _x.ai/session_notification   x14
+  method _x.ai/sessions/changed       x2
+  method _x.ai/settings/update        x2
+  method session/request_permission   x1
+  method session/update               x108
+  tool_call fields     : _meta, arguments_delta, content, kind, locations, name, rawInput, rawOutput, status, title, toolCallId, tool_call_id, tool_index
+  permission kinds     : allow_always, allow_once, reject_once
+
+  ─── claim-by-claim ───
+  ✓ agent_message_chunk
+  ✓ agent_thought_chunk
+  · plan  — not produced by this turn
+  ✓ tool_call
+  ✓ tool_call_update
+  ✓ turn_completed
+
+  NOTE: 1 claimed kind(s) not produced by this particular turn: plan — model-dependent, not proof of drift.
+  ✓ the agent still streams `agent_message_chunk` (the mock's core claim)
+  ✓ the agent still delivers updates via the `session/update` notification
+  ✗ the agent sends things the pin does not know about — review, then re-pin: kinds=[] methods=[_x.ai/mcp/tools_changed]
+  ✓ no kind regressed into an opaque passthrough (9 known opaque)
+
+  OPAQUE: 9 of 16 live kinds reach the client as `raw` — no specific handling: hook_execution, interaction_resolved, last_turn_summary, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk
+  ✓ permission option kinds still match the capture (allow_always, allow_once, reject_once)
+
+  COVERAGE GAP: live kinds no mock-backed test ever sees: available_commands_update, hook_execution, interaction_resolved, last_turn_summary, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk, user_message_chunk
+
+─── 1 PROBLEM(S) ───
+  · the agent sends things the pin does not know about — review, then re-pin: kinds=[] methods=[_x.ai/mcp/tools_changed]
+EXIT:1

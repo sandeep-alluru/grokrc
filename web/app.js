@@ -1125,6 +1125,11 @@ function toolLabel(ev, prevText, prevRank) {
   return { text, rank };
 }
 
+// Tool rows are one-line (label + status) only — full I/O payloads are not
+// rendered on the phone (upsertTool drops any leftover <pre>). A former
+// readableToolBody() helper lived here for byte-array tool results; it was
+// never wired after the one-line UI decision and was removed as dead code.
+
 function upsertPlan(ev) {
   if (!state.planNode) {
     state.planNode = document.createElement('div');

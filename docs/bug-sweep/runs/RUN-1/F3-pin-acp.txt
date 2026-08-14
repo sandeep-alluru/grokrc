@@ -1,0 +1,70 @@
+=== pin:acp ===
+
+> grokrc@0.2.1 pin:acp
+> node --experimental-strip-types tools/acp-conformance.mjs --pin
+
+
+  ─── what MockTransport claims about the agent ───
+  session/update kinds : agent_thought_chunk, agent_message_chunk, plan, tool_call, tool_call_update, turn_completed
+  notify methods       : session/update
+  request methods      : session/request_permission
+  tool_call fields     : toolCallId, title, kind, status, rawInput, rawOutput
+  permission kinds     : allow_always, allow_once, reject_once
+  ✓ mock asserts 6 session/update kind(s)
+  ✓ real grok session created (019ffcba-2940-7182-94c9-4836ec5bc707)
+
+  ─── what grok actually sent ───
+  agent under test     : grok 1.0.3 (1a29d5bc12)
+  update agent_message_chunk          x23
+  update agent_thought_chunk          x121
+  update available_commands_update    x5
+  update hook_execution               x5
+  update interaction_resolved         x2
+  update model_changed                x1
+  update pending_interaction          x2
+  update response_completed           x3
+  update session_info_update          x1
+  update session_summary_generated    x1
+  update tool_call                    x2
+  update tool_call_delta_chunk        x4
+  update tool_call_update             x6
+  update turn_completed               x1
+  update user_message_chunk           x1
+  method _x.ai/announcements/update   x3
+  method _x.ai/mcp/init_progress      x11
+  method _x.ai/mcp/server_status      x12
+  method _x.ai/mcp/servers_updated    x1
+  method _x.ai/mcp/tools_changed      x1
+  method _x.ai/mcp_initialized        x1
+  method _x.ai/models/update          x3
+  method _x.ai/queue/changed          x3
+  method _x.ai/session/prompt_complete x1
+  method _x.ai/session_notification   x19
+  method _x.ai/sessions/changed       x2
+  method _x.ai/settings/update        x2
+  method session/request_permission   x2
+  method session/update               x159
+  tool_call fields     : _meta, arguments_delta, content, kind, locations, name, rawInput, rawOutput, status, title, toolCallId, tool_call_id, tool_index
+  permission kinds     : allow_always, allow_once, reject_once
+
+  ─── claim-by-claim ───
+  ✓ agent_message_chunk
+  ✓ agent_thought_chunk
+  · plan  — not produced by this turn
+  ✓ tool_call
+  ✓ tool_call_update
+  ✓ turn_completed
+
+  NOTE: 1 claimed kind(s) not produced by this particular turn: plan — model-dependent, not proof of drift.
+  ✓ the agent still streams `agent_message_chunk` (the mock's core claim)
+  ✓ the agent still delivers updates via the `session/update` notification
+
+  PINNED 15 kind(s) and 14 method(s) to /home/clawer-samurai-1/AgentHub/grokrc/test/fixtures/acp-surface.json
+
+  OPAQUE: 8 of 15 live kinds reach the client as `raw` — no specific handling: hook_execution, interaction_resolved, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk
+  ✓ permission option kinds still match the capture (allow_always, allow_once, reject_once)
+
+  COVERAGE GAP: live kinds no mock-backed test ever sees: available_commands_update, hook_execution, interaction_resolved, model_changed, pending_interaction, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk, user_message_chunk
+
+─── ALL CLEAR ───
+EXIT:0

@@ -1,0 +1,11 @@
+=== G10 directive ===
+
+  directive-check · /home/clawer-samurai-1/AgentHub/grokrc
+
+  · 03: 16/56 test files reference mock/stub/fake — DEBT under law 4; they may not be cited as proof that production works
+  · 09/02/11: no transcripts for this project — session checks skipped
+  · 01: 5 audit/sweep file(s) truncate output without declaring it — a silent cap reads as coverage. Say what was dropped: tools/_discover-check.mjs (1 cap site(s)); tools/backlog-report.mjs (1 cap site(s)); tools/https-e2e-check.mjs (2 cap site(s)); tools/live-ui-check.mjs (3 cap site(s))
+
+  ✓ no violations of the mechanisable directives
+
+EXIT:0

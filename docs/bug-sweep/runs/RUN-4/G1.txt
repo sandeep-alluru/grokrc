@@ -1,0 +1,6 @@
+=== G1 typecheck ===
+
+> grokrc@0.2.1 typecheck
+> tsc -p tsconfig.json --noEmit
+
+EXIT:0

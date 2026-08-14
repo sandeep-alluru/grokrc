@@ -1,0 +1,114 @@
+=== G6 real ===
+
+> grokrc@0.2.1 test:real
+> node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs && node tools/isolated-test.mjs tools/acp-conformance.mjs
+
+
+prompt sent: "hi, how are you?"
+waiting for the agent…
+
+  ✓ prompt appears exactly once (found 1)
+  ✓ thinking rendered as 1 block(s), not one per word
+  ✓ thinking blocks hold full text (largest 37 words)
+  ✓ no thinking block repeats itself (0 duplicated)
+  ✓ tool output is readable, not a raw byte array (0 dumps)
+  ✓ agent replied (1 message block(s))
+  ✓ no duplicated agent message blocks
+  ✓ reply not fragmented (1 bubbles for 0 tool call(s))
+  ✓ no horizontal overflow at phone width
+  ✓ thinking blocks are height-capped
+
+  reply preview:
+    "Doing well, thanks. What would you like to work on?"
+
+─── ALL CLEAR ───
+
+screenshot -> docs/screenshots/live-turn.png
+  ✓ session created (019ffcd3-38ea-7d20-a5de-8219a60c56db)
+  · planted codeword, closing the session…
+  ✓ past session opens read-only (composer hidden)
+  ✓ a Resume affordance is offered
+  recovered 1 event(s) from the observed stream (019ffcd3-38ea-7d20-a5de-8219a60c56db)
+  recovered 1 event(s) the agent never persisted (019ffcd3-38ea-7d20-a5de-8219a60c56db)
+  ✓ composer returns after resuming
+  ✓ resume bar disappears once live
+  ✓ agent recalled the codeword across the resume (PURPLE-ELEPHANT-77)
+  ✓ send button resets to "Send" once the turn ends
+
+─── ALL CLEAR ───
+  ✓ session created (019ffcd3-56de-7393-918b-bcd1be4df951)
+  ✓ turn is streaming (84 chars captured)
+  ✓ agent closed mid-turn (owned in-process)
+  [agent error] agent process exited
+  [agent error] agent exited (code 143) while awaiting session/prompt
+  recovered 2 event(s) the agent never persisted (019ffcd3-56de-7393-918b-bcd1be4df951)
+  resumed history: 5 event(s), kinds: {"text":2,"commands":2,"thinking":1}
+  streamed kinds during the turn: {"text":71,"status":2,"thinking":1,"error":2,"commands":1}
+  ✓ resumed history is not empty (84 chars)
+  ✓ the last streamed line ("31") survived the resume
+
+─── ALL CLEAR ───
+
+  ─── what MockTransport claims about the agent ───
+  session/update kinds : agent_thought_chunk, agent_message_chunk, plan, tool_call, tool_call_update, turn_completed
+  notify methods       : session/update
+  request methods      : session/request_permission
+  tool_call fields     : toolCallId, title, kind, status, rawInput, rawOutput
+  permission kinds     : allow_always, allow_once, reject_once
+  ✓ mock asserts 6 session/update kind(s)
+  ✓ real grok session created (019ffcd3-7f6e-75b2-97a9-90f6ae755294)
+
+  ─── what grok actually sent ───
+  agent under test     : grok 1.0.3 (1a29d5bc12)
+  update agent_message_chunk          x327
+  update agent_thought_chunk          x777
+  update available_commands_update    x24
+  update hook_annotation              x24
+  update hook_execution               x27
+  update model_changed                x1
+  update response_completed           x22
+  update session_info_update          x1
+  update session_summary_generated    x1
+  update tool_call                    x24
+  update tool_call_delta_chunk        x48
+  update tool_call_update             x48
+  update turn_completed               x1
+  update user_message_chunk           x1
+  method _x.ai/announcements/update   x3
+  method _x.ai/mcp/init_progress      x11
+  method _x.ai/mcp/server_status      x14
+  method _x.ai/mcp/servers_updated    x1
+  method _x.ai/mcp/tools_changed      x1
+  method _x.ai/mcp_initialized        x1
+  method _x.ai/models/update          x3
+  method _x.ai/queue/changed          x3
+  method _x.ai/session/prompt_complete x1
+  method _x.ai/session_notification   x124
+  method _x.ai/sessions/changed       x2
+  method _x.ai/settings/update        x2
+  method session/update               x1202
+  tool_call fields     : _meta, arguments_delta, content, kind, locations, name, rawInput, status, title, toolCallId, tool_call_id, tool_index
+  permission kinds     : (none seen)
+
+  ─── claim-by-claim ───
+  ✓ agent_message_chunk
+  ✓ agent_thought_chunk
+  · plan  — not produced by this turn
+  ✓ tool_call
+  ✓ tool_call_update
+  ✓ turn_completed
+
+  NOTE: 1 claimed kind(s) not produced by this particular turn: plan — model-dependent, not proof of drift.
+  ✓ the agent still streams `agent_message_chunk` (the mock's core claim)
+  ✓ the agent still delivers updates via the `session/update` notification
+  ✓ agent protocol surface matches the pin (14 kinds, 13 methods, agent grok 1.0.3 (1a29d5bc12))
+  · pinned but not produced by this turn: interaction_resolved, last_turn_summary, pending_interaction
+  ✓ no kind regressed into an opaque passthrough (10 known opaque)
+
+  OPAQUE: 7 of 14 live kinds reach the client as `raw` — no specific handling: hook_annotation, hook_execution, model_changed, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk
+  · the agent did not ask permission on this turn — option shape unchecked
+
+  COVERAGE GAP: live kinds no mock-backed test ever sees: available_commands_update, hook_annotation, hook_execution, model_changed, response_completed, session_info_update, session_summary_generated, tool_call_delta_chunk, user_message_chunk
+
+─── ALL CLEAR ───
+EXIT:0

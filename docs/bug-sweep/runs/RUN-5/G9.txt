@@ -1,0 +1,53 @@
+=== G9 stranger ===
+
+> grokrc@0.2.1 check:stranger
+> node tools/stranger-check.mjs
+
+
+  stranger check — HOME=/tmp/grokrc-stranger-goFCWR
+  node v22.22.2, platform linux
+
+  ✓ grok is NOT installed (as a stranger's would be)
+  ✓ no Grok credentials in HOME
+  ✓ no grokrc config in HOME
+
+  packing current tree…
+  ✓ packed current tree as grokrc-0.2.1.tgz
+
+  installing /tmp/grokrc-stranger-goFCWR/grokrc-0.2.1.tgz into sandbox prefix…
+  ✓ npm install -g succeeded
+  ✓ grokrc binary is on the prefix (/tmp/grokrc-stranger-goFCWR/.local/bin/grokrc)
+  ✓ the PWA shipped with it
+
+  --- with NO grok installed ---
+      
+        ✗ grok not found on PATH — install: curl -fsSL https://x.ai/cli/install.sh | bash
+          after installing, sign in with:  grok login
+      
+  ✓ doctor names the missing dependency
+  ✓ doctor fails cleanly, no stack trace
+      
+        ✗ grok not found on PATH — install: curl -fsSL https://x.ai/cli/install.sh | bash
+          grokrc drives Grok Build — it cannot start a session without it.
+          After installing, sign in with:  grok login
+      
+      
+  ✓ up explains the missing dependency
+
+  --- with grok present ---
+      (no grok binary on the real machine — skipped login checks)
+
+  --- required configuration ---
+      
+        /tmp/grokrc-stranger-goFCWR/.grokrc/config.json
+      
+        (empty — nothing configured yet)
+      
+        ⚠ No default project directory configured.
+  ✓ config tells a stranger defaultCwd is needed
+  ✓ config set defaultCwd works
+  ✓ the setting persisted to a fresh HOME
+
+  ── 13 passed, 0 failed ──
+  sandbox: /tmp/grokrc-stranger-goFCWR (removing)
+EXIT:0

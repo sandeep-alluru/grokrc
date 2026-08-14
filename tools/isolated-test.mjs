@@ -22,9 +22,24 @@
 import { spawn } from 'node:child_process';
 import { copyFile, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 const REAL_SESSIONS = join(process.env.HOME ?? homedir(), '.grok', 'sessions');
+
+/**
+ * Real leaks from forgetting GROK_HOME write sessions whose cwd is a scratch
+ * dir (mkdtemp under os.tmpdir(), or a test-named path). Concurrent real
+ * `grok` work in a normal project also creates new session folders during a
+ * long suite — that is not a suite leak. Only scratch cwds count as DETECT hits.
+ */
+function isScratchCwd(cwd) {
+  if (!cwd) return false;
+  const t = tmpdir();
+  if (cwd === t || cwd.startsWith(t + sep) || cwd.startsWith(t + '/')) return true;
+  if (cwd.startsWith('/tmp/') || cwd.startsWith('/var/folders/')) return true;
+  if (/grokrc-testhome|grokrc-leadertest|isolated-test|node-test-/.test(cwd)) return true;
+  return false;
+}
 
 /** Every session id currently in the developer's real Grok history. */
 async function snapshot() {
@@ -71,7 +86,16 @@ const code = await new Promise((resolve) => {
 await rm(home, { recursive: true, force: true });
 
 const after = await snapshot();
-const leaked = [...after].filter((s) => !before.has(s));
+const newcomers = [...after].filter((s) => !before.has(s));
+const leaked = newcomers.filter((s) => isScratchCwd(s.split('::')[0] ?? ''));
+const concurrent = newcomers.filter((s) => !isScratchCwd(s.split('::')[0] ?? ''));
+
+if (concurrent.length) {
+  console.error(
+    `\n  · ignored ${concurrent.length} new real ~/.grok session(s) with non-scratch cwd` +
+      ` (concurrent agent work, not a suite leak)\n`
+  );
+}
 
 if (leaked.length) {
   console.error(`\n  ✗ the suite wrote ${leaked.length} session(s) into your real ~/.grok:\n`);

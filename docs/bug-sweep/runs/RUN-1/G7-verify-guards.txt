@@ -1,0 +1,74 @@
+=== G7 verify:guards ===
+
+> grokrc@0.2.1 verify:guards
+> node tools/verify-guards.mjs
+
+
+  verifying 33 guard(s)
+
+  · baseline test/paths.test.ts … pass
+  · path-containment-refuses-escapes     disabling … test fails  ✓
+  · takeover-identity-matches-the-platform-shape UNPROVABLE HERE — win32-only control, running on posix
+  · baseline test/store-write-failure.test.ts … pass
+  · background-writes-cannot-kill-the-daemon disabling … test fails  ✓
+  · http-handler-rejection-is-answered   disabling … test fails  ✓
+  · config-dir-drops-inherited-access    UNPROVABLE HERE — win32-only control, running on posix
+  · baseline test/exposure-notice.test.ts … pass
+  · exposure-notice-tells-the-truth      disabling … test fails  ✓
+  · baseline test/push-prompt.test.ts … pass
+  · push-prompt-always-renders           disabling … test fails  ✓
+  · push-row-is-not-a-session            disabling … test fails  ✓
+  · baseline test/handback.test.ts … pass
+  · handback-survives-transcript-render  disabling … test fails  ✓
+  · baseline test/vapid-subject.test.ts … pass
+  · vapid-subject-is-routable            disabling … test fails  ✓
+  · baseline test/pairing-codes.test.ts … pass
+  · pairing-codes-do-not-cancel-each-other disabling … test fails  ✓
+  · baseline test/doctor-daemon.test.ts … pass
+  · doctor-asks-the-running-daemon       disabling … test fails  ✓
+  · baseline test/term-exit.test.ts … pass
+  · term-exits-when-no-session-opened    disabling … test fails  ✓
+  · baseline test/session-cleanup.test.ts … pass
+  · session-cleanup-stays-in-the-store   disabling … test fails  ✓
+  · baseline test/midturn.test.ts … pass
+  · flush-before-retain                  disabling … test fails  ✓
+  · baseline test/asset-version.test.ts … pass
+  · health-reports-real-version          disabling … test fails  ✓
+  · baseline test/onboarding.test.ts … pass
+  · up-refuses-without-agent             disabling … test fails  ✓
+  · doctor-names-the-login-command       disabling … test fails  ✓
+  · baseline test/busy-state.test.ts … pass
+  · busy-not-derived-from-history        disabling … test fails  ✓
+  · baseline test/takeover.test.ts … pass
+  · takeover-pid-identity                disabling … test fails  ✓
+  · baseline test/spawn-failure.test.ts … pass
+  · cwd-must-exist                       disabling … test fails  ✓
+  · spawn-error-is-not-fatal             disabling … test fails  ✓
+  · baseline test/harness-isolation.test.ts … pass
+  · harness-refuses-real-grok-home       disabling … test fails  ✓
+  · baseline test/transport-resilience.test.ts … pass
+  · ndjson-line-ceiling                  disabling … test fails  ✓
+  · stdin-error-handler                  disabling … test fails  ✓
+  · baseline test/relay-isolation.test.ts … pass
+  · relay-room-ownership                 disabling … test fails  ✓
+  · baseline test/config-reload.test.ts … pass
+  · config-reload-reaches-the-daemon     disabling … test fails  ✓
+  · config-reload-admits-what-it-cannot-apply disabling … test fails  ✓
+  · baseline test/browser.test.ts … pass
+  · tool-row-keeps-the-filename          disabling … test fails  ✓
+  · baseline test/body-encoding.test.ts … pass
+  · request-bodies-decode-once           disabling … test fails  ✓
+  · baseline test/relay-transport-only.test.ts … pass
+  · relay-can-refuse-to-serve-the-client disabling … test fails  ✓
+  · baseline test/live-event-size.test.ts … pass
+  · live-events-are-capped               disabling … test fails  ✓
+  · baseline tools/acp-conformance.mjs … pass
+  · turn-completion-is-understood        disabling … test fails  ✓
+
+  31/33 guard(s) proven load-bearing
+  2 UNPROVABLE in this environment — not counted as proven:
+    · takeover-identity-matches-the-platform-shape (test/takeover.test.ts skips itself here)
+    · config-dir-drops-inherited-access (test/config-dir.test.ts skips itself here)
+  every control is doing work, and its test can see it.
+
+EXIT:0

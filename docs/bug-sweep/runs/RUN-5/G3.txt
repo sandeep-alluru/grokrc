@@ -1,0 +1,8 @@
+=== G3 format ===
+
+> grokrc@0.2.1 format:check
+> prettier --check "{src,test,tools,web}/**/*.{ts,js,mjs}" "*.{json,js}"
+
+Checking formatting...
+All matched files use Prettier code style!
+EXIT:0

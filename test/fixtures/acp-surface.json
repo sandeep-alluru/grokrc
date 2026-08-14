@@ -1,10 +1,11 @@
 {
-  "_comment": "MEASURED, never hand-edited. Regenerate with: node --experimental-strip-types tools/acp-conformance.mjs --pin  — then read the diff before committing it.",
-  "agent": "grok 1.0.0 (3cd0d0cbce)",
+  "_comment": "MEASURED, never hand-edited. Regenerate with: node --experimental-strip-types tools/acp-conformance.mjs --pin  — then read the diff before committing it. Pin is a UNION across pin runs (intermittent kinds accumulate).",
+  "agent": "grok 1.0.3 (1a29d5bc12)",
   "updateKinds": [
     "agent_message_chunk",
     "agent_thought_chunk",
     "available_commands_update",
+    "hook_annotation",
     "hook_execution",
     "interaction_resolved",
     "last_turn_summary",
@@ -24,6 +25,7 @@
     "_x.ai/mcp/init_progress",
     "_x.ai/mcp/server_status",
     "_x.ai/mcp/servers_updated",
+    "_x.ai/mcp/tools_changed",
     "_x.ai/mcp_initialized",
     "_x.ai/models/update",
     "_x.ai/queue/changed",
@@ -31,12 +33,11 @@
     "_x.ai/session_notification",
     "_x.ai/sessions/changed",
     "_x.ai/settings/update",
-    "fs/read_text_file",
-    "fs/write_text_file",
     "session/request_permission",
     "session/update"
   ],
   "opaque": [
+    "hook_annotation",
     "hook_execution",
     "interaction_resolved",
     "last_turn_summary",
@@ -48,3 +49,4 @@
     "tool_call_delta_chunk"
   ]
 }
+

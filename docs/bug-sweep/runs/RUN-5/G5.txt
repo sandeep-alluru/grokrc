@@ -1,0 +1,1880 @@
+=== G5 suite ===
+
+> grokrc@0.2.1 test:suite
+> node tools/isolated-test.mjs --test --experimental-strip-types --test-concurrency=1 test/*.test.ts
+
+TAP version 13
+# Subtest: index.html points at a content-stamped app URL
+ok 1 - index.html points at a content-stamped app URL
+  ---
+  duration_ms: 22.456139
+  type: 'test'
+  ...
+# Subtest: the stamp changes when the app changes
+ok 2 - the stamp changes when the app changes
+  ---
+  duration_ms: 11.465286
+  type: 'test'
+  ...
+# Subtest: a stamped URL is cacheable forever; a bare one is not
+ok 3 - a stamped URL is cacheable forever; a bare one is not
+  ---
+  duration_ms: 6.08284
+  type: 'test'
+  ...
+#   stale client: device 502d6c579910b447 is running 0000deadbeef, current is 715a7cabc36f
+# Subtest: an out-of-date client is told it is out of date
+ok 4 - an out-of-date client is told it is out of date
+  ---
+  duration_ms: 14.670797
+  type: 'test'
+  ...
+# Subtest: a current client is not nagged
+ok 5 - a current client is not nagged
+  ---
+  duration_ms: 8.048978
+  type: 'test'
+  ...
+# Subtest: a client that reports no version is not treated as stale
+ok 6 - a client that reports no version is not treated as stale
+  ---
+  duration_ms: 4.219257
+  type: 'test'
+  ...
+# Subtest: /api/health reports the version that actually shipped
+ok 7 - /api/health reports the version that actually shipped
+  ---
+  duration_ms: 2.704685
+  type: 'test'
+  ...
+# Subtest: a device name survives a chunk boundary inside a multi-byte character
+ok 8 - a device name survives a chunk boundary inside a multi-byte character
+  ---
+  duration_ms: 48.420184
+  type: 'test'
+  ...
+# Subtest: a plain ASCII body still works when split
+ok 9 - a plain ASCII body still works when split
+  ---
+  duration_ms: 42.892592
+  type: 'test'
+  ...
+# Subtest: the app loads and shows the pairing screen
+ok 10 - the app loads and shows the pairing screen
+  ---
+  duration_ms: 188.949609
+  type: 'test'
+  ...
+# Subtest: a wrong code shows an error and does not let you in
+ok 11 - a wrong code shows an error and does not let you in
+  ---
+  duration_ms: 171.197714
+  type: 'test'
+  ...
+# Subtest: pairing with the real code reaches the session list
+ok 12 - pairing with the real code reaches the session list
+  ---
+  duration_ms: 91.309641
+  type: 'test'
+  ...
+# Subtest: creating a session opens the transcript with a composer
+ok 13 - creating a session opens the transcript with a composer
+  ---
+  duration_ms: 53.722402
+  type: 'test'
+  ...
+# Subtest: a prompt streams text and renders tool and plan cards
+ok 14 - a prompt streams text and renders tool and plan cards
+  ---
+  duration_ms: 112.70908
+  type: 'test'
+  ...
+# Subtest: the approval renders with real options
+ok 15 - the approval renders with real options
+  ---
+  duration_ms: 38.768772
+  type: 'test'
+  ...
+# Subtest: the session-wide grant is NOT the first button and is visually demoted
+ok 16 - the session-wide grant is NOT the first button and is visually demoted
+  ---
+  duration_ms: 9.03274
+  type: 'test'
+  ...
+# Subtest: tapping Yes answers the agent with allow-once
+ok 17 - tapping Yes answers the agent with allow-once
+  ---
+  duration_ms: 61.807449
+  type: 'test'
+  ...
+# Subtest: the turn completes and the tool card shows success
+ok 18 - the turn completes and the tool card shows success
+  ---
+  duration_ms: 6.129304
+  type: 'test'
+  ...
+# Subtest: the page never scrolls horizontally at phone width
+ok 19 - the page never scrolls horizontally at phone width
+  ---
+  duration_ms: 1.852267
+  type: 'test'
+  ...
+# Subtest: an observed session hides the composer and says it is read-only
+ok 20 - an observed session hides the composer and says it is read-only
+  ---
+  duration_ms: 3.396996
+  type: 'test'
+  ...
+# Subtest: reloading replays history rather than losing the transcript
+ok 21 - reloading replays history rather than losing the transcript
+  ---
+  duration_ms: 48.848245
+  type: 'test'
+  ...
+# Subtest: a finished tool row still names the file it wrote
+ok 22 - a finished tool row still names the file it wrote
+  ---
+  duration_ms: 69.584091
+  type: 'test'
+  ...
+# Subtest: replayed history that ends mid-turn does not jam the composer
+ok 23 - replayed history that ends mid-turn does not jam the composer
+  ---
+  duration_ms: 694.020674
+  type: 'test'
+  ...
+# Subtest: a LIVE working status still shows Stop
+ok 24 - a LIVE working status still shows Stop
+  ---
+  duration_ms: 507.460254
+  type: 'test'
+  ...
+# Subtest: typing and sending works after an interrupted-turn replay
+ok 25 - typing and sending works after an interrupted-turn replay
+  ---
+  duration_ms: 705.013804
+  type: 'test'
+  ...
+# Subtest: commands, mode, and raw vendor kinds stay off the wire
+ok 26 - commands, mode, and raw vendor kinds stay off the wire
+  ---
+  duration_ms: 0.741071
+  type: 'test'
+  ...
+# Subtest: only finished thinking is client-visible
+ok 27 - only finished thinking is client-visible
+  ---
+  duration_ms: 0.113292
+  type: 'test'
+  ...
+# Subtest: user text, tools, approvals, status, errors still ship
+ok 28 - user text, tools, approvals, status, errors still ship
+  ---
+  duration_ms: 0.142138
+  type: 'test'
+  ...
+# Subtest: tool events lose I/O bodies before the wire
+ok 29 - tool events lose I/O bodies before the wire
+  ---
+  duration_ms: 0.632504
+  type: 'test'
+  ...
+# Subtest: thinking still renders after a transcript re-render
+ok 30 - thinking still renders after a transcript re-render
+  ---
+  duration_ms: 2245.562772
+  type: 'test'
+  ...
+# Subtest: it creates the directory when missing
+ok 31 - it creates the directory when missing
+  ---
+  duration_ms: 4.742775
+  type: 'test'
+  ...
+# Subtest: it is idempotent on a directory that already exists
+ok 32 - it is idempotent on a directory that already exists
+  ---
+  duration_ms: 1.720188
+  type: 'test'
+  ...
+# Subtest: POSIX: the directory is owner-only
+ok 33 - POSIX: the directory is owner-only
+  ---
+  duration_ms: 1.028079
+  type: 'test'
+  ...
+# Subtest: Windows: inherited access is removed and only this account is granted
+ok 34 - Windows: inherited access is removed and only this account is granted # SKIP Windows ACLs only exist on Windows
+  ---
+  duration_ms: 0.188623
+  type: 'test'
+  ...
+# Subtest: a per-use setting is applied to the running daemon
+ok 35 - a per-use setting is applied to the running daemon
+  ---
+  duration_ms: 6.02676
+  type: 'test'
+  ...
+# Subtest: a bound-socket setting is reported as needing a restart, not applied
+ok 36 - a bound-socket setting is reported as needing a restart, not applied
+  ---
+  duration_ms: 2.878045
+  type: 'test'
+  ...
+# Subtest: a changed historyLimit reaches the daemon, not just the config file
+ok 37 - a changed historyLimit reaches the daemon, not just the config file
+  ---
+  duration_ms: 4.70163
+  type: 'test'
+  ...
+# Subtest: an unchanged setting is not reported as applied
+ok 38 - an unchanged setting is not reported as applied
+  ---
+  duration_ms: 1.609329
+  type: 'test'
+  ...
+# Subtest: a missing config file is empty, not an error
+ok 39 - a missing config file is empty, not an error
+  ---
+  duration_ms: 5.193796
+  type: 'test'
+  ...
+# Subtest: round-trips through disk
+ok 40 - round-trips through disk
+  ---
+  duration_ms: 1.613329
+  type: 'test'
+  ...
+# Subtest: unknown keys in the file are ignored, not surfaced
+ok 41 - unknown keys in the file are ignored, not surfaced
+  ---
+  duration_ms: 1.714789
+  type: 'test'
+  ...
+# Subtest: malformed JSON degrades to empty rather than crashing the daemon
+ok 42 - malformed JSON degrades to empty rather than crashing the daemon
+  ---
+  duration_ms: 5.183525
+  type: 'test'
+  ...
+# Subtest: a relative defaultCwd is rejected
+ok 43 - a relative defaultCwd is rejected
+  ---
+  duration_ms: 0.307325
+  type: 'test'
+  ...
+# Subtest: a nonexistent defaultCwd is rejected rather than silently ignored
+ok 44 - a nonexistent defaultCwd is rejected rather than silently ignored
+  ---
+  duration_ms: 0.147854
+  type: 'test'
+  ...
+# Subtest: a file used as defaultCwd is rejected
+ok 45 - a file used as defaultCwd is rejected
+  ---
+  duration_ms: 0.235667
+  type: 'test'
+  ...
+# Subtest: an existing directory is accepted
+ok 46 - an existing directory is accepted
+  ---
+  duration_ms: 0.130839
+  type: 'test'
+  ...
+# Subtest: port 0 is rejected
+ok 47 - port 0 is rejected
+  ---
+  duration_ms: 0.27967
+  type: 'test'
+  ...
+# Subtest: port 70000 is rejected
+ok 48 - port 70000 is rejected
+  ---
+  duration_ms: 0.281313
+  type: 'test'
+  ...
+# Subtest: port 1.5 is rejected
+ok 49 - port 1.5 is rejected
+  ---
+  duration_ms: 0.123888
+  type: 'test'
+  ...
+# Subtest: port -1 is rejected
+ok 50 - port -1 is rejected
+  ---
+  duration_ms: 0.058524
+  type: 'test'
+  ...
+# Subtest: a negative historyLimit is rejected
+ok 51 - a negative historyLimit is rejected
+  ---
+  duration_ms: 0.071139
+  type: 'test'
+  ...
+# Subtest: historyLimit 0 is valid — it means "show no history"
+ok 52 - historyLimit 0 is valid — it means "show no history"
+  ---
+  duration_ms: 0.068195
+  type: 'test'
+  ...
+# Subtest: numeric keys coerce from strings
+ok 53 - numeric keys coerce from strings
+  ---
+  duration_ms: 0.081978
+  type: 'test'
+  ...
+# Subtest: boolean keys coerce from strings
+ok 54 - boolean keys coerce from strings
+  ---
+  duration_ms: 0.064876
+  type: 'test'
+  ...
+# Subtest: string keys pass through unchanged
+ok 55 - string keys pass through unchanged
+  ---
+  duration_ms: 0.053088
+  type: 'test'
+  ...
+# Subtest: only known keys are settable
+ok 56 - only known keys are settable
+  ---
+  duration_ms: 0.081025
+  type: 'test'
+  ...
+# Subtest: the missing-cwd notice names the command that fixes it
+ok 57 - the missing-cwd notice names the command that fixes it
+  ---
+  duration_ms: 0.107728
+  type: 'test'
+  ...
+# Subtest: ping reaches a running daemon
+ok 58 - ping reaches a running daemon
+  ---
+  duration_ms: 8.406874
+  type: 'test'
+  ...
+# Subtest: a code minted over the socket is redeemable by the daemon
+ok 59 - a code minted over the socket is redeemable by the daemon
+  ---
+  duration_ms: 3.166935
+  type: 'test'
+  ...
+# Subtest: a code is single use
+ok 60 - a code is single use
+  ---
+  duration_ms: 1.315961
+  type: 'test'
+  ...
+# Subtest: devices lists what the daemon has, with live connection state
+ok 61 - devices lists what the daemon has, with live connection state
+  ---
+  duration_ms: 5.551859
+  type: 'test'
+  ...
+# Subtest: revoke removes the device from the running daemon
+ok 62 - revoke removes the device from the running daemon
+  ---
+  duration_ms: 2.665657
+  type: 'test'
+  ...
+# Subtest: revoke reports 0 for an unknown device rather than throwing
+ok 63 - revoke reports 0 for an unknown device rather than throwing
+  ---
+  duration_ms: 0.874737
+  type: 'test'
+  ...
+# Subtest: unknown commands are refused, not silently ignored
+ok 64 - unknown commands are refused, not silently ignored
+  ---
+  duration_ms: 1.161385
+  type: 'test'
+  ...
+# Subtest: malformed params are refused
+ok 65 - malformed params are refused
+  ---
+  duration_ms: 0.882119
+  type: 'test'
+  ...
+# Subtest: the socket is owner-only
+ok 66 - the socket is owner-only
+  ---
+  duration_ms: 0.703731
+  type: 'test'
+  ...
+# Subtest: no daemon means ControlUnavailableError, so callers can fall back
+ok 67 - no daemon means ControlUnavailableError, so callers can fall back
+  ---
+  duration_ms: 1.224982
+  type: 'test'
+  ...
+# Subtest: a stale socket file left by a crashed daemon is reclaimed
+ok 68 - a stale socket file left by a crashed daemon is reclaimed
+  ---
+  duration_ms: 2.020326
+  type: 'test'
+  ...
+# Subtest: a live socket is NOT stolen from a running daemon
+ok 69 - a live socket is NOT stolen from a running daemon
+  ---
+  duration_ms: 1.095859
+  type: 'test'
+  ...
+# Subtest: close() removes the socket file
+ok 70 - close() removes the socket file
+  ---
+  duration_ms: 1.067244
+  type: 'test'
+  ...
+# Subtest: no doc hardcodes a test count
+ok 71 - no doc hardcodes a test count
+  ---
+  duration_ms: 6.053027
+  type: 'test'
+  ...
+# Subtest: while Android push is untested, the docs say so
+ok 72 - while Android push is untested, the docs say so
+  ---
+  duration_ms: 1.98887
+  type: 'test'
+  ...
+# Subtest: no doc claims Android push is verified while item 8 is open
+ok 73 - no doc claims Android push is verified while item 8 is open
+  ---
+  duration_ms: 1.226466
+  type: 'test'
+  ...
+# Subtest: every internal doc link points at a heading that exists
+ok 74 - every internal doc link points at a heading that exists
+  ---
+  duration_ms: 3.504991
+  type: 'test'
+  ...
+# Subtest: no doc asserts a platform works without having measured it
+ok 75 - no doc asserts a platform works without having measured it
+  ---
+  duration_ms: 2.046102
+  type: 'test'
+  ...
+# Subtest: user-facing docs carry no internal tracker references
+ok 76 - user-facing docs carry no internal tracker references
+  ---
+  duration_ms: 1.656061
+  type: 'test'
+  ...
+# Subtest: doctor reports the running daemon and its live counters
+ok 77 - doctor reports the running daemon and its live counters
+  ---
+  duration_ms: 164.229978
+  type: 'test'
+  ...
+# Subtest: seal/open round-trips
+ok 78 - seal/open round-trips
+  ---
+  duration_ms: 17.254767
+  type: 'test'
+  ...
+# Subtest: ciphertext does not contain the plaintext
+ok 79 - ciphertext does not contain the plaintext
+  ---
+  duration_ms: 4.325279
+  type: 'test'
+  ...
+#   relay connected
+# Subtest: a different secret cannot decrypt
+ok 80 - a different secret cannot decrypt
+  ---
+  duration_ms: 2.385192
+  type: 'test'
+  ...
+# Subtest: tampering is detected, not silently decrypted
+ok 81 - tampering is detected, not silently decrypted
+  ---
+  duration_ms: 1.054739
+  type: 'test'
+  ...
+# Subtest: nonces differ across messages
+ok 82 - nonces differ across messages
+  ---
+  duration_ms: 3.269071
+  type: 'test'
+  ...
+#   stale client: device 10e7b91843f14e95 is running dev, current is 715a7cabc36f
+# Subtest: a browser pairs and drives a turn with encryption on
+ok 83 - a browser pairs and drives a turn with encryption on
+  ---
+  duration_ms: 695.723193
+  type: 'test'
+  ...
+# Subtest: the secret is stripped from the address bar
+ok 84 - the secret is stripped from the address bar
+  ---
+  duration_ms: 0.341449
+  type: 'test'
+  ...
+# Subtest: THE RELAY NEVER SEES PLAINTEXT
+ok 85 - THE RELAY NEVER SEES PLAINTEXT
+  ---
+  duration_ms: 0.465797
+  type: 'test'
+  ...
+# Subtest: the relay sees route metadata but never request contents
+ok 86 - the relay sees route metadata but never request contents
+  ---
+  duration_ms: 0.455388
+  type: 'test'
+  ...
+# Subtest: the device token never crosses the relay in the clear
+ok 87 - the device token never crosses the relay in the clear
+  ---
+  duration_ms: 3.7586
+  type: 'test'
+  ...
+# Subtest: agent_message_chunk becomes a non-final agent text event
+ok 88 - agent_message_chunk becomes a non-final agent text event
+  ---
+  duration_ms: 1.352172
+  type: 'test'
+  ...
+# Subtest: tool_call maps ACP status vocabulary onto ours and emits a status event
+ok 89 - tool_call maps ACP status vocabulary onto ours and emits a status event
+  ---
+  duration_ms: 0.179562
+  type: 'test'
+  ...
+# Subtest: completed and failed map to ok and error
+ok 90 - completed and failed map to ok and error
+  ---
+  duration_ms: 0.133983
+  type: 'test'
+  ...
+# Subtest: plan entries are flattened to text/status pairs
+ok 91 - plan entries are flattened to text/status pairs
+  ---
+  duration_ms: 0.156166
+  type: 'test'
+  ...
+# Subtest: unknown update kinds pass through as raw instead of being dropped
+ok 92 - unknown update kinds pass through as raw instead of being dropped
+  ---
+  duration_ms: 0.185524
+  type: 'test'
+  ...
+# Subtest: option intent prefers structured kind over free-text name
+ok 93 - option intent prefers structured kind over free-text name
+  ---
+  duration_ms: 0.340474
+  type: 'test'
+  ...
+# Subtest: permission requests become approval events with classified options
+ok 94 - permission requests become approval events with classified options
+  ---
+  duration_ms: 0.261171
+  type: 'test'
+  ...
+# Subtest: permission with no toolCall still yields a usable title
+ok 95 - permission with no toolCall still yields a usable title
+  ---
+  duration_ms: 0.11104
+  type: 'test'
+  ...
+# Subtest: NdjsonDecoder reassembles frames split across chunk boundaries
+ok 96 - NdjsonDecoder reassembles frames split across chunk boundaries
+  ---
+  duration_ms: 1.00968
+  type: 'test'
+  ...
+# Subtest: NdjsonDecoder reports bad lines without losing the stream
+ok 97 - NdjsonDecoder reports bad lines without losing the stream
+  ---
+  duration_ms: 0.364255
+  type: 'test'
+  ...
+# grokrc — remote control for Grok Build
+#   grokrc up          Start the daemon and serve the phone client
+#       --port <N>       Port (default 4319)
+#       --host <H>       Bind address (default 127.0.0.1 — loopback only)
+#       --lan            Bind 0.0.0.0 so other devices on your network can reach it
+#       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
+#       --model <M>      Model override for new sessions
+#       --cwd <DIR>      Default working directory for new sessions
+#       --pair           Print a pairing code even if devices are already paired
+#       --history <N>    How many past sessions to list (default 10)
+#       --no-push        Disable Web Push (no VAPID keys, no subscriptions)
+#       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
+#       --room <ID>      Relay room id (generated if omitted)
+#       --relay-key <K>  Relay room key (generated if omitted)
+#   grokrc relay       Run a self-hostable relay server
+#       --port <N>       Port (default 8080)
+#   grokrc term        Terminal client on the same session your phone drives
+#       --new            Start a new session
+#       --session <id>   Open a specific session
+#       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
+#   grokrc pair        Print a pairing code for a new device (needs a running daemon)
+#   grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
+#   grokrc devices     List paired devices
+#   grokrc revoke <id> Revoke a device  (--all to revoke everything)
+#   grokrc doctor      Check that grok is installed and ACP responds
+# Subtest: binding all interfaces warns
+ok 98 - binding all interfaces warns
+  ---
+  duration_ms: 0.738862
+  type: 'test'
+  ...
+# Subtest: the IPv6 any-address warns too
+ok 99 - the IPv6 any-address warns too
+  ---
+  duration_ms: 0.161999
+  type: 'test'
+  ...
+# Subtest: a Tailscale address is reported as reachable, not as loopback
+ok 100 - a Tailscale address is reported as reachable, not as loopback
+  ---
+  duration_ms: 0.129435
+  type: 'test'
+  ...
+# Subtest: any other routable address warns as well
+ok 101 - any other routable address warns as well
+  ---
+  duration_ms: 0.166135
+  type: 'test'
+  ...
+# Subtest: genuine loopback is still reported as loopback
+ok 102 - genuine loopback is still reported as loopback
+  ---
+  duration_ms: 0.120679
+  type: 'test'
+  ...
+# Subtest: discoverOnDisk marks a live registry pid as externallyActive
+ok 103 - discoverOnDisk marks a live registry pid as externallyActive
+  ---
+  duration_ms: 41.649225
+  type: 'test'
+  ...
+# Subtest: daemon pushes an updated sessions list when an external session appears
+ok 104 - daemon pushes an updated sessions list when an external session appears
+  ---
+  duration_ms: 1986.465742
+  type: 'test'
+  ...
+#   release requested: session hb-e2e-1786653877043 by device da6af6f496e57655
+#   hand-back relaunch: ok — opened gnome-terminal
+#   hand-back methods: gnome-terminal
+#   release succeeded: session hb-e2e-1786653877043 free — TUI can reclaim (relaunch: opened gnome-terminal)
+# Subtest: browser: create session then hand back shows released card with commands
+ok 105 - browser: create session then hand back shows released card with commands
+  ---
+  duration_ms: 1271.939443
+  type: 'test'
+  ...
+# Subtest: browser: unreachable retry button has visible non-empty label
+ok 106 - browser: unreachable retry button has visible non-empty label
+  ---
+  duration_ms: 30.594051
+  type: 'test'
+  ...
+# Subtest: Windows relaunch actually starts the fake grok process
+ok 107 - Windows relaunch actually starts the fake grok process # SKIP Windows-only process proof
+  ---
+  duration_ms: 0.342601
+  type: 'test'
+  ...
+# Subtest: a session you own offers a way to hand it back
+ok 108 - a session you own offers a way to hand it back
+  ---
+  duration_ms: 1954.081113
+  type: 'test'
+  ...
+# Subtest: it survives a reconnect, which replays history
+ok 109 - it survives a reconnect, which replays history
+  ---
+  duration_ms: 2026.713724
+  type: 'test'
+  ...
+# Subtest: an observed session offers resume, never hand-back
+ok 110 - an observed session offers resume, never hand-back
+  ---
+  duration_ms: 1.503425
+  type: 'test'
+  ...
+# Subtest: bootDaemon refuses a REAL agent pointed at your own ~/.grok
+ok 111 - bootDaemon refuses a REAL agent pointed at your own ~/.grok
+  ---
+  duration_ms: 2.262386
+  type: 'test'
+  ...
+# Subtest: it also refuses when GROK_HOME is explicitly the real one
+ok 112 - it also refuses when GROK_HOME is explicitly the real one
+  ---
+  duration_ms: 0.502838
+  type: 'test'
+  ...
+# Subtest: a mock transport is allowed without an isolated home — it never spawns
+ok 113 - a mock transport is allowed without an isolated home — it never spawns
+  ---
+  duration_ms: 60.381115
+  type: 'test'
+  ...
+# Subtest: the leader process comes up and exposes its socket
+ok 114 - the leader process comes up and exposes its socket
+  ---
+  duration_ms: 1351.732012
+  type: 'test'
+  ...
+# Subtest: --leader and --leader-socket precede the subcommand
+ok 115 - --leader and --leader-socket precede the subcommand
+  ---
+  duration_ms: 4.524951
+  type: 'test'
+  ...
+# Subtest: argv is unchanged when leader mode is off
+ok 116 - argv is unchanged when leader mode is off
+  ---
+  duration_ms: 3.777601
+  type: 'test'
+  ...
+# Subtest: two independent clients attach to one shared backend
+ok 117 - two independent clients attach to one shared backend
+  ---
+  duration_ms: 1074.638649
+  type: 'test'
+  ...
+# Subtest: SessionManager passes leader options through to the transport
+ok 118 - SessionManager passes leader options through to the transport
+  ---
+  duration_ms: 925.098681
+  type: 'test'
+  ...
+# Subtest: a live tool event carrying a huge payload does not ship the body
+ok 119 - a live tool event carrying a huge payload does not ship the body
+  ---
+  duration_ms: 28.873903
+  type: 'test'
+  ...
+# Subtest: the cap still walks nested strings on non-tool events
+ok 120 - the cap still walks nested strings on non-tool events
+  ---
+  duration_ms: 24.126478
+  type: 'test'
+  ...
+# Subtest: an ordinary event is delivered untouched
+ok 121 - an ordinary event is delivered untouched
+  ---
+  duration_ms: 6.513722
+  type: 'test'
+  ...
+#   recovered 2 event(s) the agent never persisted (019fabcd-0000-7000-8000-00000000mid)
+# Subtest: text streamed before a mid-turn close survives the resume
+ok 122 - text streamed before a mid-turn close survives the resume
+  ---
+  duration_ms: 909.472352
+  type: 'test'
+  ...
+# Subtest: an em-dash split across a read boundary survives intact
+ok 123 - an em-dash split across a read boundary survives intact
+  ---
+  duration_ms: 377.679849
+  type: 'test'
+  ...
+# Subtest: an emoji split across a read boundary survives intact
+ok 124 - an emoji split across a read boundary survives intact
+  ---
+  duration_ms: 372.054222
+  type: 'test'
+  ...
+# Subtest: a 4-byte character (outside the BMP) survives a boundary
+ok 125 - a 4-byte character (outside the BMP) survives a boundary
+  ---
+  duration_ms: 372.599156
+  type: 'test'
+  ...
+# Subtest: plain ASCII across a boundary is unaffected
+ok 126 - plain ASCII across a boundary is unaffected
+  ---
+  duration_ms: 372.510328
+  type: 'test'
+  ...
+# Subtest: replays a log that already exists
+ok 127 - replays a log that already exists
+  ---
+  duration_ms: 157.647915
+  type: 'test'
+  ...
+# Subtest: follows appends after start
+ok 128 - follows appends after start
+  ---
+  duration_ms: 203.266929
+  type: 'test'
+  ...
+# Subtest: a line split across two writes is not emitted until complete
+ok 129 - a line split across two writes is not emitted until complete
+  ---
+  duration_ms: 202.885632
+  type: 'test'
+  ...
+# Subtest: a missing log is not an error — the dir can exist first
+ok 130 - a missing log is not an error — the dir can exist first
+  ---
+  duration_ms: 102.408812
+  type: 'test'
+  ...
+# Subtest: the vendor-prefixed _x.ai/session/update method is accepted
+ok 131 - the vendor-prefixed _x.ai/session/update method is accepted
+  ---
+  duration_ms: 151.627744
+  type: 'test'
+  ...
+# Subtest: parses a real Grok session log on this machine
+ok 132 - parses a real Grok session log on this machine
+  ---
+  duration_ms: 502.690709
+  type: 'test'
+  ...
+# grokrc — remote control for Grok Build
+#   grokrc up          Start the daemon and serve the phone client
+#       --port <N>       Port (default 4319)
+#       --host <H>       Bind address (default 127.0.0.1 — loopback only)
+#       --lan            Bind 0.0.0.0 so other devices on your network can reach it
+#       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
+#       --model <M>      Model override for new sessions
+#       --cwd <DIR>      Default working directory for new sessions
+#       --pair           Print a pairing code even if devices are already paired
+#       --history <N>    How many past sessions to list (default 10)
+#       --no-push        Disable Web Push (no VAPID keys, no subscriptions)
+#       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
+#       --room <ID>      Relay room id (generated if omitted)
+#       --relay-key <K>  Relay room key (generated if omitted)
+#   grokrc relay       Run a self-hostable relay server
+#       --port <N>       Port (default 8080)
+#   grokrc term        Terminal client on the same session your phone drives
+#       --new            Start a new session
+#       --session <id>   Open a specific session
+#       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
+#   grokrc pair        Print a pairing code for a new device (needs a running daemon)
+#   grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
+#   grokrc devices     List paired devices
+#   grokrc revoke <id> Revoke a device  (--all to revoke everything)
+#   grokrc doctor      Check that grok is installed and ACP responds
+# Subtest: `up` refuses to start when the agent is not installed
+ok 133 - `up` refuses to start when the agent is not installed
+  ---
+  duration_ms: 177.248044
+  type: 'test'
+  ...
+# Subtest: `doctor` names the missing agent, and how to install it
+ok 134 - `doctor` names the missing agent, and how to install it
+  ---
+  duration_ms: 168.085657
+  type: 'test'
+  ...
+# Subtest: `doctor` tells a logged-out user which command to run
+ok 135 - `doctor` tells a logged-out user which command to run
+  ---
+  duration_ms: 453.728891
+  type: 'test'
+  ...
+# Subtest: `config` surfaces the one setting with no default
+ok 136 - `config` surfaces the one setting with no default
+  ---
+  duration_ms: 157.902093
+  type: 'test'
+  ...
+# Subtest: an auth failure is turned into a command, on any machine
+ok 137 - an auth failure is turned into a command, on any machine
+  ---
+  duration_ms: 0.435553
+  type: 'test'
+  ...
+# Subtest: unrelated errors get no login hint
+ok 138 - unrelated errors get no login hint
+  ---
+  duration_ms: 0.146058
+  type: 'test'
+  ...
+# Subtest: an older code still works after a newer one is issued
+ok 139 - an older code still works after a newer one is issued
+  ---
+  duration_ms: 5.533933
+  type: 'test'
+  ...
+# Subtest: each code is still single use
+ok 140 - each code is still single use
+  ---
+  duration_ms: 1.528254
+  type: 'test'
+  ...
+# Subtest: a wrong code is refused while valid ones are outstanding
+ok 141 - a wrong code is refused while valid ones are outstanding
+  ---
+  duration_ms: 0.73061
+  type: 'test'
+  ...
+# Subtest: outstanding codes are bounded
+ok 142 - outstanding codes are bounded
+  ---
+  duration_ms: 4.489644
+  type: 'test'
+  ...
+# Subtest: a file directly inside the root is inside it
+ok 143 - a file directly inside the root is inside it
+  ---
+  duration_ms: 0.91079
+  type: 'test'
+  ...
+# Subtest: a file nested several levels down is inside it
+ok 144 - a file nested several levels down is inside it
+  ---
+  duration_ms: 0.14919
+  type: 'test'
+  ...
+# Subtest: the root itself counts as inside, but not strictly inside
+ok 145 - the root itself counts as inside, but not strictly inside
+  ---
+  duration_ms: 0.143285
+  type: 'test'
+  ...
+# Subtest: a NATIVE absolute path is contained on whatever platform this is
+ok 146 - a NATIVE absolute path is contained on whatever platform this is
+  ---
+  duration_ms: 0.196166
+  type: 'test'
+  ...
+# Subtest: a sibling directory sharing a name prefix is NOT inside
+ok 147 - a sibling directory sharing a name prefix is NOT inside
+  ---
+  duration_ms: 0.139798
+  type: 'test'
+  ...
+# Subtest: climbing out with .. is refused
+ok 148 - climbing out with .. is refused
+  ---
+  duration_ms: 0.224365
+  type: 'test'
+  ...
+# Subtest: the parent of the root is refused
+ok 149 - the parent of the root is refused
+  ---
+  duration_ms: 0.143078
+  type: 'test'
+  ...
+# Subtest: a path that climbs out and back in is allowed, because it lands inside
+ok 150 - a path that climbs out and back in is allowed, because it lands inside
+  ---
+  duration_ms: 0.377378
+  type: 'test'
+  ...
+# Subtest: an unrelated absolute path is refused
+ok 151 - an unrelated absolute path is refused
+  ---
+  duration_ms: 0.45022
+  type: 'test'
+  ...
+# Subtest: a different Windows drive is refused
+ok 152 - a different Windows drive is refused
+  ---
+  duration_ms: 0.336505
+  type: 'test'
+  ...
+# Subtest: a missing config is treated as NOT prompting
+ok 153 - a missing config is treated as NOT prompting
+  ---
+  duration_ms: 6.349906
+  type: 'test'
+  ...
+# Subtest: support_permission = true alone is enough
+ok 154 - support_permission = true alone is enough
+  ---
+  duration_ms: 2.427074
+  type: 'test'
+  ...
+# Subtest: support_permission = false is reported
+ok 155 - support_permission = false is reported
+  ---
+  duration_ms: 1.332506
+  type: 'test'
+  ...
+# Subtest: a non-prompting permission_mode defeats support_permission
+ok 156 - a non-prompting permission_mode defeats support_permission
+  ---
+  duration_ms: 1.44328
+  type: 'test'
+  ...
+# Subtest: permission_mode "auto" is flagged
+ok 157 - permission_mode "auto" is flagged
+  ---
+  duration_ms: 1.575627
+  type: 'test'
+  ...
+# Subtest: permission_mode "dontAsk" is flagged
+ok 158 - permission_mode "dontAsk" is flagged
+  ---
+  duration_ms: 1.954983
+  type: 'test'
+  ...
+# Subtest: permission_mode "bypassPermissions" is flagged
+ok 159 - permission_mode "bypassPermissions" is flagged
+  ---
+  duration_ms: 0.971375
+  type: 'test'
+  ...
+# Subtest: permission_mode "acceptEdits" is flagged
+ok 160 - permission_mode "acceptEdits" is flagged
+  ---
+  duration_ms: 0.948655
+  type: 'test'
+  ...
+# Subtest: permission_mode "default" prompts
+ok 161 - permission_mode "default" prompts
+  ---
+  duration_ms: 1.247877
+  type: 'test'
+  ...
+# Subtest: keys are read from the right section, not anywhere in the file
+ok 162 - keys are read from the right section, not anywhere in the file
+  ---
+  duration_ms: 1.258901
+  type: 'test'
+  ...
+# Subtest: the warning names the config path and the fix
+ok 163 - the warning names the config path and the fix
+  ---
+  duration_ms: 1.050308
+  type: 'test'
+  ...
+# Subtest: rejects sessionId as a number
+ok 164 - rejects sessionId as a number
+  ---
+  duration_ms: 31.00952
+  type: 'test'
+  ...
+# Subtest: rejects sessionId as an object
+ok 165 - rejects sessionId as an object
+  ---
+  duration_ms: 10.283636
+  type: 'test'
+  ...
+# Subtest: rejects sessionId as an array
+ok 166 - rejects sessionId as an array
+  ---
+  duration_ms: 5.933142
+  type: 'test'
+  ...
+# Subtest: rejects missing sessionId
+ok 167 - rejects missing sessionId
+  ---
+  duration_ms: 5.492269
+  type: 'test'
+  ...
+# Subtest: rejects text as a number
+ok 168 - rejects text as a number
+  ---
+  duration_ms: 6.19351
+  type: 'test'
+  ...
+# Subtest: rejects missing text
+ok 169 - rejects missing text
+  ---
+  duration_ms: 5.489661
+  type: 'test'
+  ...
+# Subtest: rejects cwd as a number on resume
+ok 170 - rejects cwd as a number on resume
+  ---
+  duration_ms: 4.900187
+  type: 'test'
+  ...
+# Subtest: rejects missing cwd on resume
+ok 171 - rejects missing cwd on resume
+  ---
+  duration_ms: 7.714173
+  type: 'test'
+  ...
+# Subtest: rejects cwd as an object on create
+ok 172 - rejects cwd as an object on create
+  ---
+  duration_ms: 7.061253
+  type: 'test'
+  ...
+# Subtest: rejects optionId as a number
+ok 173 - rejects optionId as a number
+  ---
+  duration_ms: 4.80417
+  type: 'test'
+  ...
+# Subtest: rejects unknown message type
+ok 174 - rejects unknown message type
+  ---
+  duration_ms: 4.586102
+  type: 'test'
+  ...
+# Subtest: accepts a null optionId — that legitimately cancels an approval
+ok 175 - accepts a null optionId — that legitimately cancels an approval
+  ---
+  duration_ms: 4.023791
+  type: 'test'
+  ...
+# Subtest: create refuses a relative cwd
+ok 176 - create refuses a relative cwd
+  ---
+  duration_ms: 0.647457
+  type: 'test'
+  ...
+# Subtest: create refuses a non-string cwd
+ok 177 - create refuses a non-string cwd
+  ---
+  duration_ms: 0.146869
+  type: 'test'
+  ...
+# Subtest: live sessions are capped
+ok 178 - live sessions are capped
+  ---
+  duration_ms: 9.945032
+  type: 'test'
+  ...
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+# Subtest: a failing send is recorded, not swallowed
+ok 179 - a failing send is recorded, not swallowed
+  ---
+  duration_ms: 5.308489
+  type: 'test'
+  ...
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+# Subtest: failure counters distinguish a broken setup from an idle one
+ok 180 - failure counters distinguish a broken setup from an idle one
+  ---
+  duration_ms: 1.958665
+  type: 'test'
+  ...
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+# Subtest: a dead subscription is still pruned, and counted separately from a fault
+ok 181 - a dead subscription is still pruned, and counted separately from a fault
+  ---
+  duration_ms: 5.049289
+  type: 'test'
+  ...
+# Subtest: a browser without PushManager still gets a row explaining why
+ok 182 - a browser without PushManager still gets a row explaining why
+  ---
+  duration_ms: 403.093178
+  type: 'test'
+  ...
+# Subtest: a browser that supports push offers a tappable enable row
+ok 183 - a browser that supports push offers a tappable enable row
+  ---
+  duration_ms: 169.843811
+  type: 'test'
+  ...
+# Subtest: VAPID keys are generated and persisted 0600
+ok 184 - VAPID keys are generated and persisted 0600
+  ---
+  duration_ms: 5.992118
+  type: 'test'
+  ...
+# Subtest: the public key is served but the private key never is
+ok 185 - the public key is served but the private key never is
+  ---
+  duration_ms: 14.853191
+  type: 'test'
+  ...
+# Subtest: subscribing requires a valid device token
+ok 186 - subscribing requires a valid device token
+  ---
+  duration_ms: 6.879155
+  type: 'test'
+  ...
+# Subtest: a paired device can subscribe
+ok 187 - a paired device can subscribe
+  ---
+  duration_ms: 5.655512
+  type: 'test'
+  ...
+# Subtest: re-subscribing the same endpoint replaces rather than duplicates
+ok 188 - re-subscribing the same endpoint replaces rather than duplicates
+  ---
+  duration_ms: 7.798014
+  type: 'test'
+  ...
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+#   push: push failed (no status): The subscription p256dh value should be 65 bytes long.
+# Subtest: a different endpoint adds a subscriber
+ok 189 - a different endpoint adds a subscriber
+  ---
+  duration_ms: 4.853116
+  type: 'test'
+  ...
+# Subtest: notifying with unreachable endpoints does not throw
+ok 190 - notifying with unreachable endpoints does not throw
+  ---
+  duration_ms: 0.893101
+  type: 'test'
+  ...
+# Subtest: the service worker is served
+ok 191 - the service worker is served
+  ---
+  duration_ms: 3.654474
+  type: 'test'
+  ...
+# Subtest: a session can be opened
+ok 192 - a session can be opened
+  ---
+  duration_ms: 433.464575
+  type: 'test'
+  ...
+# Subtest: the client survives a socket drop and stays in the session
+ok 193 - the client survives a socket drop and stays in the session
+  ---
+  duration_ms: 2019.557042
+  type: 'test'
+  ...
+# Subtest: a prompt sent while disconnected is reported, not silently dropped
+ok 194 - a prompt sent while disconnected is reported, not silently dropped
+  ---
+  duration_ms: 51.694937
+  type: 'test'
+  ...
+# Subtest: relaunchGrokTui returns a result object and does not throw
+ok 195 - relaunchGrokTui returns a result object and does not throw
+  ---
+  duration_ms: 4.819417
+  type: 'test'
+  ...
+# Subtest: B13: windows start with script uses NON-empty title so path is not the title
+ok 196 - B13: windows start with script uses NON-empty title so path is not the title
+  ---
+  duration_ms: 0.177967
+  type: 'test'
+  ...
+# Subtest: B14: Windows relaunch uses a single primary path (no multi-spawn storm)
+ok 197 - B14: Windows relaunch uses a single primary path (no multi-spawn storm)
+  ---
+  duration_ms: 3.705537
+  type: 'test'
+  ...
+# Subtest: B15: cmd start script args use quoted title token so .cmd actually runs
+ok 198 - B15: cmd start script args use quoted title token so .cmd actually runs
+  ---
+  duration_ms: 0.722908
+  type: 'test'
+  ...
+# Subtest: hand-back script prints banner before starting grok
+ok 199 - hand-back script prints banner before starting grok
+  ---
+  duration_ms: 0.536251
+  type: 'test'
+  ...
+# Subtest: B15: ps1 launcher and Start-Process command use only single-quoted paths
+ok 200 - B15: ps1 launcher and Start-Process command use only single-quoted paths
+  ---
+  duration_ms: 0.379446
+  type: 'test'
+  ...
+# Subtest: B12: fallback /D form has no nested cd /d in /k
+ok 201 - B12: fallback /D form has no nested cd /d in /k
+  ---
+  duration_ms: 0.209662
+  type: 'test'
+  ...
+# Subtest: B12: relaunch script cds with quoted path and runs grok -r
+ok 202 - B12: relaunch script cds with quoted path and runs grok -r
+  ---
+  duration_ms: 0.233402
+  type: 'test'
+  ...
+# Subtest: B13: Start-Process command uses WorkingDirectory and grok -r
+ok 203 - B13: Start-Process command uses WorkingDirectory and grok -r
+  ---
+  duration_ms: 0.319446
+  type: 'test'
+  ...
+# Subtest: PowerShell resume invokes grok -r, not grokrc
+ok 204 - PowerShell resume invokes grok -r, not grokrc
+  ---
+  duration_ms: 0.360989
+  type: 'test'
+  ...
+#   relay connected
+# Subtest: the relay serves the PWA itself
+ok 205 - the relay serves the PWA itself
+  ---
+  duration_ms: 104.922457
+  type: 'test'
+  ...
+# Subtest: relay static serving cannot escape the web root
+ok 206 - relay static serving cannot escape the web root
+  ---
+  duration_ms: 3.597253
+  type: 'test'
+  ...
+# Subtest: an /api call for an unknown room is refused
+ok 207 - an /api call for an unknown room is refused
+  ---
+  duration_ms: 2.53567
+  type: 'test'
+  ...
+# Subtest: /api/health tunnels to the daemon
+ok 208 - /api/health tunnels to the daemon
+  ---
+  duration_ms: 4.935213
+  type: 'test'
+  ...
+# Subtest: a bad pairing code is rejected through the tunnel
+ok 209 - a bad pairing code is rejected through the tunnel
+  ---
+  duration_ms: 6.469555
+  type: 'test'
+  ...
+#   stale client: device 52c27aa5e1332d0d is running dev, current is 715a7cabc36f
+# Subtest: a browser loads, pairs, and drives a turn entirely via the relay
+ok 210 - a browser loads, pairs, and drives a turn entirely via the relay
+  ---
+  duration_ms: 577.678311
+  type: 'test'
+  ...
+#   stale client: device 52c27aa5e1332d0d is running dev, current is 715a7cabc36f
+# Subtest: the relay session survives a page reload (room persisted)
+ok 211 - the relay session survives a page reload (room persisted)
+  ---
+  duration_ms: 54.560804
+  type: 'test'
+  ...
+# Subtest: two rooms can coexist
+ok 212 - two rooms can coexist
+  ---
+  duration_ms: 10.260334
+  type: 'test'
+  ...
+# Subtest: a daemon cannot answer another room's tunnelled HTTP request
+ok 213 - a daemon cannot answer another room's tunnelled HTTP request
+  ---
+  duration_ms: 6036.220729
+  type: 'test'
+  ...
+# Subtest: by default a relay serves the client — the behaviour being opted out of
+ok 214 - by default a relay serves the client — the behaviour being opted out of
+  ---
+  duration_ms: 17.125666
+  type: 'test'
+  ...
+# Subtest: a transport-only relay hands out no JavaScript at all
+ok 215 - a transport-only relay hands out no JavaScript at all
+  ---
+  duration_ms: 9.881167
+  type: 'test'
+  ...
+# Subtest: the refusal says why and names the fix
+ok 216 - the refusal says why and names the fix
+  ---
+  duration_ms: 1.78478
+  type: 'test'
+  ...
+# Subtest: refusing the client does NOT break the transport
+ok 217 - refusing the client does NOT break the transport
+  ---
+  duration_ms: 6.501532
+  type: 'test'
+  ...
+#   relay connected
+# Subtest: relay is alive
+ok 218 - relay is alive
+  ---
+  duration_ms: 12.782575
+  type: 'test'
+  ...
+# Subtest: relay serves the app at /
+ok 219 - relay serves the app at /
+  ---
+  duration_ms: 4.132178
+  type: 'test'
+  ...
+# Subtest: a wrong room key is refused at the relay
+ok 220 - a wrong room key is refused at the relay
+  ---
+  duration_ms: 3.460157
+  type: 'test'
+  ...
+# Subtest: a relayed client still needs a valid token
+ok 221 - a relayed client still needs a valid token
+  ---
+  duration_ms: 6.025876
+  type: 'test'
+  ...
+# Subtest: a paired device completes a full exchange through the relay
+ok 222 - a paired device completes a full exchange through the relay
+  ---
+  duration_ms: 13.42907
+  type: 'test'
+  ...
+# Subtest: two relayed clients are isolated from each other
+ok 223 - two relayed clients are isolated from each other
+  ---
+  duration_ms: 206.636736
+  type: 'test'
+  ...
+#   release requested: session rel-ws-1 by device 299210d1b1ad3a2c
+#   hand-back relaunch: ok — opened gnome-terminal
+#   hand-back methods: gnome-terminal
+#   release succeeded: session rel-ws-1 free — TUI can reclaim (relaunch: opened gnome-terminal)
+# Subtest: phone path: create session then release returns bash+powershell+term
+ok 224 - phone path: create session then release returns bash+powershell+term
+  ---
+  duration_ms: 434.961109
+  type: 'test'
+  ...
+#   release requested: session 019fabcd-0000-7000-8000-00000000zzz by device d334b5ff85da175f
+#   release FAILED: session 019fabcd-0000-7000-8000-00000000zzz is not owned by this daemon — nothing to hand back (it may already be closed, or only mirrored as read-only)
+# Subtest: release of a non-owned session returns a clear error (not silent)
+ok 225 - release of a non-owned session returns a clear error (not silent)
+  ---
+  duration_ms: 11.986217
+  type: 'test'
+  ...
+# Subtest: resumeCommands covers bash and PowerShell
+ok 226 - resumeCommands covers bash and PowerShell
+  ---
+  duration_ms: 0.902416
+  type: 'test'
+  ...
+# Subtest: release refuses a session the daemon does not own
+ok 227 - release refuses a session the daemon does not own
+  ---
+  duration_ms: 0.640498
+  type: 'test'
+  ...
+# Subtest: release closes an owned session and returns resume commands
+ok 228 - release closes an owned session and returns resume commands
+  ---
+  duration_ms: 7.632972
+  type: 'test'
+  ...
+# Subtest: session/load does not emit live events; a later prompt still does
+ok 229 - session/load does not emit live events; a later prompt still does
+  ---
+  duration_ms: 7.281891
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "../../../../etc"
+ok 230 - observe rejects a malformed session id: "../../../../etc"
+  ---
+  duration_ms: 1.37672
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: ".."
+ok 231 - observe rejects a malformed session id: ".."
+  ---
+  duration_ms: 0.18881
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "../.."
+ok 232 - observe rejects a malformed session id: "../.."
+  ---
+  duration_ms: 0.107199
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "a/../../b"
+ok 233 - observe rejects a malformed session id: "a/../../b"
+  ---
+  duration_ms: 0.100093
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "foo/bar"
+ok 234 - observe rejects a malformed session id: "foo/bar"
+  ---
+  duration_ms: 0.163096
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "./x"
+ok 235 - observe rejects a malformed session id: "./x"
+  ---
+  duration_ms: 0.096191
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: ""
+ok 236 - observe rejects a malformed session id: ""
+  ---
+  duration_ms: 0.147352
+  type: 'test'
+  ...
+# Subtest: observe rejects a malformed session id: "xxxxxxxxxxxxxxxxxxxxxxxx"
+ok 237 - observe rejects a malformed session id: "xxxxxxxxxxxxxxxxxxxxxxxx"
+  ---
+  duration_ms: 0.107518
+  type: 'test'
+  ...
+# Subtest: resume rejects a malformed session id: "../../../../etc"
+ok 238 - resume rejects a malformed session id: "../../../../etc"
+  ---
+  duration_ms: 0.512949
+  type: 'test'
+  ...
+# Subtest: resume rejects a malformed session id: "foo/bar"
+ok 239 - resume rejects a malformed session id: "foo/bar"
+  ---
+  duration_ms: 0.439162
+  type: 'test'
+  ...
+# Subtest: resume rejects a malformed session id: ""
+ok 240 - resume rejects a malformed session id: ""
+  ---
+  duration_ms: 0.182637
+  type: 'test'
+  ...
+# Subtest: observe rejects a relative cwd
+ok 241 - observe rejects a relative cwd
+  ---
+  duration_ms: 0.237849
+  type: 'test'
+  ...
+# Subtest: resume refuses a session that does not exist on disk
+ok 242 - resume refuses a session that does not exist on disk
+  ---
+  duration_ms: 7.044444
+  type: 'test'
+  ...
+# Subtest: a well-formed id and absolute cwd are accepted
+ok 243 - a well-formed id and absolute cwd are accepted
+  ---
+  duration_ms: 1.268281
+  type: 'test'
+  ...
+# Subtest: health endpoint responds
+ok 244 - health endpoint responds
+  ---
+  duration_ms: 19.783406
+  type: 'test'
+  ...
+# Subtest: PWA is served at the root
+ok 245 - PWA is served at the root
+  ---
+  duration_ms: 4.156752
+  type: 'test'
+  ...
+# Subtest: static serving cannot escape the web root
+ok 246 - static serving cannot escape the web root
+  ---
+  duration_ms: 3.332043
+  type: 'test'
+  ...
+# Subtest: pairing rejects a wrong code
+ok 247 - pairing rejects a wrong code
+  ---
+  duration_ms: 8.273336
+  type: 'test'
+  ...
+# Subtest: pairing issues a token, and the code is single-use
+ok 248 - pairing issues a token, and the code is single-use
+  ---
+  duration_ms: 5.16249
+  type: 'test'
+  ...
+# Subtest: plaintext tokens are never persisted
+ok 249 - plaintext tokens are never persisted
+  ---
+  duration_ms: 2.866196
+  type: 'test'
+  ...
+# Subtest: socket rejects an invalid token and closes 4401
+ok 250 - socket rejects an invalid token and closes 4401
+  ---
+  duration_ms: 7.578788
+  type: 'test'
+  ...
+# Subtest: commands before hello are refused
+ok 251 - commands before hello are refused
+  ---
+  duration_ms: 2.021141
+  type: 'test'
+  ...
+# Subtest: prompting a session that does not exist reports an error
+ok 252 - prompting a session that does not exist reports an error
+  ---
+  duration_ms: 6.00666
+  type: 'test'
+  ...
+# Subtest: a paired device gets ready then the session list
+ok 253 - a paired device gets ready then the session list
+  ---
+  duration_ms: 7.783347
+  type: 'test'
+  ...
+# grokrc — remote control for Grok Build
+#   grokrc up          Start the daemon and serve the phone client
+#       --port <N>       Port (default 4319)
+#       --host <H>       Bind address (default 127.0.0.1 — loopback only)
+#       --lan            Bind 0.0.0.0 so other devices on your network can reach it
+#       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
+#       --model <M>      Model override for new sessions
+#       --cwd <DIR>      Default working directory for new sessions
+#       --pair           Print a pairing code even if devices are already paired
+#       --history <N>    How many past sessions to list (default 10)
+#       --no-push        Disable Web Push (no VAPID keys, no subscriptions)
+#       --relay <URL>    Dial OUT to a relay — no inbound port, works on cellular
+#       --room <ID>      Relay room id (generated if omitted)
+#       --relay-key <K>  Relay room key (generated if omitted)
+#   grokrc relay       Run a self-hostable relay server
+#       --port <N>       Port (default 8080)
+#   grokrc term        Terminal client on the same session your phone drives
+#       --new            Start a new session
+#       --session <id>   Open a specific session
+#       --url <URL>      Daemon URL (default ws://127.0.0.1:4319)
+#   grokrc pair        Print a pairing code for a new device (needs a running daemon)
+#   grokrc config      Show settings  ·  config set <key> <value>  ·  config unset <key>
+#   grokrc devices     List paired devices
+#   grokrc revoke <id> Revoke a device  (--all to revoke everything)
+#   grokrc doctor      Check that grok is installed and ACP responds
+# Subtest: removes the session directory it created
+ok 254 - removes the session directory it created
+  ---
+  duration_ms: 7.573247
+  type: 'test'
+  ...
+# Subtest: refuses a session id that escapes the session store
+ok 255 - refuses a session id that escapes the session store
+  ---
+  duration_ms: 1.449934
+  type: 'test'
+  ...
+# Subtest: a non-existent session is a no-op, not a throw
+ok 256 - a non-existent session is a no-op, not a throw
+  ---
+  duration_ms: 0.655617
+  type: 'test'
+  ...
+# Subtest: resuming a session whose cwd is gone rejects, and the daemon survives
+ok 257 - resuming a session whose cwd is gone rejects, and the daemon survives
+  ---
+  duration_ms: 1596.802393
+  type: 'test'
+  ...
+# Subtest: creating a session in a directory that does not exist rejects, and the daemon survives
+ok 258 - creating a session in a directory that does not exist rejects, and the daemon survives
+  ---
+  duration_ms: 1588.531369
+  type: 'test'
+  ...
+# Subtest: an unspawnable agent binary does not kill the daemon either
+ok 259 - an unspawnable agent binary does not kill the daemon either
+  ---
+  duration_ms: 1604.68211
+  type: 'test'
+  ...
+# Subtest: verify() survives a device-store write failure
+ok 260 - verify() survives a device-store write failure
+  ---
+  duration_ms: 783.179128
+  type: 'test'
+  ...
+# Subtest: pairing over HTTP survives a device-store write failure
+ok 261 - pairing over HTTP survives a device-store write failure
+  ---
+  duration_ms: 860.421052
+  type: 'test'
+  ...
+# Subtest: a client that aborts mid-request does not kill the daemon
+ok 262 - a client that aborts mid-request does not kill the daemon
+  ---
+  duration_ms: 973.824772
+  type: 'test'
+  ...
+# Subtest: enabling notifications survives a subscription-store write failure
+ok 263 - enabling notifications survives a subscription-store write failure
+  ---
+  duration_ms: 878.240664
+  type: 'test'
+  ...
+# Subtest: looksLikeGrok trusts argv[0] only
+ok 264 - looksLikeGrok trusts argv[0] only
+  ---
+  duration_ms: 4.125596
+  type: 'test'
+  ...
+# Subtest: processArgs reads a real process, and null once it is gone
+ok 265 - processArgs reads a real process, and null once it is gone
+  ---
+  duration_ms: 574.749472
+  type: 'test'
+  ...
+# Subtest: a recycled pid is NOT killed — the bystander survives
+ok 266 - a recycled pid is NOT killed — the bystander survives
+  ---
+  duration_ms: 573.875725
+  type: 'test'
+  ...
+# Subtest: the daemon refuses to terminate itself
+ok 267 - the daemon refuses to terminate itself
+  ---
+  duration_ms: 36.102221
+  type: 'test'
+  ...
+# Subtest: a grok-looking owner is stopped with SIGTERM
+ok 268 - a grok-looking owner is stopped with SIGTERM
+  ---
+  duration_ms: 999.504321
+  type: 'test'
+  ...
+# Subtest: a session nobody owns is taken over without killing anything
+ok 269 - a session nobody owns is taken over without killing anything
+  ---
+  duration_ms: 527.534854
+  type: 'test'
+  ...
+# Subtest: takeOver validates its inputs before signalling anything
+ok 270 - takeOver validates its inputs before signalling anything
+  ---
+  duration_ms: 0.580737
+  type: 'test'
+  ...
+# Subtest: an error before any session exits, rather than hanging with no prompt
+ok 271 - an error before any session exits, rather than hanging with no prompt
+  ---
+  duration_ms: 178.554711
+  type: 'test'
+  ...
+# Subtest: writing to a dead agent surfaces an error event, and does not throw
+ok 272 - writing to a dead agent surfaces an error event, and does not throw
+  ---
+  duration_ms: 1917.326404
+  type: 'test'
+  ...
+# Subtest: an EPIPE on agent stdin becomes an error event, not a crash
+ok 273 - an EPIPE on agent stdin becomes an error event, not a crash
+  ---
+  duration_ms: 64.273129
+  type: 'test'
+  ...
+# Subtest: a large but legitimate partial frame is still buffered
+ok 274 - a large but legitimate partial frame is still buffered
+  ---
+  duration_ms: 1.12037
+  type: 'test'
+  ...
+# Subtest: an unterminated line is dropped once it passes the ceiling
+ok 275 - an unterminated line is dropped once it passes the ceiling
+  ---
+  duration_ms: 5.04484
+  type: 'test'
+  ...
+# Subtest: the decoder still works after dropping an oversized line
+ok 276 - the decoder still works after dropping an oversized line
+  ---
+  duration_ms: 5.123323
+  type: 'test'
+  ...
+# Subtest: rejects subjects Apple will 403
+ok 277 - rejects subjects Apple will 403
+  ---
+  duration_ms: 0.737249
+  type: 'test'
+  ...
+# Subtest: accepts subjects that are actually routable
+ok 278 - accepts subjects that are actually routable
+  ---
+  duration_ms: 0.17002
+  type: 'test'
+  ...
+# Subtest: a stored unroutable subject is repaired, and the keys are left alone
+ok 279 - a stored unroutable subject is repaired, and the keys are left alone
+  ---
+  duration_ms: 100.433456
+  type: 'test'
+  ...
+# Subtest: a subject that is already routable is left exactly as configured
+ok 280 - a subject that is already routable is left exactly as configured
+  ---
+  duration_ms: 92.497444
+  type: 'test'
+  ...
+# Subtest: a control that changes no behaviour is reported as unproven
+ok 281 - a control that changes no behaviour is reported as unproven
+  ---
+  duration_ms: 188.984189
+  type: 'test'
+  ...
+# Subtest: a find pattern that matches nothing is reported, not skipped
+ok 282 - a find pattern that matches nothing is reported, not skipped
+  ---
+  duration_ms: 33.029004
+  type: 'test'
+  ...
+# Subtest: --list names every real guard without touching the tree
+ok 283 - --list names every real guard without touching the tree
+  ---
+  duration_ms: 37.015522
+  type: 'test'
+  ...
+# Subtest: every registered guard names a file and test that exist
+ok 284 - every registered guard names a file and test that exist
+  ---
+  duration_ms: 17.442739
+  type: 'test'
+  ...
+# Subtest: looksLikeGrok accepts a Windows path with backslashes
+ok 285 - looksLikeGrok accepts a Windows path with backslashes
+  ---
+  duration_ms: 1.591845
+  type: 'test'
+  ...
+# Subtest: looksLikeGrok still accepts a POSIX path
+ok 286 - looksLikeGrok still accepts a POSIX path
+  ---
+  duration_ms: 0.129474
+  type: 'test'
+  ...
+# Subtest: looksLikeGrok still rejects an unrelated process
+ok 287 - looksLikeGrok still rejects an unrelated process
+  ---
+  duration_ms: 0.099324
+  type: 'test'
+  ...
+# Subtest: looksLikeGrok cannot read a path with spaces — which is why it is not used on Windows
+ok 288 - looksLikeGrok cannot read a path with spaces — which is why it is not used on Windows
+  ---
+  duration_ms: 0.100878
+  type: 'test'
+  ...
+# Subtest: looksLikeGrokExe accepts the normal Windows install location
+ok 289 - looksLikeGrokExe accepts the normal Windows install location
+  ---
+  duration_ms: 0.161442
+  type: 'test'
+  ...
+# Subtest: looksLikeGrokExe accepts plain paths on either platform
+ok 290 - looksLikeGrokExe accepts plain paths on either platform
+  ---
+  duration_ms: 0.096828
+  type: 'test'
+  ...
+# Subtest: looksLikeGrokExe rejects an unrelated executable
+ok 291 - looksLikeGrokExe rejects an unrelated executable
+  ---
+  duration_ms: 0.158063
+  type: 'test'
+  ...
+# Subtest: a process table that cannot be read is UNKNOWN, not "the process is gone"
+ok 292 - a process table that cannot be read is UNKNOWN, not "the process is gone"
+  ---
+  duration_ms: 5.733695
+  type: 'test'
+  ...
+# Subtest: a genuinely absent pid is still reported as gone
+ok 293 - a genuinely absent pid is still reported as gone
+  ---
+  duration_ms: 34.254791
+  type: 'test'
+  ...
+# Subtest: this very process reads back as itself, and is identified
+ok 294 - this very process reads back as itself, and is identified
+  ---
+  duration_ms: 34.590311
+  type: 'test'
+  ...
+1..294
+# tests 294
+# suites 0
+# pass 292
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms 70413.29335
+EXIT:0

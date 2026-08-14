@@ -1,0 +1,8 @@
+RUN-2 started: 2026-08-13T20:11:13Z
+commit working tree dirty: ## main...origin/main
+ M src/acp/transport.ts
+ M src/daemon/relaunch-tui.ts
+ M src/daemon/server.ts
+ M src/daemon/session-manager.ts
+node: v22.22.2
+grok: grok 1.0.3 (1a29d5bc12) [stable]

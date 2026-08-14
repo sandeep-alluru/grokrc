@@ -224,25 +224,46 @@ const liveKinds = [...observed.updateKinds.keys()].sort();
 const liveMethods = [...observed.methods.keys()].sort();
 
 if (process.argv.includes('--pin')) {
-  const { writeFile } = await import('node:fs/promises');
+  const { readFile, writeFile } = await import('node:fs/promises');
+  // UNION with any previous pin. A single turn is model-dependent — kinds like
+  // `last_turn_summary` appear on some runs and not others. Replacing the pin
+  // with "what this turn sent" made the next run fail for a kind the agent still
+  // supports. New observations expand the surface; absence on this turn does not
+  // shrink it.
+  let prev = { updateKinds: [], methods: [], opaque: [] };
+  try {
+    prev = JSON.parse(await readFile(SURFACE, 'utf8'));
+  } catch {
+    /* first pin */
+  }
+  const kinds = [...new Set([...(prev.updateKinds ?? []), ...liveKinds])].sort();
+  const methods = [...new Set([...(prev.methods ?? []), ...liveMethods])].sort();
+  const opaque = [
+    ...new Set([
+      ...(prev.opaque ?? []).filter((k) => kinds.includes(k)),
+      ...liveKinds.filter(isOpaque),
+    ]),
+  ].sort();
   await writeFile(
     SURFACE,
     JSON.stringify(
       {
         _comment:
           'MEASURED, never hand-edited. Regenerate with: node --experimental-strip-types ' +
-          'tools/acp-conformance.mjs --pin  — then read the diff before committing it.',
+          'tools/acp-conformance.mjs --pin  — then read the diff before committing it. ' +
+          'Pin is a UNION across pin runs (intermittent kinds accumulate).',
         agent: agentVersion,
-        updateKinds: liveKinds,
-        methods: liveMethods,
-        opaque: liveKinds.filter(isOpaque),
+        updateKinds: kinds,
+        methods,
+        opaque,
       },
       null,
       2
     ) + '\n'
   );
   console.log(
-    `\n  PINNED ${liveKinds.length} kind(s) and ${liveMethods.length} method(s) to ${SURFACE.pathname}`
+    `\n  PINNED ${kinds.length} kind(s) and ${methods.length} method(s) to ${SURFACE.pathname}` +
+      ` (union with previous pin)`
   );
 } else {
   const { readFile } = await import('node:fs/promises');

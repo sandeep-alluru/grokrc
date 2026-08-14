@@ -1,0 +1,2 @@
+RUN-5 started: 2026-08-13T20:44:16Z
+order: G1 G2 G3 G5 suite, G4 build, G6 real, G7 guards, G8-G11

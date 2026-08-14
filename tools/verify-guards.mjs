@@ -27,7 +27,7 @@
  * restored; the process restores on exit, on signal, and on crash.
  */
 import { spawn } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, stat, utimes } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { countMatches, forSource } from './guard-match.mjs';
@@ -63,13 +63,31 @@ if (argv.includes('--list')) {
 
 /* ─── restore safety net ──────────────────────────────────────────────────── */
 
-/** file -> original contents, for everything currently mutated. */
+/**
+ * file -> { content, atimeMs, mtimeMs } for everything currently mutated.
+ *
+ * Restoring content with writeFile alone bumps mtime. That made `src/` look
+ * newer than `dist/` after test/verify-guards.test.ts (and any suite that runs
+ * the verifier), so the next real-stack check refused with "dist is older than
+ * src" even when the bytes never changed — the twin of BACKLOG #21, on the
+ * suite side. Put the original timestamps back after every restore.
+ */
 const dirty = new Map();
 
+async function restoreFile(abs, snapshot) {
+  await writeFile(abs, snapshot.content);
+  await utimes(abs, snapshot.atimeMs / 1000, snapshot.mtimeMs / 1000);
+}
+
+async function snapshotFile(abs, content) {
+  const st = await stat(abs);
+  return { content, atimeMs: st.atimeMs, mtimeMs: st.mtimeMs };
+}
+
 async function restoreAll() {
-  for (const [file, original] of dirty) {
+  for (const [file, snapshot] of dirty) {
     try {
-      await writeFile(join(ROOT, file), original);
+      await restoreFile(join(ROOT, file), snapshot);
     } catch {
       console.error(`  !! could not restore ${file} — check \`git diff\``);
     }
@@ -196,15 +214,16 @@ try {
     }
 
     // MUTATE
-    dirty.set(g.file, original);
+    dirty.set(g.file, await snapshotFile(abs, original));
     await writeFile(abs, original.split(find).join(replace));
 
     process.stdout.write(`  · ${label} disabling … `);
     const mutated = await runTest(g.test);
     const stillPasses = mutated.passed && !mutated.skipped;
 
-    // RESTORE, and prove it
-    await writeFile(abs, original);
+    // RESTORE content + mtime, and prove content
+    const snap = dirty.get(g.file);
+    await restoreFile(abs, snap);
     dirty.delete(g.file);
     const after = await readFile(abs, 'utf8');
     if (after !== original) {

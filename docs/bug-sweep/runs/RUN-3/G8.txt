@@ -1,0 +1,7 @@
+=== G8 backlog ===
+
+> grokrc@0.2.1 backlog
+> node tools/backlog-report.mjs --check
+
+  ✓ backlog document matches the data, and every closed item carries its artifact
+EXIT:0

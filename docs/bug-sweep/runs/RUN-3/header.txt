@@ -1,0 +1,4 @@
+RUN-3 started: 2026-08-13T20:19:44Z
+order: G1 typecheck, G2 lint, G3 format, G5 suite, G4 build, G6 real, G7 guards, G8-G11
+node: v22.22.2
+grok: grok 1.0.3 (1a29d5bc12) [stable]

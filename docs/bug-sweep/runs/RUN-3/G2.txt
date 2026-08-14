@@ -1,0 +1,15 @@
+=== G2 lint ===
+
+> grokrc@0.2.1 lint
+> eslint .
+
+
+/home/clawer-samurai-1/AgentHub/grokrc/src/daemon/observer.ts
+  66:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/clawer-samurai-1/AgentHub/grokrc/src/daemon/session-manager.ts
+  374:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 2 problems (0 errors, 2 warnings)
+
+EXIT:0

@@ -1,0 +1,16 @@
+=== G6 test-real ===
+
+> grokrc@0.2.1 test:real
+> node tools/isolated-test.mjs tools/live-ui-check.mjs && node tools/isolated-test.mjs tools/resume-check.mjs && node tools/isolated-test.mjs tools/midturn-check.mjs && node tools/isolated-test.mjs tools/acp-conformance.mjs
+
+file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:174
+    throw new Error(
+          ^
+
+Error: dist/ is 71s older than src/ — you are about to test the PREVIOUS build. Run `npm run build` first. (This exact trap produced six false results on #19.)
+    at assertBuildIsFresh (file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:174:11)
+    at async bootDaemon (file:///home/clawer-samurai-1/AgentHub/grokrc/tools/harness.mjs:209:26)
+    at async file:///home/clawer-samurai-1/AgentHub/grokrc/tools/live-ui-check.mjs:32:16
+
+Node.js v22.22.2
+EXIT:1
