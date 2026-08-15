@@ -9,6 +9,33 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-15
+
+### Changed
+
+- **Phone session titles** — the session list prefers Grok `generated_title`
+  (short names such as `PCF-AVATAR`) over the long `session_summary`.
+- **Default remote permission mode is `auto`** — phone create / resume /
+  take-over spawn with `--permission-mode auto` so tools do not stop for every
+  approval. Override with `grokrc config set permissionMode default` or
+  `--permission-mode default` if you want one-tap remote approval instead.
+
+### Fixed
+
+- Suite / gate flakiness: lint and format clean, ACP pin unions measured
+  surface kinds, guard restore keeps source mtimes, isolated-test only flags
+  scratch cwds.
+
+### Documentation
+
+- Tailscale access-from-anywhere: `set --operator`, `serve --bg`, MagicDNS,
+  persistence, serve-vs-funnel, and generic example hostnames.
+- Security contact email is `salluru.work@gmail.com`.
+
+### Dependencies
+
+- `ws` 8.21.3. Dev: `@types/node` 26.2.0, `eslint` 10.8.1, `tsx` 4.23.11.
+
 ## [0.2.1] — 2026-08-12
 
 ### Changed
@@ -138,7 +165,8 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.2
 [0.2.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.1
 [0.2.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.0
 [0.1.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.1.2
