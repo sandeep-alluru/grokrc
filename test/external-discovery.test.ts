@@ -96,6 +96,36 @@ test('discoverOnDisk marks a live registry pid as externallyActive', async () =>
   assert.equal(hit!.title, 'External TUI session');
 });
 
+test('discoverOnDisk prefers generated_title over long session_summary', async () => {
+  // Measured on real summary.json: generated_title holds short/manual names
+  // (often with surrounding quotes); session_summary is a longer auto blurb.
+  // The phone list must show the short name users set in the TUI.
+  const id = '019fabcd-0000-7000-8000-00000000ttl';
+  const cwd = join(grokHome, 'named-project');
+  await writeFile(
+    join(grokHome, 'active_sessions.json'),
+    JSON.stringify([{ session_id: id, pid: process.pid, cwd, opened_at: new Date().toISOString() }])
+  );
+  const dir = join(grokHome, 'sessions', encodeURIComponent(cwd), id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, 'summary.json'),
+    JSON.stringify({
+      info: { id, cwd },
+      session_summary: 'Read Handover Document for Model Bakeoff',
+      generated_title: '"PCF-AVATAR"',
+      title_is_manual: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      current_model_id: 'grok-4.5',
+    })
+  );
+  const list = await sessions.discoverOnDisk(20);
+  const hit = list.find((s) => s.id === id);
+  assert.ok(hit, 'named session must appear');
+  assert.equal(hit!.title, 'PCF-AVATAR', 'must strip quotes and prefer generated_title');
+});
+
 test('daemon pushes an updated sessions list when an external session appears', async () => {
   const { sock, frames } = await pairPhone();
   const id = '019fabcd-0000-7000-8000-00000000new';

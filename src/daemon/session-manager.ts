@@ -342,6 +342,13 @@ export interface SessionManagerOptions {
   /** Custom leader socket path (default `~/.grok/leader.sock`). */
   leaderSocket?: string;
   /**
+   * Grok `--permission-mode` for agents this daemon spawns (create / resume /
+   * take-over). Default `"auto"` so phone control does not stop on every tool
+   * prompt — matching how most workstation TUIs run (`permission_mode = auto`).
+   * Set `"default"` if you want one-tap remote approval prompts instead.
+   */
+  permissionMode?: string;
+  /**
    * Override how the agent transport is created. Exists so tests can substitute
    * a scripted agent — driving the UI against real captured payloads without
    * spending tokens or inheriting model non-determinism.
@@ -455,7 +462,8 @@ export class SessionManager extends EventEmitter {
     // Enrich from summary.json when present — best effort, never fatal.
     try {
       const s = JSON.parse(await readFile(join(dir, 'summary.json'), 'utf8')) as SummaryFile;
-      obs.info.title = s.session_summary || obs.info.title;
+      // Prefer Grok's short/manual name over the long session_summary line.
+      obs.info.title = titleFromSummary(s, obs.info.cwd) || obs.info.title;
       obs.info.model = s.current_model_id;
       obs.info.createdAt = toMs(s.created_at);
       obs.info.updatedAt = toMs(s.updated_at);
@@ -570,6 +578,8 @@ export class SessionManager extends EventEmitter {
         model,
         useLeader: this.#opts.useLeader,
         leaderSocket: this.#opts.leaderSocket,
+        // Phone take-over / create: auto-run tools unless the operator opts out.
+        permissionMode: this.#opts.permissionMode ?? 'auto',
       });
     const client = new AcpClient({ transport });
 
@@ -665,6 +675,7 @@ export class SessionManager extends EventEmitter {
         model,
         useLeader: this.#opts.useLeader,
         leaderSocket: this.#opts.leaderSocket,
+        permissionMode: this.#opts.permissionMode ?? 'auto',
       });
     const client = new AcpClient({ transport });
     await client.initialize();
@@ -948,12 +959,14 @@ export class SessionManager extends EventEmitter {
         try {
           const raw = await readFile(join(cwdDir, id, 'summary.json'), 'utf8');
           const s = JSON.parse(raw) as SummaryFile;
-          // Field names verified against real session files — Grok writes
-          // `session_summary` and `current_model_id`, not `title`/`model`.
+          // Field names verified against real session files. Grok writes
+          // `generated_title` (often the short/manual name), `session_summary`
+          // (longer auto blurb), and `current_model_id` — not `title`/`model`.
+          const resolvedCwd = s.info?.cwd ?? cwd;
           out.push({
             id: s.info?.id ?? id,
-            cwd: s.info?.cwd ?? cwd,
-            title: s.session_summary || defaultTitle(cwd),
+            cwd: resolvedCwd,
+            title: titleFromSummary(s, resolvedCwd),
             model: s.current_model_id,
             mode: 'observed',
             state: 'idle',
@@ -1232,6 +1245,9 @@ export class SessionManager extends EventEmitter {
 interface SummaryFile {
   info?: { id?: string; cwd?: string };
   session_summary?: string;
+  /** Short name Grok assigns / user renames — often quoted, e.g. `"ADOS-PILOT"`. */
+  generated_title?: string;
+  title_is_manual?: boolean;
   current_model_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -1241,6 +1257,35 @@ interface SummaryFile {
 function defaultTitle(cwd: string): string {
   const parts = cwd.split(/[/\\]/).filter(Boolean);
   return parts[parts.length - 1] ?? cwd;
+}
+
+/**
+ * Phone list label for a persisted Grok session.
+ *
+ * Measured on live `summary.json` files: users rename sessions to short tags
+ * (`PCF-AVATAR`, `ADOS-PILOT`) stored as `generated_title` (sometimes with
+ * surrounding quotes). `session_summary` is a longer auto line that is useful
+ * as fallback but wrong as the primary name when a short title exists.
+ */
+export function titleFromSummary(s: SummaryFile, cwd: string): string {
+  const short = cleanGeneratedTitle(s.generated_title);
+  if (short) return short;
+  const summary = typeof s.session_summary === 'string' ? s.session_summary.trim() : '';
+  if (summary) return summary;
+  return defaultTitle(cwd);
+}
+
+function cleanGeneratedTitle(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  let t = raw.trim();
+  // Grok often stores `"ADOS-PILOT"` with literal quote characters.
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
+  return t;
 }
 
 /** Shell commands that reopen a released session in Grok's TUI / grokrc term. */

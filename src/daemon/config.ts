@@ -36,6 +36,11 @@ export interface GrokrcConfig {
   model?: string;
   /** Share one backend with a running `grok agent leader`. */
   leader?: boolean;
+  /**
+   * Grok permission mode for agents the phone drives (create / resume / take-over).
+   * Default when unset: `auto` (no per-tool prompts on the phone).
+   */
+  permissionMode?: string;
 }
 
 const KNOWN_KEYS: (keyof GrokrcConfig)[] = [
@@ -46,6 +51,7 @@ const KNOWN_KEYS: (keyof GrokrcConfig)[] = [
   'historyLimit',
   'model',
   'leader',
+  'permissionMode',
 ];
 
 export async function loadConfig(): Promise<GrokrcConfig> {

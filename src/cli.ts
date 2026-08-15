@@ -77,6 +77,8 @@ grokrc — remote control for Grok Build
       --leader         Share one backend with a running grok TUI (laptop <-> phone handoff)
       --model <M>      Model override for new sessions
       --cwd <DIR>      Default working directory for new sessions
+      --permission-mode <M>  Grok permission mode for phone agents
+                       (default auto — no per-tool prompts; use default for one-tap approve)
       --pair           Print a pairing code even if devices are already paired
       --history <N>    How many past sessions to list (default 10)
       --no-push        Disable Web Push (no VAPID keys, no subscriptions)
@@ -184,6 +186,13 @@ async function cmdUp(flags: Flags): Promise<void> {
   const sessions = new SessionManager({
     model: typeof flags.model === 'string' ? flags.model : cfg.model,
     useLeader: flags.leader === true || cfg.leader === true,
+    // Phone create / resume / take-over: default auto so tools do not block on
+    // every permission prompt. Override with `grokrc config set permissionMode default`
+    // if you want one-tap remote approval instead.
+    permissionMode:
+      typeof flags['permission-mode'] === 'string'
+        ? flags['permission-mode']
+        : (cfg.permissionMode ?? 'auto'),
   });
 
   const lan = flags.lan === true || cfg.lan === true;
