@@ -9,6 +9,29 @@ Pre-1.0: the minor version may change behaviour. Read the notes before upgrading
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-17
+
+First npm release of the 0.2.2 product. Git tag `v0.2.2` existed; registry
+latest was still `0.2.1`.
+
+### Documentation
+
+- **Phone permission mode** — GUIDE, README, and SECURITY now state that
+  phone create / resume / take-over default to `--permission-mode auto`.
+  One-tap remote approval is `grokrc config set permissionMode default`
+  plus Grok `~/.grok/config.toml` (`support_permission` +
+  `permission_mode = "default"`). Either layer alone is not enough.
+- **Session titles** — the phone list uses Grok's short `generated_title`
+  when present.
+- **Releasing** — CONTRIBUTING records the maintainer publish path
+  (`.env` key `NPM-JS-TOKEN`, never committed).
+
+### Fixed
+
+- `grokrc config set permissionMode` now applies to the running daemon for
+  the next create / resume / take-over. It previously wrote the file and
+  claimed a re-read while the live `SessionManager` kept the boot value.
+
 ## [0.2.2] — 2026-08-15
 
 ### Changed
@@ -116,7 +139,7 @@ no credentials — a state the author's machine can never be in.
   not open a single session. It now refuses, names the install command, and does
   not announce itself as ready.
 - **`grokrc doctor` relayed the agent's raw auth error** — `Authentication
-  required (-32000)` — which is accurate and names no command. It now adds
+required (-32000)` — which is accurate and names no command. It now adds
   `run: grok login`.
 
 ### Added
@@ -165,7 +188,8 @@ First working release. Private.
 - iOS push requires Safari plus Add to Home Screen. No third-party iOS browser supports
   Web Push.
 
-[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.2...HEAD
+[unreleased]: https://github.com/sandeep-alluru/grokrc/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.3
 [0.2.2]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.2
 [0.2.1]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.1
 [0.2.0]: https://github.com/sandeep-alluru/grokrc/releases/tag/v0.2.0

@@ -5,11 +5,11 @@
  * running daemon reads per use and could have picked up instantly. The advice
  * was wrong for some keys and right for others, with no way to tell which.
  *
- * The honest part is the split. `defaultCwd`, `model` and `historyLimit` are
- * consulted per request or per session create, so they can change under a
- * running daemon. `host`, `port` and `lan` cannot: the socket is already bound,
- * and reporting them as applied would be a lie that only surfaces later, when
- * the daemon is still answering on the old port.
+ * The honest part is the split. `defaultCwd`, `model`, `historyLimit` and
+ * `permissionMode` are consulted per request or per session create, so they can
+ * change under a running daemon. `host`, `port` and `lan` cannot: the socket
+ * is already bound, and reporting them as applied would be a lie that only
+ * surfaces later, when the daemon is still answering on the old port.
  */
 import { strict as assert } from 'node:assert';
 import { test, after } from 'node:test';
@@ -41,6 +41,7 @@ const appliedTo: {
   historyLimit?: number;
   model?: string;
   useLeader?: boolean;
+  permissionMode?: string;
 } = {};
 const serverRecorder = {
   applyConfig(next: { defaultCwd?: string; historyLimit?: number }) {
@@ -48,7 +49,7 @@ const serverRecorder = {
   },
 };
 const sessionsRecorder = {
-  applyConfig(next: { model?: string; useLeader?: boolean }) {
+  applyConfig(next: { model?: string; useLeader?: boolean; permissionMode?: string }) {
     Object.assign(appliedTo, next);
   },
 };
@@ -137,4 +138,31 @@ test('an unchanged setting is not reported as applied', async () => {
   );
   assert.deepEqual(r.applied, [], `nothing changed, so nothing should be applied: ${r.applied}`);
   assert.deepEqual(r.needsRestart, [], 'nothing changed, so nothing needs a restart');
+});
+
+test('a changed permissionMode reaches the daemon, not just the config file', async () => {
+  // Twin of model / historyLimit. permissionMode is consulted on create /
+  // resume / take-over; claiming "re-read" while #opts stays at boot `auto`
+  // would make `grokrc config set permissionMode default` a no-op on a live
+  // daemon.
+  await writeFile(
+    join(tmp, 'config.json'),
+    JSON.stringify({ ...bootCfg, permissionMode: 'default' })
+  );
+  const r = await controlRequest<{ applied: string[]; needsRestart: string[] }>(
+    'reload',
+    undefined,
+    SOCK
+  );
+
+  assert.ok(r.applied.includes('permissionMode'), 'permissionMode should apply without a restart');
+  assert.equal(
+    appliedTo.permissionMode,
+    'default',
+    'the daemon did not actually take the new permission mode'
+  );
+  assert.ok(
+    !r.needsRestart.includes('permissionMode'),
+    'permissionMode must not require a restart'
+  );
 });

@@ -39,10 +39,24 @@ Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Pull requests
 
-1. Keep changes focused.  
-2. Add or update tests for behaviour changes.  
-3. Do not hardcode test counts in user docs.  
+1. Keep changes focused.
+2. Add or update tests for behaviour changes.
+3. Do not hardcode test counts in user docs.
 4. Run `npm test` (and `verify:guards` for control changes) before asking for review.
+
+## Releasing
+
+Maintainers only. Do not commit tokens.
+
+1. Bump `package.json` / `package-lock.json` and add a `CHANGELOG.md` section.
+2. Run `npm test` (and `verify:guards` if you changed a control).
+3. Commit, tag `vX.Y.Z`, push `main` and the tag.
+4. Publish: `NPM-JS-TOKEN` in the repo-local `.env` (gitignored). Classic npm
+   token; `npm publish` uses `//registry.npmjs.org/:_authToken`.
+5. `gh release create vX.Y.Z --title "grokrc X.Y.Z" --notes-file` from the
+   changelog section.
+
+`.env.example` lists the key name only.
 
 ## Code of conduct
 

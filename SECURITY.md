@@ -29,10 +29,10 @@ given in the release notes unless you prefer otherwise.
 
 ## Supported versions
 
-| Version | Supported |
-| ------- | --------- |
-| `main` / latest npm | ✅ |
-| older releases | ❌ |
+| Version             | Supported |
+| ------------------- | --------- |
+| `main` / latest npm | ✅        |
+| older releases      | ❌        |
 
 Only current `main` and the latest npm release receive fixes.
 
@@ -48,17 +48,17 @@ Only current `main` and the latest npm release receive fixes.
 
 ### What grokrc defends against
 
-| Threat                                | Defence                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------- |
-| Unpaired device connecting            | 6-character pairing code, 5-minute TTL, single use                          |
-| Stolen pairing code replayed          | Codes are consumed on redeem; constant-time comparison                      |
-| Token theft from disk                 | Only a hash is stored; the plaintext token is returned exactly once         |
-| Brute-forced device token             | 256-bit tokens; sockets closed on a bad token (`close 4401`)                |
-| A relay operator reading your session | AES-256-GCM end-to-end; the key travels in the URL **fragment**, never sent |
-| One relay room reaching another       | Per-room ownership checks on every tunnelled request and response           |
-| Malformed frames crashing the daemon  | Per-message shape validation before dispatch                                |
-| Path traversal via session `cwd`      | `cwd` must be an existing absolute directory; validated on create and resume |
-| Unbounded memory from a hostile agent | NDJSON lines capped at 8 MiB; live sessions capped at 12                    |
+| Threat                                    | Defence                                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Unpaired device connecting                | 6-character pairing code, 5-minute TTL, single use                                                                |
+| Stolen pairing code replayed              | Codes are consumed on redeem; constant-time comparison                                                            |
+| Token theft from disk                     | Only a hash is stored; the plaintext token is returned exactly once                                               |
+| Brute-forced device token                 | 256-bit tokens; sockets closed on a bad token (`close 4401`)                                                      |
+| A relay operator reading your session     | AES-256-GCM end-to-end; the key travels in the URL **fragment**, never sent                                       |
+| One relay room reaching another           | Per-room ownership checks on every tunnelled request and response                                                 |
+| Malformed frames crashing the daemon      | Per-message shape validation before dispatch                                                                      |
+| Path traversal via session `cwd`          | `cwd` must be an existing absolute directory; validated on create and resume                                      |
+| Unbounded memory from a hostile agent     | NDJSON lines capped at 8 MiB; live sessions capped at 12                                                          |
 | Another local account reading `~/.grokrc` | POSIX: directory `0700`, files `0600`. Windows: an ACL granting only your account, with inherited entries dropped |
 
 ### Platform differences, stated rather than assumed
@@ -70,8 +70,8 @@ threat model that only describes the strongest platform is not a threat model.
   `chmod 0600` — access is filesystem permissions, and anyone who can open it
   already has your shell. Windows has no Unix domain sockets, so it is a named
   pipe; pipes are machine-global and Node exposes no way to set an ACL on one.
-  The name is a SHA-256 of your config directory, so it is *unguessable* rather
-  than *protected*. That is a real difference in kind.
+  The name is a SHA-256 of your config directory, so it is _unguessable_ rather
+  than _protected_. That is a real difference in kind.
 
 - **`~/.grokrc` permissions.** POSIX modes are ignored on Windows, so the
   `mode: 0o700` the code asks for did nothing there and the directory simply
@@ -91,8 +91,8 @@ threat model that only describes the strongest platform is not a threat model.
   it can drop it. Run your own if that matters.
 - **A relay that also serves you the client.** This is the sharpest limit here, so it is
   spelled out rather than buried. End-to-end encryption protects the payload — the key
-  lives in the URL fragment, which browsers never transmit — but *the page's JavaScript
-  is what decrypts*. A relay that serves the PWA can serve a modified one and read
+  lives in the URL fragment, which browsers never transmit — but _the page's JavaScript
+  is what decrypts_. A relay that serves the PWA can serve a modified one and read
   everything before encryption is ever applied.
 
   Subresource Integrity does not save you: the same relay serves `index.html`, so it can
@@ -113,6 +113,7 @@ threat model that only describes the strongest platform is not a threat model.
   PWA once from the daemon's own origin over Tailscale, then let the installed
   application communicate with the relay. This has **not been tested** and is not
   currently a supported configuration.
+
 - **Prompt injection into the agent.** If Grok reads a hostile file and decides to run
   something, grokrc faithfully relays the approval request. **Approvals are your
   control** — see below.
@@ -120,7 +121,10 @@ threat model that only describes the strongest platform is not a threat model.
 
 ## The approvals setting matters more than anything else here
 
-Grok Build ships with permission prompting **off**:
+Two independent layers decide whether the phone shows one-tap approval:
+
+1. **grokrc** — phone create / resume / take-over spawn with `--permission-mode auto` unless you set `grokrc config set permissionMode default` (or pass `--permission-mode default` on `grokrc up`).
+2. **Grok Build** — ships with permission prompting **off**:
 
 ```toml
 [features]
@@ -133,7 +137,9 @@ and the second is the dangerous one:
 1. Remote approval buttons never appear — grokrc looks broken.
 2. **The agent acts without asking anyone**, in the terminal and on your phone alike.
 
-grokrc's `preflight` check detects this and warns on startup. Turn approvals on:
+Setting Grok's toml alone is not enough: grokrc will still pass `--permission-mode auto` and tools will run unattended from the phone. Both layers must allow prompts.
+
+grokrc's `preflight` check detects the Grok-side posture and warns on startup. Turn approvals on:
 
 ```toml
 # ~/.grok/config.toml
@@ -144,16 +150,20 @@ support_permission = true
 permission_mode = "default"   # NOT "auto"
 ```
 
-`permission_mode = "auto"` suppresses prompts even when `support_permission` is true.
+```bash
+grokrc config set permissionMode default
+```
+
+`permission_mode = "auto"` (Grok) or `permissionMode` unset/`auto` (grokrc) suppresses prompts even when `support_permission` is true.
 
 ## Network exposure — pick deliberately
 
-| Mode                     | Who can reach the daemon        | Notes                                            |
-| ------------------------ | ------------------------------- | ------------------------------------------------ |
-| default (loopback)       | only this machine               | safest; phone needs a tunnel                     |
-| `--lan`                  | anything on your local network  | pairing still required; use on trusted LANs only |
-| Tailscale (`serve`)      | your tailnet only               | **recommended**; real HTTPS, no open ports       |
-| `--relay <url>`          | anyone with the room + key      | daemon dials **out**; nothing is listening       |
+| Mode                | Who can reach the daemon       | Notes                                            |
+| ------------------- | ------------------------------ | ------------------------------------------------ |
+| default (loopback)  | only this machine              | safest; phone needs a tunnel                     |
+| `--lan`             | anything on your local network | pairing still required; use on trusted LANs only |
+| Tailscale (`serve`) | your tailnet only              | **recommended**; real HTTPS, no open ports       |
+| `--relay <url>`     | anyone with the room + key     | daemon dials **out**; nothing is listening       |
 
 Serving over plain HTTP on a hostile network exposes the device token in transit. Use
 HTTPS — via Tailscale or a relay — for anything beyond loopback.

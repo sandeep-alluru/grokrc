@@ -173,7 +173,9 @@ export function missingCwdNotice(): string {
  */
 export interface ReloadTargets {
   server: { applyConfig(next: { defaultCwd?: string; historyLimit?: number }): void };
-  sessions: { applyConfig(next: { model?: string; useLeader?: boolean }): void };
+  sessions: {
+    applyConfig(next: { model?: string; useLeader?: boolean; permissionMode?: string }): void;
+  };
 }
 
 /**
@@ -204,9 +206,16 @@ export function applyReload(
     targets.server.applyConfig({ historyLimit: next.historyLimit });
     applied.push('historyLimit');
   }
-  targets.sessions.applyConfig({ model: next.model, useLeader: next.leader === true });
+  const nextMode = next.permissionMode ?? 'auto';
+  const bootMode = boot.permissionMode ?? 'auto';
+  targets.sessions.applyConfig({
+    model: next.model,
+    useLeader: next.leader === true,
+    permissionMode: nextMode,
+  });
   if (next.model !== boot.model) applied.push('model');
   if ((next.leader === true) !== (boot.leader === true)) applied.push('leader');
+  if (nextMode !== bootMode) applied.push('permissionMode');
 
   for (const k of ['host', 'port', 'lan'] as const) {
     if (JSON.stringify(next[k]) !== JSON.stringify(boot[k])) needsRestart.push(k);

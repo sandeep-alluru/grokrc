@@ -44,12 +44,14 @@ npm install -g grokrc
 # 3. One required setting — where new sessions open
 grokrc config set defaultCwd ~/code
 
-# 4. Approvals must be on (Grok defaults them off)
-#    ~/.grok/config.toml
-#    [features]
-#    support_permission = true
-#    [ui]
-#    permission_mode = "default"
+# 4. Phone sessions auto-run tools (no per-tool stop).
+#    For one-tap approvals on the phone:
+#      grokrc config set permissionMode default
+#    and in ~/.grok/config.toml (Grok defaults approvals off):
+#      [features]
+#      support_permission = true
+#      [ui]
+#      permission_mode = "default"
 
 # 5. Start
 grokrc up --lan
@@ -75,22 +77,22 @@ Check the install anytime: `grokrc doctor`
 
 ## ⭐ Features
 
-| | Existing tools | grokrc |
-|---|---|---|
-| Transport | PTY / terminal bytes | **ACP JSON-RPC** (typed) |
-| Waiting for you? | Regex over ANSI | `session/request_permission` |
-| Approve a tool | Send keystrokes | One tap by `optionId` |
-| Networking | Open inbound ports | LAN, Tailscale, or **outbound relay** |
-| Terminal + phone | Separate sessions | **Same session** (`grokrc term`) |
-| Take over a TUI session | ✗ | One tap from the phone |
-| Hand back to desktop | ✗ | Auto-open terminal + `grok -r` |
-| Platforms | Often iOS-only | **PWA** — iOS and Android |
-| Grok Build | Unsupported | **Native** |
+|                         | Existing tools       | grokrc                                |
+| ----------------------- | -------------------- | ------------------------------------- |
+| Transport               | PTY / terminal bytes | **ACP JSON-RPC** (typed)              |
+| Waiting for you?        | Regex over ANSI      | `session/request_permission`          |
+| Approve a tool          | Send keystrokes      | One tap by `optionId`                 |
+| Networking              | Open inbound ports   | LAN, Tailscale, or **outbound relay** |
+| Terminal + phone        | Separate sessions    | **Same session** (`grokrc term`)      |
+| Take over a TUI session | ✗                    | One tap from the phone                |
+| Hand back to desktop    | ✗                    | Auto-open terminal + `grok -r`        |
+| Platforms               | Often iOS-only       | **PWA** — iOS and Android             |
+| Grok Build              | Unsupported          | **Native**                            |
 
-- **Owned sessions** — start from the phone; full control  
-- **Observed sessions** — watch a hand-started `grok` TUI (read-only until take over)  
-- **Push notifications** — self-hosted Web Push (VAPID); no third-party cloud  
-- **Relay mode** — daemon dials out; nothing listens on your machine  
+- **Owned sessions** — start from the phone; full control
+- **Observed sessions** — watch a hand-started `grok` TUI (read-only until take over)
+- **Push notifications** — self-hosted Web Push (VAPID); no third-party cloud
+- **Relay mode** — daemon dials out; nothing listens on your machine
 
 Full usage: **[docs/GUIDE.md](docs/GUIDE.md)**
 
@@ -113,11 +115,11 @@ npm install && npm run build
 npm link
 ```
 
-| Platform | Packaged CLI | Full suite (CI) | Service |
-|---|---|---|---|
-| **Linux** | Node 20–24 | Node 22, 24 | systemd user unit |
-| **macOS** | Node 20–24 | Node 22, 24 | — |
-| **Windows** | Node 20–24 | Node 22, 24 | Scheduled Task |
+| Platform    | Packaged CLI | Full suite (CI) | Service           |
+| ----------- | ------------ | --------------- | ----------------- |
+| **Linux**   | Node 20–24   | Node 22, 24     | systemd user unit |
+| **macOS**   | Node 20–24   | Node 22, 24     | —                 |
+| **Windows** | Node 20–24   | Node 22, 24     | Scheduled Task    |
 
 Verified against Grok Build `0.2.x` and `1.0.x`.
 
@@ -131,25 +133,25 @@ grokrc doctor                         # agent, ACP, approvals
 grokrc up --lan                       # reachable on your LAN
 ```
 
-| Goal | Command |
-|---|---|
-| Pair another device | `grokrc pair` |
-| List devices | `grokrc devices` |
-| Revoke a device | `grokrc revoke <id>` |
-| Terminal on same session | `grokrc term` |
+| Goal                     | Command                                               |
+| ------------------------ | ----------------------------------------------------- |
+| Pair another device      | `grokrc pair`                                         |
+| List devices             | `grokrc devices`                                      |
+| Revoke a device          | `grokrc revoke <id>`                                  |
+| Terminal on same session | `grokrc term`                                         |
 | Run as a service (Linux) | see [Guide → Service](docs/GUIDE.md#run-as-a-service) |
-| Outbound relay | `grokrc up --relay wss://your-relay` |
+| Outbound relay           | `grokrc up --relay wss://your-relay`                  |
 
 ---
 
 ## 📱 Reach your phone
 
-1. **LAN** — `grokrc up --lan` on a trusted Wi‑Fi only  
+1. **LAN** — `grokrc up --lan` on a trusted Wi‑Fi only
 2. **Tailscale (recommended)** — install Tailscale on PC + phone, then:  
    `sudo tailscale set --operator=$USER`  
    `tailscale serve --bg http://127.0.0.1:4319`  
-   Open the printed `https://your-machine.tail-xxxx.ts.net` URL (sample shape only)  
-3. **Relay** — daemon dials **out** to a VPS you control  
+   Open the printed `https://your-machine.tail-xxxx.ts.net` URL (sample shape only)
+3. **Relay** — daemon dials **out** to a VPS you control
 
 Step-by-step Tailscale setup (install, Serve, pair, persist, troubleshooting):  
 **[Guide → Tailscale](docs/GUIDE.md#tailscale-access-from-anywhere)**
@@ -158,19 +160,19 @@ Step-by-step Tailscale setup (install, Serve, pair, persist, troubleshooting):
 
 ## 📚 Documentation
 
-| Doc | Contents |
-|---|---|
-| **[Guide](docs/GUIDE.md)** | Install, config, daily use, push, relay, service, troubleshooting, FAQ |
-| **[Architecture](docs/ARCHITECTURE.md)** | Topology, ACP, session modes, event model |
-| **[Security](SECURITY.md)** | Threat model, reporting |
-| **[Contributing](CONTRIBUTING.md)** | Dev setup, tests, PRs |
-| **[Changelog](CHANGELOG.md)** | Release notes |
+| Doc                                      | Contents                                                               |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| **[Guide](docs/GUIDE.md)**               | Install, config, daily use, push, relay, service, troubleshooting, FAQ |
+| **[Architecture](docs/ARCHITECTURE.md)** | Topology, ACP, session modes, event model                              |
+| **[Security](SECURITY.md)**              | Threat model, reporting                                                |
+| **[Contributing](CONTRIBUTING.md)**      | Dev setup, tests, PRs                                                  |
+| **[Changelog](CHANGELOG.md)**            | Release notes                                                          |
 
 ---
 
 ## 🔒 Security in one line
 
-Remote control of a coding agent **is** remote code execution. Pair devices, prefer Tailscale or relay over open LAN, and keep Grok permission prompts **on**. See [SECURITY.md](SECURITY.md).
+Remote control of a coding agent **is** remote code execution. Pair devices, prefer Tailscale or relay over open LAN, and if you want one-tap approvals set **both** `grokrc config set permissionMode default` and Grok `support_permission` / `permission_mode = "default"`. See [SECURITY.md](SECURITY.md).
 
 ---
 

@@ -1078,14 +1078,16 @@ export class SessionManager extends EventEmitter {
   /**
    * Apply settings that are read per-use rather than baked in at construction.
    *
-   * `model` and `useLeader` are consulted when a session is CREATED, so a
-   * running daemon can honour a change without a restart. Sessions already
-   * open keep the transport they were started with — changing an agent's model
-   * underneath a live conversation is not something a config edit should do.
+   * `model`, `useLeader` and `permissionMode` are consulted when a session is
+   * CREATED, so a running daemon can honour a change without a restart.
+   * Sessions already open keep the transport they were started with — changing
+   * an agent's model or permission mode underneath a live conversation is not
+   * something a config edit should do.
    */
-  applyConfig(next: { model?: string; useLeader?: boolean }): void {
+  applyConfig(next: { model?: string; useLeader?: boolean; permissionMode?: string }): void {
     if ('model' in next) this.#opts.model = next.model;
     if (typeof next.useLeader === 'boolean') this.#opts.useLeader = next.useLeader;
+    if ('permissionMode' in next) this.#opts.permissionMode = next.permissionMode;
   }
 
   /**
