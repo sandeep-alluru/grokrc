@@ -92,9 +92,11 @@ async function deliver(frame: unknown): Promise<void> {
 }
 
 const sendLabel = () => page.textContent('#send');
+const stopHidden = () => page.$eval('#stop', (b) => (b as HTMLButtonElement).hidden);
 
 test('replayed history that ends mid-turn does not jam the composer', async () => {
   assert.equal((await sendLabel())?.trim(), 'Send', 'precondition: idle session shows Send');
+  assert.equal(await stopHidden(), true, 'precondition: Stop hidden when idle');
 
   const sessionId = await page.evaluate(
     () => (document.querySelector('[data-handback]') ? '' : '') || 'busy-1'
@@ -114,29 +116,27 @@ test('replayed history that ends mid-turn does not jam the composer', async () =
   assert.equal(
     (await sendLabel())?.trim(),
     'Send',
-    'the composer is stuck on Stop after replaying an interrupted turn — no message can be sent'
+    'the composer is stuck — Send must stay Send after replaying an interrupted turn'
   );
-  assert.equal(
-    await page.$eval('#send', (b) => (b as HTMLButtonElement).classList.contains('stop')),
-    false,
-    'send button still styled as Stop'
-  );
+  assert.equal(await stopHidden(), true, 'Stop must stay hidden after replayed working status');
 });
 
-test('a LIVE working status still shows Stop', async () => {
+test('a LIVE working status shows a separate Stop without stealing Send', async () => {
   // Guard against over-correcting: suppressing the replayed status must not
   // suppress the real one, or a running turn becomes uncancellable.
   await deliver({
     t: 'event',
     event: { k: 'status', sessionId: 'busy-1', state: 'working' },
   });
-  assert.equal((await sendLabel())?.trim(), 'Stop', 'a live working status must show Stop');
+  assert.equal((await sendLabel())?.trim(), 'Send', 'Send stays Send while a turn runs');
+  assert.equal(await stopHidden(), false, 'a live working status must reveal Stop');
 
   await deliver({
     t: 'event',
     event: { k: 'status', sessionId: 'busy-1', state: 'idle' },
   });
-  assert.equal((await sendLabel())?.trim(), 'Send', 'a live idle status must restore Send');
+  assert.equal((await sendLabel())?.trim(), 'Send', 'a live idle status keeps Send');
+  assert.equal(await stopHidden(), true, 'a live idle status must hide Stop');
 });
 
 test('typing and sending works after an interrupted-turn replay', async () => {
@@ -159,4 +159,62 @@ test('typing and sending works after an interrupted-turn replay', async () => {
     /hello after takeover/,
     'the prompt was never sent — the button was still a Stop button'
   );
+});
+
+test('while a turn is running, Send still delivers a follow-up prompt', async () => {
+  // PRE-FIX this failed: Send became Stop, so the tap cancelled and the typed
+  // text never left the phone. The feature request is exactly this path.
+  await deliver({
+    t: 'event',
+    event: { k: 'status', sessionId: 'busy-1', state: 'working' },
+  });
+  assert.equal(await stopHidden(), false, 'precondition: turn is running');
+  assert.equal((await sendLabel())?.trim(), 'Send', 'precondition: Send is not Stop');
+  assert.match(
+    (await page.textContent('#turn-status')) ?? '',
+    /Working/,
+    'progress must say Working while busy'
+  );
+
+  await page.fill('#input', 'steer mid-turn');
+  await page.click('#send');
+  await page.waitForTimeout(500);
+
+  const echoed = await page.$$eval('.msg.user .bubble', (b) =>
+    b.map((x) => x.textContent ?? '').join('|')
+  );
+  assert.match(echoed, /steer mid-turn/, 'follow-up prompt must be sent while busy');
+  assert.equal((await page.inputValue('#input')).trim(), '', 'input clears after send');
+});
+
+test('done clears Stop and shows Done — late thinking must not re-stick it', async () => {
+  // PRE-FIX: tool_call_update after the turn settled re-emitted thinking and
+  // left Stop visible even though the agent had finished.
+  await deliver({
+    t: 'event',
+    event: { k: 'status', sessionId: 'busy-1', state: 'working' },
+  });
+  assert.equal(await stopHidden(), false, 'precondition: Stop visible');
+
+  await deliver({
+    t: 'event',
+    event: { k: 'status', sessionId: 'busy-1', state: 'done' },
+  });
+  assert.equal(await stopHidden(), true, 'Stop must hide when the turn completes');
+  assert.match((await page.textContent('#turn-status')) ?? '', /Done/, 'must show Done');
+
+  // Late tick the wire used to ship after prompt() settled.
+  await deliver({
+    t: 'event',
+    event: { k: 'status', sessionId: 'busy-1', state: 'thinking' },
+  });
+  // Client still applies live events; the daemon gate is what drops these.
+  // If a late thinking DOES arrive, the next done/idle must be able to clear —
+  // and a done that already landed must not be undone by history. Here we
+  // assert the phone at least clears again on idle.
+  await deliver({
+    t: 'event',
+    event: { k: 'status', sessionId: 'busy-1', state: 'idle' },
+  });
+  assert.equal(await stopHidden(), true, 'idle must leave Stop hidden');
 });

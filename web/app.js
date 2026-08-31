@@ -118,7 +118,9 @@ const el = {
   pairGo: $('pair-go'),
   pairErr: $('pair-err'),
   composer: $('composer'),
+  turnStatus: $('turn-status'),
   input: $('input'),
+  stop: $('stop'),
   send: $('send'),
 };
 
@@ -172,11 +174,67 @@ function renderStaleBanner(current) {
   document.body.prepend(bar);
 }
 
-/** Send doubles as Stop while a turn runs. One owner for all three effects. */
-function setBusy(v) {
+/**
+ * Busy means a turn is running NOW.
+ *
+ * Stop and Send are separate: morphing Send into Stop made it impossible to
+ * type a follow-up mid-turn (every tap cancelled instead of prompting), and on
+ * a phone that is exactly when you want to steer. Term already allows a new
+ * prompt while busy; the phone must match.
+ *
+ * `phase` drives the progress line so a finished turn is obvious — Stop alone
+ * was easy to misread as "still working" when the agent had already finished.
+ */
+let turnStatusHideTimer = null;
+function setBusy(v, phase) {
   state.busy = v;
-  el.send.textContent = v ? 'Stop' : 'Send';
-  el.send.classList.toggle('stop', v);
+  el.stop.hidden = !v;
+  setTurnStatus(v, phase);
+}
+
+function setTurnStatus(busy, phase) {
+  if (turnStatusHideTimer) {
+    clearTimeout(turnStatusHideTimer);
+    turnStatusHideTimer = null;
+  }
+  const node = el.turnStatus;
+  if (!node) return;
+  if (busy) {
+    node.hidden = false;
+    if (phase === 'awaiting-approval') {
+      node.className = 'turn-status wait';
+      node.textContent = 'Waiting for your approval…';
+    } else if (phase === 'thinking') {
+      node.className = 'turn-status busy';
+      node.textContent = 'Thinking…';
+    } else {
+      node.className = 'turn-status busy';
+      node.textContent = 'Working…';
+    }
+    return;
+  }
+  if (phase === 'done') {
+    node.hidden = false;
+    node.className = 'turn-status done';
+    node.textContent = 'Done';
+    turnStatusHideTimer = setTimeout(() => {
+      node.hidden = true;
+      turnStatusHideTimer = null;
+    }, 2500);
+    return;
+  }
+  if (phase === 'error') {
+    node.hidden = false;
+    node.className = 'turn-status wait';
+    node.textContent = 'Stopped with an error';
+    turnStatusHideTimer = setTimeout(() => {
+      node.hidden = true;
+      turnStatusHideTimer = null;
+    }, 3500);
+    return;
+  }
+  node.hidden = true;
+  node.textContent = '';
 }
 
 /** Debounce so brief WS reconnects (daemon restart) don't scream "Tailnet". */
@@ -452,7 +510,9 @@ let outbound = Promise.resolve();
  * replaying a stale `sessions` request after reconnect is noise.
  */
 const outboundQueue = [];
-const QUEUEABLE = new Set(['prompt', 'approve']);
+// cancel belongs here too — dropping it on a brief reconnect left Stop looking
+// dead while the turn kept running.
+const QUEUEABLE = new Set(['prompt', 'approve', 'cancel']);
 
 function sendMsg(payload) {
   const raw = JSON.stringify(payload);
@@ -510,14 +570,18 @@ function handle(msg) {
       // After take-over/resume the daemon always hands back an idle session;
       // any leftover busy flag from a prior observed stream would pin Stop and
       // make the next send cancel instead of prompt.
-      setBusy(msg.session.state === 'working' || msg.session.state === 'thinking');
+      {
+        const st = msg.session.state;
+        setBusy(st === 'working' || st === 'thinking' || st === 'awaiting-approval', st);
+      }
       el.vSession.querySelector('[data-resume]')?.remove();
       break;
     case 'history':
       // Fresh transcript from the daemon — clear any stuck busy from events that
       // raced in before this frame (or from a previous observed turn).
       if (state.current && msg.sessionId === state.current.id) {
-        setBusy(state.current.state === 'working' || state.current.state === 'thinking');
+        const st = state.current.state;
+        setBusy(st === 'working' || st === 'thinking' || st === 'awaiting-approval', st);
       }
       renderTranscript(msg.events);
       break;
@@ -652,7 +716,10 @@ el.back.addEventListener('click', () => {
 function openSession(s) {
   state.current = s;
   // The daemon knows whether this session is mid-turn; the transcript does not.
-  setBusy(s.state === 'working' || s.state === 'thinking');
+  setBusy(
+    s.state === 'working' || s.state === 'thinking' || s.state === 'awaiting-approval',
+    s.state
+  );
   state.toolNodes.clear();
   state.approvalNodes.clear();
   state.streaming = null;
@@ -1026,15 +1093,19 @@ function applyEvent(ev, replaying = false) {
       // to the terminal's grok — leaves a `working` in the log with no terminal
       // status after it. Replaying that pinned the composer to Stop forever, so
       // the session could not be typed into at all.
+      if (state.current) state.current.state = ev.state;
       if (!replaying) {
-        setBusy(ev.state === 'working' || ev.state === 'thinking');
-        setConn(ev.state === 'awaiting-approval' ? 'wait' : 'live');
+        const running = ev.state === 'working' || ev.state === 'thinking';
+        const waiting = ev.state === 'awaiting-approval';
+        setBusy(running || waiting, ev.state);
+        setConn(waiting ? 'wait' : 'live');
       }
       if (ev.state !== 'working' && ev.state !== 'thinking') state.streaming = null;
       break;
 
     case 'error':
       appendError(ev.message);
+      if (!replaying && ev.fatal) setBusy(false, 'error');
       break;
 
     // commands / mode / raw: deliberately ignored — metadata Grok's TUI does
@@ -1230,14 +1301,22 @@ el.input.addEventListener('input', () => {
   el.input.style.height = Math.min(el.input.scrollHeight, 120) + 'px';
 });
 
+el.stop.addEventListener('click', () => {
+  if (!state.current || !state.busy) return;
+  sendMsg({ t: 'cancel', sessionId: state.current.id });
+});
+
 el.send.addEventListener('click', () => {
   if (!state.current) return;
-  if (state.busy) return sendMsg({ t: 'cancel', sessionId: state.current.id });
   const text = el.input.value.trim();
   if (!text) return;
+  // Mid-turn follow-up: the daemon cancels the in-flight turn and starts this
+  // one. Do not require the user to tap Stop first.
   sendMsg({ t: 'prompt', sessionId: state.current.id, text });
   el.input.value = '';
   el.input.style.height = 'auto';
+  // Optimistic progress — the first status tick can lag behind the tap.
+  setBusy(true, 'thinking');
 });
 
 /* ─── push notifications ─────────────────────────────────────────────────── */

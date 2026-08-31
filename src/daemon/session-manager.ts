@@ -319,6 +319,14 @@ interface LiveSession {
    * client is already watching when load begins.
    */
   loading: boolean;
+  /** True while `session/prompt` is in flight. */
+  prompting: boolean;
+  /**
+   * Bumped on every new prompt and on cancel. Completions for an older turn
+   * must not overwrite the busy state of the turn that replaced them — that is
+   * how a mid-turn follow-up from the phone used to leave the composer wedged.
+   */
+  turn: number;
 }
 
 interface ObservedSession {
@@ -605,6 +613,8 @@ export class SessionManager extends EventEmitter {
       approvals: new Map(),
       stream: null,
       loading: false,
+      prompting: false,
+      turn: 0,
     };
     this.#sessions.set(id, session);
     this.#wire(session);
@@ -705,6 +715,8 @@ export class SessionManager extends EventEmitter {
       approvals: new Map(),
       stream: null,
       loading: true,
+      prompting: false,
+      turn: 0,
     };
     this.#sessions.set(id, session);
     this.#wire(session); // before load, so the replayed history is captured
@@ -744,26 +756,44 @@ export class SessionManager extends EventEmitter {
     return { ...session.info };
   }
 
-  /** Run a turn. Resolves when the agent stops; events stream meanwhile. */
+  /**
+   * Run a turn. Resolves when the agent stops; events stream meanwhile.
+   *
+   * A second prompt while one is running INTERRUPTS the first — that is what
+   * "send another message from the phone mid-turn" means. Term already allowed
+   * it; the phone UI used to refuse by morphing Send into Stop.
+   */
   async prompt(id: string, text: string): Promise<void> {
     const s = this.#require(id);
+    if (s.prompting) {
+      s.client.cancel(id);
+    }
+    const turn = ++s.turn;
+    s.prompting = true;
     this.#push(s, { k: 'text', sessionId: id, role: 'user', text, final: true });
     this.#setState(s, 'thinking');
     try {
       const res = await s.client.prompt(id, text);
+      if (turn !== s.turn) return;
       this.#flush(s);
       this.#setState(s, res.stopReason === 'cancelled' ? 'idle' : 'done');
     } catch (err) {
+      if (turn !== s.turn) return;
       this.#flush(s);
       this.#push(s, { k: 'error', sessionId: id, message: (err as Error).message, fatal: false });
       this.#setState(s, 'error');
       throw err;
+    } finally {
+      if (turn === s.turn) s.prompting = false;
     }
   }
 
   cancel(id: string): void {
     const s = this.#require(id);
+    s.turn++;
+    s.prompting = false;
     s.client.cancel(id);
+    this.#flush(s);
     this.#setState(s, 'idle');
   }
 
@@ -1173,6 +1203,19 @@ export class SessionManager extends EventEmitter {
         // arrives mid-stream constantly, and flushing on it chopped a single
         // reply into several bubbles.
         if (INTERRUPTS_STREAM.has(ev.k)) this.#flush(s);
+
+        // Tool updates synthesize working/thinking status. After prompt() has
+        // settled those ticks are LATE — shipping them re-armed Stop on the
+        // phone after the turn was already done (measured: completed tool
+        // updates keep arriving around turn boundaries).
+        if (
+          ev.k === 'status' &&
+          (ev.state === 'working' || ev.state === 'thinking') &&
+          !s.prompting
+        ) {
+          continue;
+        }
+
         this.#push(s, ev);
       }
     });

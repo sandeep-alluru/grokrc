@@ -137,8 +137,14 @@ export class MockTransport extends EventEmitter implements Transport {
   #sessionId: string;
   #script: MockScriptStep[];
   #nextRequestId = 9000;
+  /** Set by session/cancel so an in-flight scripted turn aborts. */
+  #cancelled = false;
   /** Resolved when the scripted permission request is answered. */
   permissionAnswers: { optionId: string | null }[] = [];
+  /** How many session/prompt calls arrived — tests for mid-turn follow-ups. */
+  promptCount = 0;
+  /** How many session/cancel notifications arrived. */
+  cancelCount = 0;
 
   constructor(opts: MockTransportOptions = {}) {
     super();
@@ -181,11 +187,15 @@ export class MockTransport extends EventEmitter implements Transport {
         return;
 
       case 'session/prompt':
+        this.promptCount++;
+        this.#cancelled = false;
         await this.#runScript();
-        this.#reply(m.id!, { stopReason: 'end_turn' });
+        this.#reply(m.id!, { stopReason: this.#cancelled ? 'cancelled' : 'end_turn' });
         return;
 
       case 'session/cancel':
+        this.cancelCount++;
+        this.#cancelled = true;
         return;
 
       default:
@@ -195,8 +205,9 @@ export class MockTransport extends EventEmitter implements Transport {
 
   async #runScript(): Promise<void> {
     for (const step of this.#script) {
-      if (this.#closed) return;
+      if (this.#closed || this.#cancelled) return;
       if (step.delay) await new Promise((r) => setTimeout(r, step.delay));
+      if (this.#cancelled) return;
       if (step.notify) {
         this.#emit({ jsonrpc: '2.0', method: step.notify.method, params: step.notify.params });
       }
@@ -211,7 +222,12 @@ export class MockTransport extends EventEmitter implements Transport {
           params: step.request.params,
         });
         const deadline = Date.now() + 15_000;
-        while (this.permissionAnswers.length === before && Date.now() < deadline && !this.#closed) {
+        while (
+          this.permissionAnswers.length === before &&
+          Date.now() < deadline &&
+          !this.#closed &&
+          !this.#cancelled
+        ) {
           await new Promise((r) => setTimeout(r, 20));
         }
       }
@@ -220,6 +236,14 @@ export class MockTransport extends EventEmitter implements Transport {
 
   #reply(id: number | string, result: unknown): void {
     this.#emit({ jsonrpc: '2.0', id, result });
+  }
+
+  /**
+   * Push an agent→client notification after the scripted turn.
+   * Used to reproduce late tool updates that arrive once prompt() has settled.
+   */
+  pushAgentNotify(method: string, params: unknown): void {
+    this.#emit({ jsonrpc: '2.0', method, params });
   }
 
   #emit(msg: JsonRpcMessage): void {

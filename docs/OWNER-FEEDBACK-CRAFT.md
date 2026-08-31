@@ -117,3 +117,28 @@ did you make any code changes ? if yes commit and push
 
 - receipt: `5c524ae1-8b4a-498e-8cef-beb9e03b93e3`
 - source: grok
+
+## 2026-08-22T15:16:03.409811832Z · bug · `7569b5f45837d562`
+
+I want you to review grokrc and make sure on active sessions stay in the phone
+
+- receipt: `4709636e-2e91-480c-942c-07458b80191a`
+- source: retroactive:session:01a02a0a
+- next_action: Phone session list should keep live/active sessions visible and drop/hide stale inactive past sessions by default; historyLimit=0 showed only actives but past resume still needed — productize active-only default + clear stale.
+
+## 2026-08-22T17:23:00.396732216Z · feature · `b5c47751ee2013bf`
+
+When ever I send message in phone the stop message appears we already sent one message and want to send another then we have to wait till every thing completes so I can’t sent another message and can’t click stop so we need feature to send new message
+
+- receipt: `b614767b-a88e-4c45-a6bb-f1e074bece42`
+- source: retroactive:session:01a02a0a
+- next_action: Allow queueing / sending a follow-up prompt while a turn is in progress (or interrupt+replace). Composer must not be blocked solely because Stop is showing; Stop must remain clickable.
+
+## 2026-08-22T17:35:42.380734259Z · bug · `5247cecb32c1e5a9`
+
+Also stop button seems to be stuck in same state even when agent turn completed check that as well I keep waiting and don’t know turn completed so have a progress or something that agent is still in progress if you are still working completed that as well
+
+- receipt: `32511e00-116f-47ee-9d68-a86b0a9eaea3`
+- source: retroactive:session:01a02a0a
+- next_action: Fix Stop stuck after turn_completed (thinking/tool late updates re-stick busy). Add clear Working / Done (or progress) indicator so phone shows when turn is still running vs completed.
+- note: Partial code landed uncommitted in web/app.js, session-manager.ts, busy-state tests; deploy interrupted.

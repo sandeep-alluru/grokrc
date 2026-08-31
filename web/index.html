@@ -222,12 +222,14 @@
   /* composer */
   footer {
     border-top: 1px solid var(--line); background: var(--panel);
-    padding: 10px 12px calc(10px + var(--safe-b)); display: flex; gap: 8px;
+    padding: 8px 12px calc(10px + var(--safe-b));
+    display: flex; flex-direction: column; gap: 6px;
   }
   /* An author `display` rule beats the UA stylesheet's [hidden]{display:none},
      so setting .hidden on the composer had NO visual effect — read-only
      observed sessions still showed a working-looking input. Must be explicit. */
   footer[hidden] { display: none; }
+  .composer-row { display: flex; gap: 8px; align-items: flex-end; }
   footer textarea {
     flex: 1; resize: none; max-height: 120px; padding: 10px 12px;
     background: var(--panel-2); color: var(--fg);
@@ -241,6 +243,27 @@
   }
   footer button:disabled { opacity: .45; }
   footer button.stop { background: var(--err); color: #2b0505; }
+  /* Turn progress — Stop alone was easy to miss as "still working". */
+  .turn-status {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 2px 2px 0; min-height: 16px;
+  }
+  .turn-status.busy { color: var(--accent); }
+  .turn-status.busy::before {
+    content: '';
+    display: inline-block; width: 7px; height: 7px; margin-right: 7px;
+    border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(110, 168, 254, 0.7);
+    animation: turn-pulse 1.2s ease-out infinite;
+    vertical-align: 1px;
+  }
+  .turn-status.wait { color: var(--warn); }
+  .turn-status.done { color: var(--ok); }
+  @keyframes turn-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(110, 168, 254, 0.55); }
+    70% { box-shadow: 0 0 0 8px rgba(110, 168, 254, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(110, 168, 254, 0); }
+  }
 </style>
 </head>
 <body>
@@ -276,8 +299,12 @@
 </main>
 
 <footer id="composer" hidden>
-  <textarea id="input" rows="1" placeholder="Message Grok…"></textarea>
-  <button id="send">Send</button>
+  <div id="turn-status" class="turn-status" hidden aria-live="polite"></div>
+  <div class="composer-row">
+    <textarea id="input" rows="1" placeholder="Message Grok…"></textarea>
+    <button type="button" id="stop" class="stop" hidden>Stop</button>
+    <button type="button" id="send">Send</button>
+  </div>
 </footer>
 
 <script type="module" src="/app.js"></script>
