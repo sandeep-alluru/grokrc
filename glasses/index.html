@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <title>grokrc</title>
+    <style>
+      html, body {
+        margin: 0; min-height: 100%;
+        /* ER brand dark-theme surface (#232323) + Neutral-200 text (#E5E5E5). */
+        background: #232323; color: #E5E5E5;
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        /* Kill WebView zoom + iOS auto-sizing + rubber-band scroll. */
+        touch-action: manipulation; -webkit-text-size-adjust: 100%; overscroll-behavior: none;
+      }
+      #app { padding: 20px; box-sizing: border-box; }
+      .card { max-width: 460px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+      h1 { font-size: 20px; font-weight: 600; margin: 4px 0 0; }
+      .muted { color: #9A9A9A; font-size: 13px; margin: 0; }
+      .tiny { color: #6E6E6E; font-size: 11px; margin: 4px 0 0; word-break: break-all; }
+      .status { color: #9A9A9A; font-size: 13px; margin: 0; min-height: 18px; }
+
+      textarea.prompt, input.code, input.url {
+        width: 100%; box-sizing: border-box;
+        background: #1A1A1A; color: #E5E5E5;
+        border: 1px solid #3A3A3A; border-radius: 10px;
+        padding: 12px; font: inherit;
+        /* 16px avoids the iOS focus zoom. */
+        font-size: 16px;
+      }
+      textarea.prompt { resize: vertical; min-height: 96px; }
+      input.code { text-transform: uppercase; letter-spacing: .32em; text-align: center; font-size: 22px; font-weight: 600; }
+      input.url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 8px; }
+      textarea.prompt:focus, input.code:focus, input.url:focus { outline: none; border-color: #6E6E6E; }
+
+      button.primary {
+        background: #E5E5E5; color: #232323; border: 0; border-radius: 10px;
+        padding: 13px 16px; font: inherit; font-weight: 600; cursor: pointer;
+      }
+      button.primary:disabled { opacity: .5; }
+      button.link {
+        background: none; border: 0; color: #6E6E6E; font: inherit; font-size: 12px;
+        text-decoration: underline; padding: 4px; cursor: pointer; align-self: flex-start;
+      }
+      details.settings { border-top: 1px solid #3A3A3A; padding-top: 10px; }
+      details.settings summary { color: #9A9A9A; font-size: 13px; cursor: pointer; list-style: none; padding: 2px 0; }
+      details.settings summary::-webkit-details-marker { display: none; }
+      details.settings summary::before { content: '⚙ '; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

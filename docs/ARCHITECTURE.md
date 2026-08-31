@@ -10,12 +10,15 @@ How grokrc is put together. For install and daily use see [GUIDE.md](GUIDE.md).
   Phone PWA  ── LAN / Tailscale ──►  grokrc daemon  ── ACP ──►  grok agent
        │                                  │
        └──── WSS relay (optional) ────────┘  (daemon dials OUT)
+
+  G2 glasses ── BT ──► phone ── wss ──────┘  (same protocol, direct mode)
 ```
 
-| Mode       | Path                                                                              |
-| ---------- | --------------------------------------------------------------------------------- |
-| **Direct** | Phone → daemon over LAN or Tailnet                                                |
-| **Relay**  | Phone → relay ← daemon (outbound). Relay does not parse ACP or hold session state |
+| Mode        | Path                                                                              |
+| ----------- | --------------------------------------------------------------------------------- |
+| **Direct**  | Phone → daemon over LAN or Tailnet                                                |
+| **Relay**   | Phone → relay ← daemon (outbound). Relay does not parse ACP or hold session state |
+| **Glasses** | Even Realities G2 → phone → daemon. Direct mode only — see [GLASSES-G2.md](GLASSES-G2.md) |
 
 ---
 
@@ -75,6 +78,7 @@ src/
   term/         Terminal client
   cli.ts        grokrc entrypoint
 web/            PWA (no framework build step)
+glasses/        Even Realities G2 client (separate Vite build — see GLASSES-G2.md)
 packaging/      systemd (Linux), Scheduled Task (Windows)
 ```
 
