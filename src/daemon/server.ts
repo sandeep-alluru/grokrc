@@ -39,6 +39,18 @@ export interface ServerOptions {
 
 type ClientMsg =
   | { t: 'hello'; token: string; assetVersion?: string }
+  /**
+   * Pair over the socket, for clients the daemon does not serve.
+   *
+   * The PWA pairs via `POST /api/pair` because the daemon serves it, so the two
+   * share an origin. The Even Realities glasses client is an installed package
+   * on a foreign origin, and the browser blocks that fetch — there is no CORS on
+   * `/api/*` and adding some would widen the HTTP surface for every caller.
+   * A WebSocket is not CORS-gated, so pairing rides the socket that client is
+   * already opening. `AuthStore.redeem` enforces the guess budget for both
+   * paths, so this adds a door, not a weaker lock.
+   */
+  | { t: 'pair'; code: string; deviceName?: string }
   | { t: 'sessions' }
   | { t: 'open'; sessionId: string; cwd?: string }
   | { t: 'resume'; sessionId: string; cwd: string }
@@ -58,7 +70,26 @@ interface Client {
   watching: Set<string>;
   /** Observed sessions this client caused to be tailed — refcounts released on disconnect. */
   observing: Set<string>;
+  /** Wrong pairing codes on THIS socket. See MAX_PAIR_ATTEMPTS. */
+  pairFails: number;
 }
+
+/**
+ * Wrong pairing codes one socket may offer before it is closed.
+ *
+ * A code is six characters from a 31-character alphabet, which is a wide space
+ * but not one that survives unlimited guessing — and pairing became reachable
+ * from a browser origin when `{t:'pair'}` landed, because WebSockets are not
+ * CORS-gated. Guessing at scale means many attempts down one socket, so the
+ * budget is per-connection.
+ *
+ * It is deliberately NOT a global counter over pending codes. That was tried,
+ * and it let a run of honest misses cancel codes the owner was about to type —
+ * `pairing-codes.test.ts` catches exactly that, since its bounds test redeems
+ * evicted codes before the live ones. Counting per socket costs an attacker a
+ * reconnect per attempt while never touching the owner's outstanding codes.
+ */
+const MAX_PAIR_ATTEMPTS = 5;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -631,7 +662,13 @@ export class RemoteControlServer {
   /* ─── WebSocket ───────────────────────────────────────────────────────── */
 
   #onConnection(ws: WebSocket): void {
-    const client: Client = { ws, device: null, watching: new Set(), observing: new Set() };
+    const client: Client = {
+      ws,
+      device: null,
+      watching: new Set(),
+      observing: new Set(),
+      pairFails: 0,
+    };
     this.#clients.add(client);
 
     // Unauthenticated sockets are cheap to open; don't let them linger.
@@ -687,6 +724,34 @@ export class RemoteControlServer {
       });
       await this.#sendSessions(client);
       return;
+    }
+
+    // Pairing is the one other thing an unauthenticated socket may do. It does
+    // NOT authenticate this socket: the client still sends `hello` with the new
+    // token, so there is exactly one path that sets `client.device`.
+    if (msg.t === 'pair') {
+      if (typeof msg.code !== 'string' || !msg.code) {
+        return send(client.ws, { t: 'error', message: 'code required' });
+      }
+      const name = typeof msg.deviceName === 'string' ? msg.deviceName : 'device';
+      const result = await this.#opts.auth.redeem(msg.code, name);
+      if (!result) {
+        client.pairFails += 1;
+        // Deliberately identical for wrong/expired/absent — don't confirm code validity.
+        send(client.ws, { t: 'error', message: 'invalid or expired pairing code' });
+        if (client.pairFails >= MAX_PAIR_ATTEMPTS) {
+          console.warn(
+            `  ⚠ ${MAX_PAIR_ATTEMPTS} wrong pairing codes on one connection — closing it.`
+          );
+          client.ws.close(4429, 'too many pairing attempts');
+        }
+        return;
+      }
+      return send(client.ws, {
+        t: 'paired',
+        token: result.token,
+        device: { id: result.device.id, name: result.device.name },
+      });
     }
 
     if (!client.device) {
