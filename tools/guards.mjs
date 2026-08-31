@@ -184,8 +184,12 @@ export const GUARDS = [
     id: 'busy-not-derived-from-history',
     why: 'a turn killed mid-flight leaves a `working` status in the log; replaying it pinned the composer to Stop and no message could be sent',
     file: 'web/app.js',
-    find: '      if (!replaying) {\n        setBusy(',
-    replace: '      if (true) {\n        setBusy(',
+    // Re-pinned when Stop was split out of Send: `setBusy(` is no longer the
+    // line after the replay check, so the old pattern silently matched nothing
+    // and the guard reported drift. The control itself did not move — only the
+    // line following it.
+    find: '      if (!replaying) {\n        const running =',
+    replace: '      if (true) {\n        const running =',
     test: 'test/busy-state.test.ts',
   },
   {
