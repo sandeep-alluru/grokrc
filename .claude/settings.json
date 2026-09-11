@@ -1,0 +1,61 @@
+{
+  "_toolchain": "1.0.0",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/skills/toolchain/scripts/hook_helper.py\" format-lint || exit 2",
+            "timeout": 125
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/skills/toolchain/scripts/hook_helper.py\" secrets || exit 2",
+            "timeout": 125
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/skills/toolchain/scripts/hook_helper.py\" types || exit 2",
+            "timeout": 245
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "timeout --signal=KILL 300 python3 \"$HOME/.claude/skills/toolchain/scripts/hook_helper.py\" stop || { printf '%s\n' 'toolchain Stop failed or timed out; inspect toolchain state logs, repair the gate or suite, and retry.' >&2; exit 2; }",
+            "timeout": 315
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.claude/skills/toolchain/scripts/hook_helper.py\" rules",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
